@@ -136,7 +136,7 @@ function applyEffect(w: World, u: SUnit, effect: NonNullable<Extract<CycleStep, 
     rock.amount--;
     if (rock.amount <= 0) {
       w.s.rocks = w.s.rocks.filter((r) => r !== rock);
-      w.nav.rebuild();
+      w.nav.refresh();
     }
   }
 }

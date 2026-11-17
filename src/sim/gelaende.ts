@@ -103,7 +103,7 @@ export function updateSlides(w: World): Rock | null {
     const amount = a0 + (hash(h, i) % (a1 - a0 + 1));
     const rock: Rock = { id: w.newId(), x, y, amount, max: amount, reservedBy: 0 };
     s.rocks.push(rock);
-    w.nav.rebuild();
+    w.nav.refresh(); // nur die Kachel des neuen Brockens (ADR 0015)
     w.msg("Am Gebirgshang ist Fels nachgerutscht: neue Brocken für den Steinbruch.", "info", "nachgerutscht", 300);
     return rock;
   }

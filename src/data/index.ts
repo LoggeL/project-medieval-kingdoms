@@ -12,6 +12,7 @@ import { GELAENDE, type GelaendeKey } from "./gelaende";
 import { LANDWIRTSCHAFT, type FieldDef, type LandwirtschaftKey } from "./landwirtschaft";
 import { ARMOR_MATRIX, MILITAER, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
 import { RUESTUNG_BUILDINGS, RUESTUNG_WORKERS, type RuestungBuilding, type RuestungWorker } from "./ruestung";
+import { TRANSPORT, type TransportKey } from "./transport";
 
 export * from "./research";
 export { ARMOR_MATRIX, ARMOR_NAME, UNIT_GROUPS, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
@@ -82,7 +83,7 @@ export type CycleStep =
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey | LandwirtschaftKey | RuestungBuilding;
+  | VerarbeitungKey | LandwirtschaftKey | RuestungBuilding | TransportKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -131,7 +132,7 @@ export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
   desc: string;
-  category: "zentrum" | "wirtschaft" | "nahrung" | "handwerk" | "wohnen" | "militaer" | "befestigung";
+  category: "zentrum" | "wirtschaft" | "nahrung" | "handwerk" | "wohnen" | "militaer" | "befestigung" | "wege";
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
@@ -192,8 +193,16 @@ export interface BuildingDef {
   gate?: boolean;
   /** Treppe: verbindet Boden (vorne) mit dem Wehrgang (hinten). */
   stairs?: boolean;
-  /** Mit Ziehen bauen (Mauer). */
+  /** Mit Ziehen bauen (Mauer, Weg, Brücke). */
   drag?: boolean;
+  /**
+   * Weg bzw. Brücke (src/data/transport.ts, ADR 0015): Der Grundriss bleibt begehbar und ist kein Hindernis; fertig gilt
+   * dort `cost` als Wegkosten im Laufraster (statt der Geländekosten, kleiner = schneller und von der Wegfindung
+   * bevorzugt). bridge: nur auf Wasser zu bauen, begehbar erst, wenn fertig. pieces: Wege werden aus Autotiling-Teilen
+   * `<pieces>_<teil>` gezeichnet (Teile wie die Mauer, geom.wallPiece); `sprite` ist dann nur das Bild für Baukarte und
+   * Symbol. Die Brücke ist ein gerades Stück in Zugrichtung (`sprite` mit der Ausrichtung des Baus).
+   */
+  road?: { cost: number; bridge?: boolean; pieces?: string };
   /** Höhe der Plattform (Laufebene 2) in Höhenstufen, Standard 5. */
   deck?: number;
   /** Steuern: Gold je Spielminute. */
@@ -290,6 +299,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   ...LANDWIRTSCHAFT,
   // Militärwirtschaft: Erzmine, Schmelzhütte, Waffen- und Rüstungsschmiede, Bognerei (src/data/ruestung.ts)
   ...RUESTUNG_BUILDINGS,
+  // Wege, Brücken, Fuhrwesen (src/data/transport.ts)
+  ...TRANSPORT,
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
     category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],

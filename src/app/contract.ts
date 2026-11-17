@@ -11,6 +11,8 @@ export type Tool =
   | { t: "auswahl" }
   | { t: "bauen"; key: BuildingKey; o: number }
   | { t: "mauer" }
+  /** Weg oder Brücke ziehen (BuildingDef.road). */
+  | { t: "weg"; key: BuildingKey }
   | { t: "abriss" };
 
 export interface Selection { units: number[]; building: number | null }

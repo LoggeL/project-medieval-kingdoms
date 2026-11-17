@@ -7,6 +7,7 @@ import { UNITS } from "../data";
 import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
 import { carryFactor } from "./research";
+import { MIN_COST } from "./nav";
 import type { Goal } from "./nav";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -149,7 +150,7 @@ export function speedOf(w: World, u: SUnit): number {
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;
   const c = w.nav.cost[y * w.s.w + x];
-  return base * Math.min(1.45, Math.max(0.55, 1 / c));
+  return base * Math.min(1 / MIN_COST, Math.max(0.55, 1 / c)); // Pflaster bis 1 / MIN_COST (ADR 0015)
 }
 
 /** Direkt (ohne Pfad) auf einen Punkt zugehen; nur für kurze, freie Strecken auf derselben Ebene. false = versperrt. */

@@ -132,7 +132,7 @@ export class Input {
     }
     if (e.button !== 0) return;
     const t = this.tool;
-    if (t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) {
+    if (t.t === "mauer" || t.t === "weg" || (t.t === "bauen" && BUILDINGS[t.key].drag)) {
       const tile = this.r.tileAt(x, y);
       this.wallStart = { x: tile.x, y: tile.y };
       return;
@@ -167,6 +167,13 @@ export class Input {
       const s = this.wallStart;
       this.wallStart = null;
       const end = this.r.tileAt(x, y);
+      const t = this.tool;
+      if (t.t === "weg") {
+        const res = this.ctx.bridge.dispatch({ t: "weg", key: t.key, x0: s.x, y0: s.y, x1: end.x, y1: end.y });
+        this.check = null;
+        this.report(res, `Hier kann kein ${BUILDINGS[t.key].name} liegen.`);
+        return;
+      }
       const res = this.ctx.bridge.dispatch({ t: "mauer", x0: s.x, y0: s.y, x1: end.x, y1: end.y });
       this.check = null;
       this.report(res, "Hier kann keine Mauer stehen.");
@@ -462,7 +469,18 @@ export class Input {
     let reason = "";
     const t = this.tool;
     const inside = this.over && this.mx >= 0;
-    if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
+    if (t.t === "weg" && inside) {
+      // Weg oder Brücke ziehen: dieselbe Prüfung wie der Befehl (Game.roadPath)
+      const end = this.r.tileAt(this.mx, this.my);
+      const s = this.wallStart ?? end;
+      const id = `weg:${t.key}:${s.x}:${s.y}:${end.x}:${end.y}`;
+      const tick = this.ctx.game.state.tick;
+      if (!this.check || this.check.id !== id || tick - this.check.tick > 5) this.check = { id, tick, res: this.ctx.game.roadPath(t.key, s.x, s.y, end.x, end.y) };
+      const res = this.check.res;
+      preview = { kind: "weg", key: t.key, check: res.tiles.length ? res : { ...res, tiles: [{ x: end.x, y: end.y, ok: res.ok }] } };
+      if (!res.ok) reason = res.reason ?? `Hier kann kein ${BUILDINGS[t.key].name} liegen.`;
+      this.setCursor("crosshair");
+    } else if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
       const end = this.r.tileAt(this.mx, this.my);
       const s = this.wallStart ?? end;
       const id = `wall:${s.x}:${s.y}:${end.x}:${end.y}`;

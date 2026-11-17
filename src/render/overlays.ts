@@ -5,7 +5,7 @@
  */
 import { Graphics } from "pixi.js";
 import { BUILDINGS, TICKS_PER_SECOND, TUNING, type BuildingKey } from "../data";
-import { NEIGHBOURS, center, footprint, footprintTiles, toView, wallPiece, type Rot } from "../sim/geom";
+import { NEIGHBOURS, center, footprint, footprintTiles, roadPiece, toView, wallPiece, type Rot } from "../sim/geom";
 import type { PlacementCheck, Projectile, SimState } from "../sim/types";
 import type { BuildingSheet } from "./assets";
 import { viewToScreen } from "./iso";
@@ -18,6 +18,8 @@ export type Preview =
     anchors?: readonly { x: number; y: number }[];
   }
   | { kind: "mauer"; check: PlacementCheck }
+  /** Weg oder Brücke ziehen (BuildingDef.road). */
+  | { kind: "weg"; key: BuildingKey; check: PlacementCheck }
   | { kind: "kachel"; x: number; y: number; z: number; color: number };
 
 export interface Marker { x: number; y: number; z: number; t0: number; color: number }
@@ -107,6 +109,29 @@ export class Overlays {
         // als Gruppe: die Darstellung zeichnet den Mauerzug deckend und blendet ihn als Ganzes (WALL_GHOST_ALPHA)
         for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, WALL_GHOST_ALPHA, tl.ok ? 0xffffff : 0xff7a6a, true);
       }
+    } else if (preview.kind === "weg") {
+      const def = BUILDINGS[preview.key], road = def.road!;
+      const set = new Set(preview.check.tiles.map((q) => q.x + "," + q.y));
+      const isRoad = (x: number, y: number) => {
+        if (set.has(x + "," + y)) return true;
+        const id = state.tiles[y * state.w + x]?.building;
+        const b = id ? state.buildings.find((q) => q.id === id) : undefined;
+        return !!b && !!BUILDINGS[b.key].road;
+      };
+      // Brücke: gerade in Zugrichtung (wie build.roadPath): entlang x Ausrichtung 0, entlang y 1
+      const ts = preview.check.tiles;
+      const bridgeO = ts.length > 1 && ts[0].x === ts[ts.length - 1].x ? 1 : 0;
+      for (const tl of ts) {
+        let key = def.sprite, o = bridgeO;
+        if (road.pieces) {
+          let mask = 0;
+          NEIGHBOURS.forEach(([dx, dy], bit) => { if (isRoad(tl.x + dx, tl.y + dy)) mask |= 1 << bit; });
+          const p = wallPiece(mask);
+          key = bs.has(roadPiece(road.pieces, p.piece)) ? roadPiece(road.pieces, p.piece) : def.sprite;
+          o = p.o;
+        }
+        if (bs.has(key)) this.addGhost(key, o, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, 0.7, tl.ok ? 0xffffff : 0xff7a6a);
+      }
     }
     return this.ghostList;
   }
@@ -140,7 +165,7 @@ export class Overlays {
 
     // Vorschau (Rauten; die Sprites zeichnet die Objektebene)
     const p = o.preview;
-    if (p?.kind === "bauen" || p?.kind === "mauer") {
+    if (p?.kind === "bauen" || p?.kind === "mauer" || p?.kind === "weg") {
       if (p.kind === "bauen" && p.anchors) for (const a of p.anchors) this.anchorMark(g, a.x, a.y);
       const rule = !p.check.ok && p.check.tiles.every((q) => q.ok);
       for (const tl of p.check.tiles) {

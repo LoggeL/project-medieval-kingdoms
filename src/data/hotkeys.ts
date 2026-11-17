@@ -8,7 +8,7 @@
  *   (nach Lage auf einer festen Tastenreihe), Werkzeuge, Ausbilden in der Kaserne, Abreißen, Forschung, Ausbau des
  *   Bergfrieds.
  *
- * Schema: Reiter auf F2–F7 (F6 Nahrung, F7 Handwerk), Baukarten auf der unteren Buchstabenreihe (deutsch Y X C V B N M, englisch Z X C V B N M),
+ * Schema: Reiter auf F2–F8 (F6 Nahrung, F7 Handwerk, F8 Wege), Baukarten auf der unteren Buchstabenreihe (deutsch Y X C V B N M, englisch Z X C V B N M),
  * Ausbilden auf U I O J K L, Abriss auf Entf (am Mac auch die Löschtaste ⌫), Forschungsbaum auf F (Knopf „Forschung“ in der
  * Fußleiste und im Bergfried-Panel; der Forschungsbaum wertet F selbst aus, damit F ihn auch wieder schließt), Ausbau
  * des gewählten Bergfrieds auf G. Stationieren (T), Halten (H) und Auswahl (Esc) behalten ihre Tasten und zeigen sie
@@ -52,6 +52,7 @@ export const TAB_KEYS: Record<Cat, string | null> = {
   militaer: "F5",
   nahrung: "F6",
   handwerk: "F7",
+  wege: "F8",
 };
 
 /** Baukarten im offenen Reiter, in ihrer Reihenfolge (danach im Reiter Militär die ausbildbaren Einheiten). */

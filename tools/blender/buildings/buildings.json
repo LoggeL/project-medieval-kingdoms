@@ -102,5 +102,20 @@
  "stapel_armbrust": {"name": "Stapel Armbr\u00fcste", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 551},
  "stapel_pike": {"name": "Stapel Piken", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 552},
  "stapel_ruestung": {"name": "Stapel R\u00fcstungen", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 553},
- "fels_erz": {"name": "Erzbrocken", "footprint": [1, 1], "variants": ["unber\u00fchrt", "angebrochen", "halb abgebaut", "fast abgebaut"], "seed": 560}
+ "fels_erz": {"name": "Erzbrocken", "footprint": [1, 1], "variants": ["unber\u00fchrt", "angebrochen", "halb abgebaut", "fast abgebaut"], "seed": 560},
+ "kiesweg_gerade": {"name": "Kiesweg gerade", "footprint": [1, 1], "variants": ["Standard"], "seed": 600, "shadow_fill": false},
+ "kiesweg_ende": {"name": "Kiesweg Ende", "footprint": [1, 1], "variants": ["Standard"], "seed": 601, "shadow_fill": false},
+ "kiesweg_ecke": {"name": "Kiesweg Ecke", "footprint": [1, 1], "variants": ["Standard"], "seed": 602, "shadow_fill": false},
+ "kiesweg_t": {"name": "Kiesweg Abzweig", "footprint": [1, 1], "variants": ["Standard"], "seed": 603, "shadow_fill": false},
+ "kiesweg_kreuz": {"name": "Kiesweg Kreuzung", "footprint": [1, 1], "variants": ["Standard"], "seed": 604, "shadow_fill": false},
+ "kiesweg_einzel": {"name": "Kiesweg einzeln", "footprint": [1, 1], "variants": ["Standard"], "seed": 605, "shadow_fill": false},
+ "pflaster_gerade": {"name": "Pflaster gerade", "footprint": [1, 1], "variants": ["Standard"], "seed": 606, "shadow_fill": false},
+ "pflaster_ende": {"name": "Pflaster Ende", "footprint": [1, 1], "variants": ["Standard"], "seed": 607, "shadow_fill": false},
+ "pflaster_ecke": {"name": "Pflaster Ecke", "footprint": [1, 1], "variants": ["Standard"], "seed": 608, "shadow_fill": false},
+ "pflaster_t": {"name": "Pflaster Abzweig", "footprint": [1, 1], "variants": ["Standard"], "seed": 609, "shadow_fill": false},
+ "pflaster_kreuz": {"name": "Pflaster Kreuzung", "footprint": [1, 1], "variants": ["Standard"], "seed": 610, "shadow_fill": false},
+ "pflaster_einzel": {"name": "Pflaster einzeln", "footprint": [1, 1], "variants": ["Standard"], "seed": 611, "shadow_fill": false},
+ "bruecke": {"name": "Holzbrücke", "footprint": [1, 1], "variants": ["Standard"], "seed": 612},
+ "baustelle_weg": {"name": "Baustelle Weg", "footprint": [1, 1], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 613},
+ "baustelle_bruecke": {"name": "Baustelle Brücke", "footprint": [1, 1], "variants": ["abgesteckt", "Joch"], "shadow_fill": false, "seed": 614}
 }

@@ -11,7 +11,7 @@
  */
 import { Container, Rectangle, Texture } from "pixi.js";
 import { BUILDINGS, CROPS, GOODS, RECIPES, RESOURCE_TAGS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
-import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { center, gateOrientation, modelToWorld, roadPiece, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import { mountainClass } from "../sim/mapgen";
 import type { Building, Rock, SimState, Tile, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
@@ -552,6 +552,12 @@ export class ObjectLayer {
       const cross = piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz";
       return { keys: cross ? [[k, o], [k, o + 1]] : [[k, o]], frame: 0 };
     }
+    if (def.road?.pieces) {
+      // Wege: Autotiling wie die Mauer (Nachbarmaske aus build.updateWallMasks), Teile <pieces>_<teil>
+      const { piece, o } = wallPiece(b.wallMask);
+      const k = this.bkey(roadPiece(def.road.pieces, piece), def.sprite);
+      return k ? { keys: [[k, o]], frame: 0 } : null;
+    }
     if (b.key === "tor") {
       const k = this.bkey("tor", "mauer");
       const open = k === "tor" && b.built >= 1 && this.gateOpen(b, state);
@@ -591,7 +597,8 @@ export class ObjectLayer {
     const [w, h] = b.o % 2 === 0 ? fp : [fp[1], fp[0]];
     const [u0, u1, v0, v1] = this.box(b.x, b.y, b.x + w, b.y + h);
     const spr = this.buildingSprite(b, state);
-    const it = this.newItem(u0, u1, v0, v1, false, false);
+    // Wege und Brücken liegen flach: vor allem gezeichnet, was ihre Box überlappt (Figuren gehen darüber)
+    const it = this.newItem(u0, u1, v0, v1, !!def.road, false);
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const [X, Y] = this.scr(cx, cy);
     const [ax, ay] = bs.anchor;

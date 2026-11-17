@@ -86,7 +86,7 @@ export function dispatcher(w: World): void {
     if (!isSite(b) || b.ai.builder || (b.upgrade ? Object.keys(b.needs).length > 0 : !canWork(b))) continue;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const u = take(cx, cy, goalAround(b));
-    if (!u) { w.msg(`${BUILDINGS[b.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${b.id}`, 60); continue; }
+    if (!u) { if (!BUILDINGS[b.key].road?.bridge) w.msg(`${BUILDINGS[b.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${b.id}`, 60); continue; }
     u.ai.job = { k: "build", site: b.id, spot: b.ai.nextSpot ?? 0 }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
@@ -141,7 +141,8 @@ export function dispatcher(w: World): void {
         if (!u) {
           unreserveTake(ref.b.slots[ref.k]);
           noReach.add(sp.site.id);
-          w.msg(`${BUILDINGS[sp.site.key].name}: ${sp.pk ? "Das Gebäude" : "Die Baustelle"} ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
+          // Brückenfelder werden vom Ufer aus Feld für Feld erreichbar: dort keine Warnung
+          if (!BUILDINGS[sp.site.key].road?.bridge) w.msg(`${BUILDINGS[sp.site.key].name}: ${sp.pk ? "Das Gebäude" : "Die Baustelle"} ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
         } else {
           u.ai.job = { k: "supply", site: sp.site.id, from: ref.b.id, slot: ref.k, good: sp.good, ph: 0 }; u.order = { t: "job" };
           if (sp.rk && cur) { u.ai.job.rk = sp.rk; cur.enroute[sp.good] = (cur.enroute[sp.good] ?? 0) + 1; }

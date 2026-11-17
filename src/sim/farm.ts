@@ -199,7 +199,7 @@ export function runFarm(w: World, u: SUnit, j: CycleJob, home: SBuilding): void 
     if (r !== "arrived") return;
     const out = home.output, cap = def.output?.capacity ?? 0, n = j.n ?? 1;
     if (out && out.good === u.carry && out.amount + n <= Math.max(cap, n)) {
-      out.amount += n; u.carry = null; farm.harvested += n; delete j.n;
+      out.amount += n; u.carry = null; delete j.n;
       return;
     }
     setAnim(u, "stehen");
@@ -231,7 +231,8 @@ export function runFarm(w: World, u: SUnit, j: CycleJob, home: SBuilding): void 
   p.stage = stage.harvest ? crop.after : Math.min(crop.stages.length - 1, p.stage + 1);
   p.t = 0; p.by = 0;
   j.tgt = 0; j.t = 0;
-  if (stage.harvest) { u.carry = stage.harvest.good; j.n = stage.harvest.amount; }
+  // geerntet zählt ab dem Pflücken (die Last auf dem Weg zum Hof gehört dazu), nicht erst beim Abladen
+  if (stage.harvest) { u.carry = stage.harvest.good; j.n = stage.harvest.amount; farm.harvested += j.n; }
 }
 
 function idle(w: World, u: SUnit, home: SBuilding): void {

@@ -22,7 +22,7 @@ import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { gearShort, recruit } from "./unitgrid";
 
-const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", handwerk: "Handwerk", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
+const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", handwerk: "Handwerk", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung", wege: "Wege und Fuhrwesen" } as const;
 const LAYER_NAME = ["am Boden", "auf dem Wehrgang", "auf dem Turm"];
 
 export interface SidePanel { el: HTMLElement; update(s: SimState): void }

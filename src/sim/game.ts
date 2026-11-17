@@ -6,7 +6,7 @@
  * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
 import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
-import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
+import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, roadPath, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
 import { footprintTiles } from "./geom";
@@ -46,6 +46,10 @@ export class Simulation implements Game {
   }
   wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck {
     const r = wallPath(this.world, Math.floor(x0), Math.floor(y0), Math.floor(x1), Math.floor(y1));
+    return { ok: r.ok, reason: r.reason, tiles: r.tiles };
+  }
+  roadPath(key: BuildingKey, x0: number, y0: number, x1: number, y1: number): PlacementCheck {
+    const r = roadPath(this.world, key, Math.floor(x0), Math.floor(y0), Math.floor(x1), Math.floor(y1));
     return { ok: r.ok, reason: r.reason, tiles: r.tiles };
   }
   walkLayerAt(x: number, y: number): number { return walkLayerAt(this.world, Math.floor(x), Math.floor(y)); }
@@ -197,6 +201,14 @@ export function runCommand(w: World, c: Command): CommandResult {
       const p = wallPath(w, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1));
       if (!p.ok) return withVoice({ ok: false, reason: p.reason }, p.costFail ? "zu_teuer" : "kein_platz");
       const ids = p.build.map(([x, y]) => placeSite(w, "mauer", x, y, 0, true).id);
+      refreshAfterPlace(w);
+      return p.reason ? { ok: true, ids, reason: p.reason, voice: "zu_teuer" } : { ok: true, ids };
+    }
+    case "weg": {
+      // Wege und Brücken (ADR 0015): dasselbe Ergebnis wie die Vorschau (roadPath)
+      const p = roadPath(w, c.key, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1));
+      if (!p.ok) return withVoice({ ok: false, reason: p.reason }, p.costFail ? "zu_teuer" : "kein_platz");
+      const ids = p.build.map(([x, y, o]) => placeSite(w, c.key, x, y, o, true).id);
       refreshAfterPlace(w);
       return p.reason ? { ok: true, ids, reason: p.reason, voice: "zu_teuer" } : { ok: true, ids };
     }

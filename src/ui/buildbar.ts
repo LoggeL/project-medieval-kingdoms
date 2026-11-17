@@ -3,7 +3,7 @@
  * dazu Auswahl- und Abriss-Werkzeug. Der Reiter Militär zeigt außerdem das Einheitenraster (unitgrid.ts).
  * Rechts neben den Reitern öffnet „Forschung“ (F) den Forschungsbaum. Gebäude, die eine Forschung brauchen
  * (BuildingDef.tech), stehen gesperrt mit dem Namen der Forschung in der Leiste.
- * Tasten (src/data/hotkeys.ts): Reiter F2–F7, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
+ * Tasten (src/data/hotkeys.ts): Reiter F2–F8, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
  * Reiter Militär die ausbildbaren Einheiten), Forschung F, Auswahl Esc, Abriss Entf.
  */
 import type { Tool } from "../app/contract";
@@ -25,6 +25,7 @@ const TABS: { cat: Cat; label: string }[] = [
   { cat: "militaer", label: "Militär" },
   { cat: "nahrung", label: "Nahrung" },
   { cat: "handwerk", label: "Handwerk" },
+  { cat: "wege", label: "Wege" },
 ];
 
 export interface BuildBar { el: HTMLElement; update(s: SimState): void; updateTool(): void }
@@ -58,7 +59,8 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     if (need) { ctx.toast(`${def.name}: erst erforschen (${TECHS[need].name}).`, "warnung"); ctx.research?.toggle(true); return; }
     if (!canAfford(bridge.state(), def.cost)) ctx.toast(`Nicht genug Material für ${def.name}.`, "warnung");
     let next: Tool;
-    if (def.drag) next = cur.t === "mauer" ? { t: "auswahl" } : { t: "mauer" };
+    if (def.road) next = cur.t === "weg" && cur.key === key ? { t: "auswahl" } : { t: "weg", key };
+    else if (def.drag) next = cur.t === "mauer" ? { t: "auswahl" } : { t: "mauer" };
     else if (cur.t === "bauen" && cur.key === key) next = { t: "auswahl" };
     else next = { t: "bauen", key, o: cur.t === "bauen" ? cur.o : 0 };
     bridge.setTool(next);
@@ -159,7 +161,7 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     },
     updateTool() {
       const t = bridge.tool();
-      for (const c of cards) setClass(c.el, "mk-on", (t.t === "bauen" && t.key === c.key) || (t.t === "mauer" && !!c.def.drag));
+      for (const c of cards) setClass(c.el, "mk-on", (t.t === "bauen" && t.key === c.key) || (t.t === "mauer" && !!c.def.drag && !c.def.road) || (t.t === "weg" && t.key === c.key));
       setClass(selBtn, "mk-on", t.t === "auswahl");
       setClass(delBtn, "mk-on", t.t === "abriss");
     },

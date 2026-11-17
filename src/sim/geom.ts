@@ -212,6 +212,9 @@ function rotMask(mask: number, o: number): number {
   });
   return out;
 }
+/** Sprite eines Wegteils (BuildingDef.road.pieces): dieselben Teile wie die Mauer, z. B. "pflaster_ecke". */
+export const roadPiece = (pieces: string, piece: WallPiece): string => `${pieces}_${piece.slice("mauer_".length)}`;
+
 export function wallPiece(mask: number): { piece: WallPiece; o: number } {
   for (const [piece, m] of PIECE_MASK) for (let o = 0; o < 4; o++) if (rotMask(m, o) === mask) return { piece, o };
   return { piece: "mauer_einzel", o: 0 };

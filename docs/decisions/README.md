@@ -18,5 +18,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0012](0012-landschaft.md) | Landschaft: Gebirge, Hügel, Sumpf, See, Küste, fruchtbarer Boden und Steinvorkommen | Angenommen |
 | [0013](0013-landwirtschaft-und-ernaehrung.md) | Landwirtschaft mit sichtbaren Feldern, Ernährung mit Rationen und Hunger | Angenommen |
 | [0014](0014-militaerwirtschaft-und-einheitenraster.md) | Militärwirtschaft (Erz, Eisen, Waffen, Rüstung), Rüstungsklassen, Einheitenraster aus Daten | Angenommen |
+| [0015](0015-wege-und-wegfindung.md) | Wege und Brücken als Bauten, inkrementelles Laufraster, Pfad-Cache mit gezielter Invalidierung | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

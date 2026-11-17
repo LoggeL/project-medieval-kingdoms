@@ -9,7 +9,7 @@ export type GelaendeKey = "huegel" | "gebirge" | "sumpf" | "sand" | "fruchtbar";
 
 /**
  * cost ist zugleich Wegkosten und Gangart: Die Figuren gehen mit 1 / cost der Grundgeschwindigkeit (begrenzt auf
- * 0,55–1,45, src/sim/move.ts speedOf), der Weg sucht sich daher den Bogen um Sumpf und Hügel, wenn er sich lohnt.
+ * 0,55 bis 1 / MIN_COST, mit Pflaster 1,82, src/sim/move.ts speedOf), der Weg sucht sich daher den Bogen um Sumpf und Hügel, wenn er sich lohnt.
  */
 export const GELAENDE: Record<GelaendeKey, TerrainDef> = {
   /** Begehbare Hügel: Zwischenschritt ohne echte Höhenstufe (ADR 0012), langsamer, bebaubar. */

@@ -103,7 +103,7 @@ describe("Tastenschilder", () => {
 
   it("die Steuerungsliste nennt die neuen Tasten", () => {
     const keys = STEUERUNG.map(([k]) => k).join(" | ");
-    // erster bis letzter Bau-Reiter (seit ADR 0014 F7 Handwerk)
+    // erster bis letzter Bau-Reiter (seit ADR 0014 F7 Handwerk, seit ADR 0015 F8 Wege)
     const tabs = Object.values(TAB_KEYS).filter((k): k is string => !!k);
     expect(keys).toContain(`${keyLabel(tabs[0])} – ${keyLabel(tabs[tabs.length - 1])}`);
     expect(keys).toContain(CARD_KEYS.map((c) => keyLabel(c)).join(" "));

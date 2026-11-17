@@ -97,6 +97,7 @@ export function createDemoGame(): Game {
     dispatch: (_c: Command): CommandResult => ({ ok: false, reason: "Platzhalter-Simulation" }),
     canPlace: (key, x, y, o) => ({ ...no(), tiles: footprintTiles(key, x, y, o).map(([tx, ty]) => ({ x: tx, y: ty, ok: s.tiles[ty * W + tx]?.building === 0 })) }),
     wallPath: () => no(),
+    roadPath: () => no(),
     walkLayerAt: (x, y) => { const b = s.buildings.find((q) => q.id === s.tiles[y * W + x]?.building); return b && BUILDINGS[b.key].walkway ? BUILDINGS[b.key].walkway! : 0; },
     save: () => JSON.stringify(s),
   };
