@@ -4,9 +4,9 @@
  * Jede Ware wechselt nur dann den Ort, wenn die Figur am Ziel steht; unterwegs trägt sie sie sichtbar (carry).
  */
 import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
-import { center } from "./geom";
+import { center, entrance, footprintTiles } from "./geom";
 import { completeBuilding } from "./build";
-import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel } from "./move";
+import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal } from "./move";
 import { reservePut, tidy } from "./storage";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
@@ -46,7 +46,7 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       if (!t) {
         j.wait = 3 * TPS;
         idleAt(w, u, home);
-        w.msg(step.tag === "tree" ? `${def.name}: keine Bäume mehr in Reichweite.` : `${def.name}: kein Fels mehr in Reichweite.`, "warnung", `leer-${home.id}`, 60);
+        w.msg(step.tag === "tree" ? `${def.name}: keine Bäume mehr in Reichweite.` : `${def.name}: kein Fels mehr in Reichweite.`, "warnung", `leer-${home.id}`, 60, "rohstoff_leer");
         return;
       }
       t.reservedBy = u.id; j.tgt = t.id;
@@ -71,8 +71,9 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       if (!u.carry) { next(); return; }
       const out = home.output, cap = def.output?.capacity ?? 0;
       if (out && out.good === u.carry && out.amount < cap) { out.amount++; u.carry = null; next(); return; }
-      setAnim(u, "stehen"); // Hof voll: sichtbar warten
-      w.msg(`${def.name}: der Hof ist voll, die Arbeit ruht.`, "warnung", `hofvoll-${home.id}`, 45);
+      // Hof voll: sichtbar warten, jeder Arbeiter an seinem eigenen Fleck neben dem Eingang
+      if (travel(w, u, waitGoal(w, home, u)) !== "moving") setAnim(u, "stehen");
+      w.msg(`${def.name}: der Hof ist voll, die Arbeit ruht.`, "warnung", `hofvoll-${home.id}`, 45, "hof_voll");
       return;
     }
   }
@@ -167,16 +168,38 @@ function findTarget(w: World, home: SBuilding, tag: "tree" | "rock", radius: num
 }
 
 function idleAt(w: World, u: SUnit, home: SBuilding): void {
-  const r = travel(w, u, goalEntrance(w, home));
+  const r = travel(w, u, waitGoal(w, home, u));
   if (r !== "moving") setAnim(u, "stehen");
 }
+
+/**
+ * Wartefleck eines Arbeiters an seiner Werkstatt: der erste Arbeiter vor der Tür, jeder weitere auf einem freien
+ * Nachbarfeld des Eingangs (außerhalb des Grundrisses), damit wartende Figuren nicht deckungsgleich stehen.
+ */
+export function waitGoal(w: World, home: SBuilding, u: SUnit): TravelGoal {
+  const i = Math.max(0, home.workers.indexOf(u.id));
+  const door = goalEntrance(w, home);
+  if (i === 0 || door.x0 !== door.x1 || door.y0 !== door.y1) return door;
+  const [ex, ey] = entrance(home.key, home.x, home.y, home.o);
+  const fp = new Set(footprintTiles(home.key, home.x, home.y, home.o).map(([x, y]) => `${x},${y}`));
+  const spots: [number, number][] = [];
+  for (const [dx, dy] of WAIT_OFFSETS) {
+    const x = ex + dx, y = ey + dy;
+    if (!w.inMap(x, y) || fp.has(`${x},${y}`) || !w.nav.open(w.nav.node(0, x, y), 0)) continue;
+    spots.push([x, y]);
+  }
+  if (!spots.length) return door;
+  const [x, y] = spots[(i - 1) % spots.length];
+  return tileGoal(x, y);
+}
+const WAIT_OFFSETS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
 
 // ---------------------------------------------------------------- Anstellen, Tragen, Bauen, Rekrutieren
 function runEmploy(w: World, u: SUnit, j: Extract<Job, { k: "employ" }>): void {
   const b = w.buildings.get(j.b);
   if (!b || b.built < 1) { releaseJob(w, u); return; }
   const r = travel(w, u, goalEntrance(w, b));
-  if (r === "unreachable") { releaseJob(w, u); return; }
+  if (r === "unreachable") { giveUp(w, u); return; }
   if (r !== "arrived") return;
   const key = BUILDINGS[b.key].workers!.unit;
   const frac = u.hp / u.maxHp;
@@ -190,7 +213,7 @@ function runHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void {
     const src = w.buildings.get(j.from);
     if (!src || !src.output) { releaseJob(w, u); return; }
     const r = travel(w, u, goalEntrance(w, src));
-    if (r === "unreachable") { releaseJob(w, u); return; }
+    if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     src.output.amount--; src.output.reserved--;
     u.carry = j.good; j.ph = 1;
@@ -213,7 +236,7 @@ function retargetHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void 
   if ((w.s.tick + u.id) % TPS !== 0) return;
   const ref = reservePut(w, j.good, u.x, u.y);
   if (ref) { j.to = ref.b.id; j.slot = ref.k; }
-  else w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30);
+  else w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30, "lager_voll");
 }
 
 function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
@@ -222,7 +245,7 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
     const st = w.buildings.get(j.from);
     if (!site || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
     const r = travel(w, u, goalSlot(st, j.slot));
-    if (r === "unreachable") { releaseJob(w, u); return; }
+    if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     const s = st.slots[j.slot];
     s.amount--; s.reserved--; tidy(s);
@@ -243,12 +266,12 @@ function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
   const site = w.buildings.get(j.site);
   if (!site || site.built >= 1 || Object.keys(site.needs).length) { releaseJob(w, u); return; }
   const r = travel(w, u, goalAround(site));
-  if (r === "unreachable") { releaseJob(w, u); return; }
+  if (r === "unreachable") { giveUp(w, u); return; }
   if (r !== "arrived") return;
   const def = BUILDINGS[site.key];
   const [cx, cy] = center(site.key, site.x, site.y, site.o);
   face(u, cx - u.x, cy - u.y);
-  setAnim(u, "hacken");
+  setAnim(u, "bauen");
   site.built = Math.min(1, site.built + 1 / (def.buildSeconds * TPS));
   site.hp = Math.max(site.hp, Math.round(def.hp * (0.2 + 0.8 * site.built)));
   if (site.built >= 1) {
@@ -264,7 +287,7 @@ function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void
     const st = w.buildings.get(j.from);
     if (!b || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
     const r = travel(w, u, goalSlot(st, j.slot));
-    if (r === "unreachable") { releaseJob(w, u); return; }
+    if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     const s = st.slots[j.slot];
     s.amount--; s.reserved--; tidy(s);
@@ -287,6 +310,12 @@ function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void
 }
 
 // ---------------------------------------------------------------- Aufräumen
+/** Ziel unerreichbar: Auftrag zurückgeben und eine Weile keinen neuen bekommen (der Disponent nimmt einen anderen). */
+function giveUp(w: World, u: SUnit): void {
+  releaseJob(w, u);
+  u.ai.noJob = w.s.tick + 5 * TPS;
+}
+
 const dec = (rec: Partial<Record<Good, number>>, g: Good) => { const n = (rec[g] ?? 0) - 1; if (n > 0) rec[g] = n; else delete rec[g]; };
 
 /** Auftrag abbrechen und alle Reservierungen zurückgeben. keepCarry: Ware bleibt in der Hand. */

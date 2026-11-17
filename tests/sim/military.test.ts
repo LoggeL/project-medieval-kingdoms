@@ -96,19 +96,21 @@ describe("Laufebenen", () => {
 });
 
 describe("Stationierung", () => {
-  it("verteilt auf freie Posten ohne Doppelbelegung, zuerst nahe der Treppe, dann Türme", () => {
-    const g = fort(true, true);
+  it("verteilt auf freie Posten ohne Doppelbelegung, Schützen zuerst auf den Turm an der Feindseite", () => {
+    const g = fort(true, true); // Überfälle kommen im leeren Szenario von Osten (x = 39), der Turm steht am Ostende
     const ids: number[] = [];
     for (let i = 0; i < 16; i++) ids.push(spawn(g, "bogen", 0, 8 + (i % 8), 26 + Math.floor(i / 8)).id);
     // 10 Mauerposten + 4 Turmposten
     const first = g.dispatch({ t: "stationieren", units: ids.slice(0, 3) });
     expect(first.ok).toBe(true);
+    expect(first.voice).toBe("stationiert");
     const near = first.ids!.map((id) => g.state.units.find((u) => u.id === id)!.order).map((o) => o.t === "station" ? g.state.buildings.find((b) => b.id === o.building)! : null);
-    for (const b of near) { expect(b!.key).toBe("mauer"); expect(Math.abs(b!.x - 12)).toBeLessThanOrEqual(1); }
+    for (const b of near) expect(b!.key).toBe("turm");
     const rest = g.dispatch({ t: "stationieren", units: ids.slice(3) });
     expect(rest.ok).toBe(true);
     expect(rest.ids).toHaveLength(11);
     expect(rest.reason).toBe("Nicht genug freie Posten für alle");
+    expect(rest.voice).toBe("kein_posten");
     const posts = g.state.units.filter((u) => u.order.t === "station").map((u) => u.order.t === "station" ? `${u.order.building}:${u.order.post}` : "");
     expect(posts).toHaveLength(14);
     expect(new Set(posts).size).toBe(14);
@@ -124,7 +126,9 @@ describe("Stationierung", () => {
     }
     const spots = new Set(stationed.map((u) => `${u.x.toFixed(2)},${u.y.toFixed(2)},${u.z}`));
     expect(spots.size).toBe(14);
-    expect(g.dispatch({ t: "stationieren", units: ids.slice(14) }).ok).toBe(false);
+    const none = g.dispatch({ t: "stationieren", units: ids.slice(14) });
+    expect(none.ok).toBe(false);
+    expect(none.voice).toBe("kein_posten");
   });
 });
 

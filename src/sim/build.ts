@@ -4,8 +4,10 @@
  * Stück aus dem Lager (economy.ts), danach baut einer die Baustelle fertig (jobs.ts).
  */
 import { BUILDINGS, GOODS, TERRAIN, type BuildingKey, type Good } from "../data";
-import { NEIGHBOURS, center, entrance, footprintTiles, stairEnds } from "./geom";
+import type { VoiceKey } from "../data/audio";
+import { NEIGHBOURS, center, entrance, footprintTiles, stairEnds, wallPiece } from "./geom";
 import { abortJobsAt } from "./jobs";
+import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
@@ -15,6 +17,24 @@ export const isFort = (key: BuildingKey): boolean => FORT.has(key);
 const MAX_WALL = 64;
 
 // ---------------------------------------------------------------- Regeln
+/** Nachbarschaftsmaske (Bits wie geom.NEIGHBOURS) eines Tiles zu eigenen Befestigungen, ohne das Gebäude `self`. */
+function fortMaskAt(w: World, x: number, y: number, self = 0): number {
+  let mask = 0;
+  NEIGHBOURS.forEach(([dx, dy], bit) => {
+    const n = w.buildingAt(x + dx, y + dy);
+    if (n && n.id !== self && n.team === 0 && FORT.has(n.key)) mask |= 1 << bit;
+  });
+  return mask;
+}
+
+/** Tor nur in einem geraden Mauerstück (genau zwei gegenüberliegende Nachbarn). */
+function gateReason(w: World, x: number, y: number): string | null {
+  const old = w.buildingAt(x, y);
+  const mask = fortMaskAt(w, x, y, old?.id);
+  if (wallPiece(mask).piece === "mauer_gerade") return null;
+  return old ? "Ein Tor passt nur in ein gerades Mauerstück, nicht in Ecken oder Enden" : "Ein Tor gehört in eine gerade Mauerlinie";
+}
+
 function tileReason(w: World, x: number, y: number, key: BuildingKey): string | null {
   if (!w.inMap(x, y)) return "Außerhalb der Karte";
   const t = w.s.tiles[w.idx(x, y)];
@@ -23,6 +43,7 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
     const b = w.buildings.get(t.building);
     if (!(key === "tor" && b && b.key === "mauer" && b.team === 0)) return "Hier steht schon etwas";
   }
+  if (key === "tor") { const r = gateReason(w, x, y); if (r) return r; }
   if (w.s.rocks.some((r) => r.x === x && r.y === y && r.amount > 0)) return "Felsbrocken im Weg";
   if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf")) return "Bäume im Weg";
   return null;
@@ -38,7 +59,13 @@ function costReason(w: World, key: BuildingKey, times = 1): string | null {
   return null;
 }
 
-export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: number): PlacementCheck {
+/** Ansage zu einer abgelehnten Platzierung: zu_teuer bei fehlendem Material oder Gold, sonst kein_platz. */
+export function placeVoice(chk: PlacementCheck & { costFail?: boolean }): VoiceKey | undefined {
+  if (chk.ok) return undefined;
+  return chk.costFail ? "zu_teuer" : "kein_platz";
+}
+
+export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: number): PlacementCheck & { costFail?: boolean } {
   const def = BUILDINGS[key];
   if (!def) return { ok: false, reason: "Unbekanntes Gebäude", tiles: [] };
   o = ((o % 4) + 4) % 4;
@@ -71,8 +98,9 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
     const b = w.buildingAt(e.wall[0], e.wall[1]);
     if (!b || (b.key !== "mauer" && b.key !== "tor")) reason = "Die Rückseite muss an eine Mauer grenzen";
   }
-  if (!reason) reason = costReason(w, key);
-  return { ok: !reason, reason: reason ?? undefined, tiles };
+  let costFail = false;
+  if (!reason) { reason = costReason(w, key); costFail = !!reason; }
+  return costFail ? { ok: false, reason: reason!, tiles, costFail } : { ok: !reason, reason: reason ?? undefined, tiles };
 }
 
 /** Tiles einer Mauerlinie: gerade oder L-förmig (zuerst entlang der längeren Achse). */
@@ -91,9 +119,17 @@ export function wallLine(x0: number, y0: number, x1: number, y1: number): [numbe
   return out.slice(0, MAX_WALL);
 }
 
-export function wallPath(w: World, x0: number, y0: number, x1: number, y1: number): PlacementCheck & { build: [number, number][] } {
+/**
+ * Mauerlinie prüfen. Vorschau (Game.wallPath) und Bau (Befehl "mauer") nutzen genau dieses Ergebnis:
+ * - Ein Hindernis irgendwo auf der Linie: ok false, gebaut wird nichts (keine Mauer mit Lücke).
+ * - Reicht das Material nur für einen Teil: ok true, `build` enthält nur die bezahlbaren Stücke (vom Start aus),
+ *   die übrigen Tiles sind rot, reason nennt es („Nur 5 von 9 Mauerstücken bezahlbar“).
+ * - Gar nichts bezahlbar: ok false („Nicht genug Stein“, costFail).
+ * Vorhandene eigene Mauern, Tore und Türme auf der Linie werden übersprungen.
+ */
+export function wallPath(w: World, x0: number, y0: number, x1: number, y1: number): PlacementCheck & { build: [number, number][]; costFail?: boolean } {
   let reason: string | null = null;
-  const build: [number, number][] = [];
+  let build: [number, number][] = [];
   const tiles = wallLine(x0, y0, x1, y1).map(([x, y]) => {
     const b = w.buildingAt(x, y);
     if (b && b.team === 0 && FORT.has(b.key)) return { x, y, ok: true }; // schon Mauer: wird übersprungen
@@ -102,9 +138,28 @@ export function wallPath(w: World, x0: number, y0: number, x1: number, y1: numbe
     build.push([x, y]);
     return { x, y, ok: true };
   });
-  if (!reason && build.length) reason = costReason(w, "mauer", build.length);
-  if (!build.length) reason ??= "Hier steht schon eine Mauer";
-  return { ok: !reason, reason: reason ?? undefined, tiles, build };
+  if (reason) return { ok: false, reason, tiles, build: [] };
+  if (!build.length) return { ok: false, reason: "Hier steht schon eine Mauer", tiles, build };
+  const want = build.length;
+  const n = affordable(w, "mauer", want);
+  if (n <= 0) return { ok: false, reason: costReason(w, "mauer") ?? "Nicht genug Material", tiles, build: [], costFail: true };
+  if (n < want) {
+    const cut = new Set(build.slice(n).map(([x, y]) => `${x},${y}`));
+    for (const t of tiles) if (cut.has(`${t.x},${t.y}`)) t.ok = false;
+    build = build.slice(0, n);
+    return { ok: true, reason: `Nur ${n} von ${want} Mauerstücken bezahlbar`, tiles, build };
+  }
+  return { ok: true, tiles, build };
+}
+
+/** Wie viele Stück (höchstens max) sind mit Gold und freiem Lagerbestand bezahlbar? */
+function affordable(w: World, key: BuildingKey, max: number): number {
+  let n = max;
+  for (const [g, k] of Object.entries(BUILDINGS[key].cost) as [Good | "gold", number][]) {
+    if (k <= 0) continue;
+    n = Math.min(n, Math.floor((g === "gold" ? w.s.gold : available(w, g)) / k));
+  }
+  return Math.max(0, n);
 }
 
 // ---------------------------------------------------------------- Baustellen
@@ -112,12 +167,11 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   const def = BUILDINGS[key];
   o = ((o % 4) + 4) % 4;
   if (key === "tor") {
+    // Tor quer zur Mauerlinie ausrichten: Linie entlang x (Nachbarn O + W) → o = 0, entlang y → o = 1
     const old = w.buildingAt(x, y);
-    if (old && old.key === "mauer") {
-      // Tor quer zur Mauerlinie ausrichten
-      o = old.wallMask & 0b1010 ? 0 : 1;
-      removeBuilding(w, old, "ersetzt");
-    }
+    const mask = fortMaskAt(w, x, y, old?.id);
+    if (mask) o = mask & 0b1010 ? 0 : 1;
+    if (old && old.key === "mauer") removeBuilding(w, old, "ersetzt");
   }
   const b = w.addBuilding(key, 0, x, y, o);
   const fp = footprintTiles(key, x, y, o);
@@ -129,6 +183,7 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   updateWallMasks(w);
   w.nav.rebuild();
+  evictUnits(w);
   return b;
 }
 
@@ -142,8 +197,9 @@ export function completeBuilding(w: World, b: SBuilding): void {
   if (def.output && !b.output) b.output = { good: def.output.good, amount: 0, reserved: 0 };
   updateWallMasks(w);
   w.nav.rebuild();
-  if (FORT.has(b.key) || def.stairs) w.msg(`${def.name} fertiggestellt.`, "info", `fertig-${b.key}`, 10);
-  else w.msg(`${def.name} ist fertig.`);
+  evictUnits(w);
+  if (FORT.has(b.key) || def.stairs) w.msg(`${def.name} fertiggestellt.`, "info", `fertig-${b.key}`, 10, "mauer_fertig");
+  else w.msg(`${def.name} ist fertig.`, "info", undefined, 20, "bau_fertig");
 }
 
 /**
@@ -170,9 +226,13 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
   for (const u of w.s.units) {
     if (u.dead || u.layer === 0) continue;
     const n = w.nav.node(u.layer, Math.floor(u.x), Math.floor(u.y));
-    if (!w.nav.open(n, u.team)) { u.layer = 0; u.z = 0; u.hp -= 10; u.ai.path = null; u.ai.goal = ""; }
+    if (!w.nav.open(n, u.team)) { u.layer = 0; u.z = 0; u.hp = Math.max(1, u.hp - 10); u.ai.path = null; u.ai.goal = ""; }
   }
-  if (why === "zerstoert") w.msg(`${def.name} wurde zerstört!`, "kampf", `zerstoert-${b.key}`, 5);
+  evictUnits(w);
+  if (why === "zerstoert" && b.team === 0) {
+    if (FORT.has(b.key)) w.msg(`${def.name} wurde zerstört! Die Mauer ist offen.`, "kampf", `zerstoert-${b.key}`, 5, "mauer_faellt");
+    else w.msg(`${def.name} wurde zerstört!`, "kampf", `zerstoert-${b.key}`, 5, "zerstoert");
+  }
   else if (why === "abriss") w.msg(`${def.name} abgerissen.`);
 }
 

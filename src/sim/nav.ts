@@ -6,8 +6,9 @@
  * Ebenen nur über Übergangskanten (links):
  *   Treppe:  unterer Tile (Boden) ↔ oberer Tile (nur über Kanten erreichbar) ↔ Mauer-Tile (Ebene 1);
  *            auf beiden Treppen-Tiles ergibt sich die Höhe aus der Lage entlang der Stufen (stairZ)
- *   Turm:    angrenzender Wehrgang ↔ Plattform; Eingangs-Tile am Boden ↔ Plattform
- * Tore sind am Boden nur für Team 0 offen. Gebäude blockieren den Boden; im Belagerungsmodus (breach)
+ *   Turm:    angrenzender Wehrgang ↔ Plattform; Eingangs-Tile am Boden ↔ Plattform (Turmtür)
+ * Tore und Turmtüren sind nur für Team 0 offen: Angreifer kommen weder durchs Tor noch durch die Turmtür
+ * hinauf, sie müssen Tor, Mauer oder Turm einreißen. Eigene Treppen dürfen sie benutzen, wenn sie davorstehen. Gebäude blockieren den Boden; im Belagerungsmodus (breach)
  * sind sie mit hohen Kosten passierbar: Der Weg zeigt dann, welches Gebäude ein Angreifer einreißen muss.
  * Erreichbarkeit wird über Zusammenhangskomponenten je Team vorab geprüft, damit unerreichbare Ziele
  * keine volle Suche auslösen. Ergebnisse werden bis zur nächsten Änderung des Rasters zwischengespeichert.
@@ -41,6 +42,8 @@ export class Nav {
   /** Knoten, die nur über Übergangskanten erreichbar sind (oberer Treppen-Tile). */
   readonly linkOnly: Uint8Array;
   readonly links = new Map<number, number[]>();
+  /** Übergänge nur für Team 0 (Turmtür am Boden ↔ Plattform). */
+  readonly ownLinks = new Map<number, number[]>();
   /** Treppen-Tiles: Vorderkante (Welt) und Steigrichtung. */
   private readonly stairs = new Map<number, [number, number, number, number]>();
   /** Zusammenhangskomponenten je Team (−1 = nicht begehbar). */
@@ -99,6 +102,7 @@ export class Nav {
     w0.fill(BLOCKED); w1.fill(0); w2.fill(0);
     this.linkOnly.fill(0);
     this.links.clear();
+    this.ownLinks.clear();
     this.stairs.clear();
     for (let i = 0; i < N; i++) {
       const t = TERRAIN[s.tiles[i].terrain];
@@ -147,7 +151,7 @@ export class Nav {
         if (this.w.inMap(ex, ey) && w0[ey * W + ex] === OPEN) {
           let best = tiles[0], bd = Infinity;
           for (const t of tiles) { const d = Math.abs(t[0] - ex) + Math.abs(t[1] - ey); if (d < bd) { bd = d; best = t; } }
-          this.link(ey * W + ex, 2 * N + best[1] * W + best[0]);
+          this.link(ey * W + ex, 2 * N + best[1] * W + best[0], this.ownLinks);
         }
       }
     }
@@ -166,9 +170,9 @@ export class Nav {
     return Math.min(LAYER_Z[1], Math.max(0, (s / 2) * LAYER_Z[1]));
   }
 
-  private link(a: number, b: number): void {
-    const la = this.links.get(a); if (la) la.push(b); else this.links.set(a, [b]);
-    const lb = this.links.get(b); if (lb) lb.push(a); else this.links.set(b, [a]);
+  private link(a: number, b: number, into = this.links): void {
+    const la = into.get(a); if (la) la.push(b); else into.set(a, [b]);
+    const lb = into.get(b); if (lb) lb.push(a); else into.set(b, [a]);
   }
 
   private labelComponents(): void {
@@ -217,6 +221,11 @@ export class Nav {
       const c = this.pass(nb, team, breach);
       if (c >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = Math.max(1, c); }
     }
+    const os = team === 0 ? this.ownLinks.get(n) : undefined;
+    if (os) for (const nb of os) {
+      const c = this.pass(nb, team, breach);
+      if (c >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = Math.max(1, c); }
+    }
     return k;
   }
 
@@ -261,6 +270,27 @@ export class Nav {
         }
         if (best >= 0) return best;
       }
+    }
+    return -1;
+  }
+
+  /**
+   * Nächster für `team` begehbarer Knoten der Ebene `layer` um (x, y) (kein reiner Übergangsknoten),
+   * bevorzugt in einer Komponente; −1, wenn im Umkreis keiner ist. Für Einheiten, die auf einem gesperrten Tile stehen.
+   */
+  nearestOpen(team: Team, x: number, y: number, layer: number, maxR = 6): number {
+    for (let r = 1; r <= maxR; r++) {
+      let best = -1, bd = Infinity;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const tx = x + dx, ty = y + dy;
+        if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) continue;
+        const n = this.node(layer, tx, ty);
+        if (this.linkOnly[n] || this.pass(n, team, false) < 0) continue;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = n; }
+      }
+      if (best >= 0) return best;
     }
     return -1;
   }
