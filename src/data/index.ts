@@ -216,8 +216,11 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   },
 };
 
-/** Fernkämpfer auf Wehrgang/Turm: Reichweite + pro Höhenstufe, Schaden gegen sie am Boden gemindert. */
-export const WALL_BONUS = { rangePerStep: 0.5, damageTakenFactor: 0.6 };
+/**
+ * Fernkämpfer auf Wehrgang/Turm: Reichweite + pro Höhenstufe, mehr Wucht beim Schuss nach unten (vor Abzug der Rüstung),
+ * Deckung hinter den Zinnen gegen Schaden von unten.
+ */
+export const WALL_BONUS = { rangePerStep: 0.5, damageDealtFactor: 1.3, damageTakenFactor: 0.5 };
 
 // ---------------------------------------------------------------- Partie
 export const START = {
@@ -226,8 +229,8 @@ export const START = {
   peasants: 8,
   /** Startbestand im vorgebauten Lager. */
   stock: { holz: 40, stein: 30, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
-  /** Erster Überfall nach Sekunden, danach Abstand. */
-  raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2 },
+  /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
+  raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
 };
 
 // ---------------------------------------------------------------- Simulationswerte (Balance)
@@ -252,10 +255,20 @@ export const TUNING = {
   /** Sichtweite untätiger Soldaten und der Angreifer. */
   sight: 8,
   raiderSight: 7,
+  /** Angreifer gehen auf Arbeiter nur los, wenn sie so nah sind (Felder); sonst ziehen sie zu den Gebäuden. */
+  raiderWorkerReach: 3,
   /** Pfeilgeschwindigkeit in Tiles pro Sekunde. */
   projectileSpeed: 11,
   /** Gold je besiegtem Angreifer. */
   bounty: 4,
   /** Zufällige Streuung des Schadens (±). */
   damageSpread: 0.15,
+  /** So lange (Sekunden) halten Soldaten ihr Kampfziel, bevor sie ein gefährlicheres wählen. */
+  targetHoldSeconds: 2,
+  /** Nahkämpfer auf dem Posten verteidigen Tor und Treppe bis zu diesem Abstand (Felder) und kehren dann zurück. */
+  postLeash: 4,
+  /** Nur Tore und Treppen bis zu diesem Abstand (Felder) vom Posten gehören zum Abschnitt eines Nahkämpfers. */
+  postGuardRadius: 7,
+  /** Angreifer ziehen sich unter diesem Anteil ihrer Lebenspunkte zurück (und wenn sie allein übrig sind). */
+  retreatHp: 0.3,
 };

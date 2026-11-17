@@ -13,6 +13,7 @@ const FIGHT = new Set(["angriff", "schiessen"]);
 export function activityOf(w: World, u: SUnit): UnitActivity {
   const moving = u.anim === "gehen";
   if (u.team === 1) {
+    if (u.ai.retreat) return "flieht";
     if (FIGHT.has(u.anim) || u.ai.target || u.ai.targetB) return FIGHT.has(u.anim) || !moving ? "kaempft" : "unterwegs";
     return moving ? "unterwegs" : "wartet";
   }

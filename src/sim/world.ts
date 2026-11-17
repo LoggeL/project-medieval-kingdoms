@@ -61,6 +61,14 @@ export interface UnitAI {
   noJob?: number;
   /** Frisch zugezogen: läuft vom Kartenrand zum Sammelplatz (Anzeige „zieht zu“). */
   fresh?: boolean;
+  /** Tick des letzten Schlags gegen ein Gebäude (Zielwahl der Verteidiger: wer Tor oder Mauer angreift, ist gefährlich). */
+  hitB?: number;
+  /** Tick, bis zu dem das aktuelle Kampfziel gehalten wird (kein Flackern zwischen Zielen). */
+  lock?: number;
+  /** Angreifer auf dem Rückzug zum Kartenrand. */
+  retreat?: boolean;
+  /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
+  sortie?: boolean;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -110,6 +118,10 @@ export interface Meta {
   immigration: boolean;
   /** Bei Kampfbeginn einer Welle gesetzt, für die Meldung „abgewehrt“. */
   raidRunning: boolean;
+  /** Verluste der laufenden Welle (gefallen oder abgezogen); ein allein übrig gebliebener Angreifer zieht ab. */
+  raidLosses?: number;
+  /** Nächster Schritt der Einführung (Index in TUTORIAL), fehlt = keine Einführung. */
+  tutorial?: number;
 }
 
 export class World {
