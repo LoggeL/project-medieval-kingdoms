@@ -15,6 +15,7 @@ import { DepthSorter, type DepthItem } from "./depth";
 import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
 import { axisOrientation, figureDir, vecToScreen, viewToScreen } from "./iso";
 import { SpritePool } from "./pool";
+import { CHIMNEYS, chimneyWorld, type Emitter } from "./smoke";
 
 /** Treffer-Eintrag für die Mausauswahl (in Zeichenreihenfolge). Gepoolt: nur im selben Bild gültig. */
 export interface Hit {
@@ -110,6 +111,9 @@ export class ObjectLayer {
   hits: Hit[] = [];
   /** Figuren dieses Bildes (Rahmenauswahl, Lebensbalken). */
   units: UnitOnScreen[] = [];
+  /** Schornsteine sichtbarer, fertiger Gebäude in diesem Bild (Welt-Pixel), für die Rauchebene. */
+  emitters: Emitter[] = [];
+  private emitterPool: Emitter[] = [];
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
@@ -125,6 +129,7 @@ export class ObjectLayer {
     this.nItems = 0; this.nParts = 0; this.nHits = 0;
     this.hits.length = 0;
     this.units.length = 0;
+    this.emitters.length = 0;
     this.byId.clear();
     for (const b of state.buildings) this.byId.set(b.id, b);
     for (const list of this.attached.values()) list.length = 0;
@@ -178,9 +183,9 @@ export class ObjectLayer {
    * ausgelassen und der Fehler einmal gemeldet. Ein einzelnes kaputtes Objekt darf nie das ganze Bild abbrechen.
    */
   private safe(what: string, fn: () => void): void {
-    const ni = this.nItems, np = this.nParts, nh = this.nHits, nu = this.units.length;
+    const ni = this.nItems, np = this.nParts, nh = this.nHits, nu = this.units.length, ne = this.emitters.length;
     try { fn(); } catch (e) {
-      this.nItems = ni; this.nParts = np; this.nHits = nh; this.units.length = nu;
+      this.nItems = ni; this.nParts = np; this.nHits = nh; this.units.length = nu; this.emitters.length = ne;
       warnOnce(`Objekt „${what}“ lässt sich nicht zeichnen und wird ausgelassen (${e instanceof Error ? e.message : String(e)})`);
     }
   }
@@ -513,7 +518,9 @@ export class ObjectLayer {
         if (ft) this.part(it, ft, X, Y, ax, ay, { tint });
       }
     }
+    const before = this.nItems;
     this.closeItem(it);
+    if (spr && b.built >= 1 && this.nItems === before) this.chimneys(b, spr.keys[0][0], cx, cy);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
     if (b.key === "lager" && !spr) this.stackItems(b);
     if (lagerFlat && spr) {
@@ -529,6 +536,20 @@ export class ObjectLayer {
       }
     }
     if (b.built < 1) this.siteItems(b);
+  }
+
+  /** Schornsteinöffnungen eines sichtbaren Gebäudes als Rauchquellen (gleiche Drehung wie Grundriss und Sprite). */
+  private chimneys(b: Building, key: string, cx: number, cy: number): void {
+    const list = CHIMNEYS[key];
+    if (!list) return;
+    list.forEach((m, k) => {
+      const [wx, wy, z] = chimneyWorld(m, b.o);
+      const [X, Y] = this.scr(cx + wx, cy + wy, z);
+      let e = this.emitterPool[this.emitters.length];
+      if (!e) { e = { x: 0, y: 0, seed: 0 }; this.emitterPool.push(e); }
+      e.x = X; e.y = Y; e.seed = b.id * 7 + k;
+      this.emitters.push(e);
+    });
   }
 
   private stackTexture(good: Good, level: number, o: number): { tex: Texture; px: number; py: number } {

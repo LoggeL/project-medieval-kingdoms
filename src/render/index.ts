@@ -3,7 +3,7 @@
  * Liest den Simulationszustand nur. Bildschirmkoordinaten sind CSS-Pixel relativ zum Canvas.
  */
 import { Container, Graphics, RenderTexture, Sprite, type Application } from "pixi.js";
-import { UNITS } from "../data";
+import { TICKS_PER_SECOND, UNITS } from "../data";
 import type { Rot } from "../sim/geom";
 import { LAYER_Z } from "../sim/nav";
 import type { SimState } from "../sim/types";
@@ -12,6 +12,7 @@ import { Camera } from "./camera";
 import { screenToWorld, worldToScreen } from "./iso";
 import { Overlays, type Marker, type Preview } from "./overlays";
 import { ObjectLayer, type Hit } from "./scene";
+import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
 
 export type { Preview, Marker, Hit };
@@ -37,20 +38,21 @@ export class GameRenderer {
   private terrain: TerrainLayer;
   private objects: ObjectLayer;
   private overlays: Overlays;
+  private smoke = new SmokeLayer();
   private screen = new Container();
   private rect = new Graphics();
   private fade: Sprite | null = null;
   private fadeT = 0;
   private builtR: Rot | -1 = -1;
   private smooth = false;
-  stats = { items: 0, sprites: 0, pairs: 0, chunks: 0, silhouettes: 0 };
+  stats = { items: 0, sprites: 0, pairs: 0, chunks: 0, silhouettes: 0, smoke: 0 };
 
   constructor(private app: Application, readonly sheets: Sheets, state: SimState) {
     this.camera = new Camera(state.w, state.h);
     this.terrain = new TerrainLayer(app.renderer, sheets.terrain);
     this.objects = new ObjectLayer(sheets.buildings, sheets.figures);
     this.overlays = new Overlays(sheets.buildings);
-    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.objects.silhouettes, this.overlays.top);
+    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.smoke.container, this.objects.silhouettes, this.overlays.top);
     this.screen.addChild(this.rect);
     app.stage.addChild(this.world, this.screen);
     app.stage.eventMode = "none";
@@ -105,6 +107,8 @@ export class GameRenderer {
     this.objects.update(state, cam.r, alpha, cam.viewRect(160), {
       selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight, ghosts,
     });
+    // Rauch läuft in Spielzeit (steht in der Pause, doppelt so schnell bei 2×)
+    this.smoke.update(this.objects.emitters, (state.tick + alpha) / TICKS_PER_SECOND, cam.r);
     this.overlays.update(state, cam.r, time, alpha, {
       preview: input.preview, selectedBuilding: input.selectedBuilding, markers: input.markers, units: this.objects.units,
     });
@@ -127,6 +131,7 @@ export class GameRenderer {
     this.stats.sprites = os.sprites;
     this.stats.pairs = os.pairs;
     this.stats.silhouettes = os.silhouettes;
+    this.stats.smoke = this.smoke.count;
     this.stats.chunks = this.terrain.visibleChunks();
   }
 
