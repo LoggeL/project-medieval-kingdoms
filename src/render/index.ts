@@ -146,6 +146,7 @@ export class GameRenderer {
     this.dust.update(this.objects.strikes, this.objects.rubble);
     this.overlays.update(state, cam.r, time, alpha, {
       preview: input.preview, selectedBuilding: input.selectedBuilding, markers: input.markers, units: this.objects.units,
+      selectedUnits: input.selectedUnits,
     });
 
     // Auswahlrahmen

@@ -1,12 +1,14 @@
 /**
- * Hilfsebenen über und unter den Objekten: Bodenmarkierungen (Grundriss grün/rot, Mauerweg, Auswahl, Ziel),
+ * Hilfsebenen über und unter den Objekten: Bodenmarkierungen (Grundriss grün/rot, Mauerweg, Auswahl, Ziel, Befehlsmarken
+ * der gewählten Soldaten mit Wegmarken der Patrouille, Formationsvorschau beim Rechtsziehen),
  * Pfeile in der Luft, Lebensbalken. Die Bauvorschau (halbtransparente Sprites) wird hier nur berechnet (ghosts) und
  * von der Objektebene mit einsortiert, damit Figuren davor nicht eingefärbt werden.
  */
 import { Graphics } from "pixi.js";
 import { BUILDINGS, TICKS_PER_SECOND, TUNING, type BuildingKey } from "../data";
 import { NEIGHBOURS, center, footprint, footprintTiles, toView, wallPiece, type Rot } from "../sim/geom";
-import type { PlacementCheck, Projectile, SimState } from "../sim/types";
+import { LAYER_Z } from "../sim/nav";
+import type { FormationSlot, PlacementCheck, Projectile, SimState, Unit } from "../sim/types";
 import type { BuildingSheet } from "./assets";
 import { viewToScreen } from "./iso";
 import { gateOrientation, type Ghost, type UnitOnScreen } from "./scene";
@@ -18,7 +20,11 @@ export type Preview =
     anchors?: readonly { x: number; y: number }[];
   }
   | { kind: "mauer"; check: PlacementCheck }
-  | { kind: "kachel"; x: number; y: number; z: number; color: number };
+  | { kind: "kachel"; x: number; y: number; z: number; color: number }
+  /** Rechtsziehen (ADR 0018): Plätze der Formation und Pfeil der Blickrichtung (Welt, Höhe 0). */
+  | { kind: "formation"; slots: readonly FormationSlot[]; from: [number, number]; to: [number, number] }
+  /** Befehl in Arbeit: Wegmarken der Patrouille bzw. Ziel des Angriffsmarschs (Tiles mit Höhe), loop = Rundweg. */
+  | { kind: "route"; pts: readonly { x: number; y: number; z: number }[]; color: number; loop: boolean; flags: boolean };
 
 export interface Marker { x: number; y: number; z: number; t0: number; color: number }
 
@@ -27,6 +33,10 @@ const BAD_FILL = 0xe0503c, BAD_LINE = 0xff8a70;
 /** Regelverstoß, der nicht an einer Kachel hängt (z. B. „Zu wenige Bäume“): alle Rauten orange. */
 const RULE_FILL = 0xe89a3a, RULE_LINE = 0xffc070;
 const FORT = new Set<string>(["mauer", "tor", "turm"]);
+/** Farben der Befehlsmarken (ADR 0018): Bewegen, Angriffsmarsch, Patrouille, Rückzug. */
+export const ORDER_COLORS = { move: 0x9fe07a, amove: 0xe0503c, patrol: 0x6fb4ff, retreat: 0xf2ecd8 } as const;
+/** Höchstens so viele gewählte Einheiten zeigen ihre Befehlsmarken (große Gruppen bleiben lesbar). */
+const ORDER_MARK_UNITS = 40;
 /** Gemeinsame Transparenz des gezogenen Mauerzugs (Gruppe, siehe Ghost.group). */
 export const WALL_GHOST_ALPHA = 0.6;
 
@@ -123,6 +133,8 @@ export class Overlays {
     selectedBuilding: number | null;
     markers: Marker[];
     units: UnitOnScreen[];
+    /** Gewählte Einheiten: ihre Befehle als Marken in der Welt (fehlt = keine). */
+    selectedUnits?: ReadonlySet<number>;
   }): void {
     this.r = r; this.W = state.w; this.H = state.h;
     const g = this.ground, t = this.top;
@@ -152,7 +164,19 @@ export class Overlays {
     } else if (p?.kind === "kachel") {
       // Ziel auf dem Wehrgang: über den Objekten, sonst verdeckt es die Mauer
       this.diamond(p.z > 0 ? t : g, p.x, p.y, p.z, p.color, 0.3, p.color);
+    } else if (p?.kind === "formation") {
+      for (const sl of p.slots) this.diamond(sl.z > 0 ? t : g, sl.x, sl.y, sl.z, ORDER_COLORS.move, 0.32, ORDER_COLORS.move);
+      this.arrow(t, p.from[0], p.from[1], p.to[0], p.to[1], ORDER_COLORS.move);
+    } else if (p?.kind === "route") {
+      this.route(t, p.pts, p.color, p.loop, 0.85);
+      for (const q of p.pts) {
+        this.ring(q.z > 0 ? t : g, q.x + 0.5, q.y + 0.5, q.z, p.color, 0.9);
+        if (p.flags) this.flag(t, q.x + 0.5, q.y + 0.5, q.z, p.color);
+      }
     }
+
+    // Befehle der gewählten Einheiten (Ziel, Angriffsmarsch, Wegmarken der Patrouille, Rückzug)
+    if (o.selectedUnits?.size) this.orders(state, o.selectedUnits, time);
 
     // Zielmarken (Bewegungsbefehl)
     for (const m of o.markers) {
@@ -166,6 +190,88 @@ export class Overlays {
 
     this.projectiles(state, alpha);
     this.healthBars(o.units);
+  }
+
+  /** Kleine Raute um eine Tile-Mitte (Zielmarke). */
+  private ring(g: Graphics, cx: number, cy: number, z: number, color: number, alpha: number): void {
+    const m = 0.3;
+    const pts = [this.scr(cx - m, cy - m, z), this.scr(cx + m, cy - m, z), this.scr(cx + m, cy + m, z), this.scr(cx - m, cy + m, z)].flat();
+    g.poly(pts).fill({ color, alpha: alpha * 0.25 }).stroke({ width: 1.5, color, alpha, alignment: 0.5 });
+  }
+
+  /** Wegmarke: Pfahl mit Wimpel am Boden (bzw. auf dem Wehrgang). */
+  private flag(g: Graphics, cx: number, cy: number, z: number, color: number): void {
+    const [X, Y] = this.scr(cx, cy, z);
+    const x = Math.round(X), y = Math.round(Y);
+    g.moveTo(x, y).lineTo(x, y - 13).stroke({ width: 1.5, color: 0x3a2a1a, alpha: 0.95 });
+    g.poly([x + 1, y - 13, x + 8, y - 10.5, x + 1, y - 8]).fill({ color, alpha: 0.95 }).stroke({ width: 1, color: 0x1a140e, alpha: 0.8, alignment: 0.5 });
+  }
+
+  /** Gestrichelter Weg durch Tile-Mitten (Höhe je Punkt). */
+  private route(g: Graphics, pts: readonly { x: number; y: number; z: number }[], color: number, loop: boolean, alpha: number): void {
+    if (pts.length < 2) return;
+    const list = loop ? [...pts, pts[0]] : pts;
+    for (let i = 1; i < list.length; i++) {
+      const a = list[i - 1], b = list[i];
+      const [x0, y0] = this.scr(a.x + 0.5, a.y + 0.5, a.z), [x1, y1] = this.scr(b.x + 0.5, b.y + 0.5, b.z);
+      const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.floor(len / 8));
+      for (let k = 0; k < n; k += 1) {
+        const f0 = k / n, f1 = Math.min(1, (k + 0.55) / n);
+        g.moveTo(x0 + (x1 - x0) * f0, y0 + (y1 - y0) * f0).lineTo(x0 + (x1 - x0) * f1, y0 + (y1 - y0) * f1);
+      }
+      g.stroke({ width: 1.5, color, alpha });
+    }
+  }
+
+  /** Pfeil am Boden von (x0, y0) nach (x1, y1) in Welt-Tiles (Blickrichtung der Formation). */
+  private arrow(g: Graphics, x0: number, y0: number, x1: number, y1: number, color: number): void {
+    const [a, b] = this.scr(x0, y0), [c, d] = this.scr(x1, y1);
+    const len = Math.hypot(c - a, d - b);
+    if (len < 2) return;
+    const ux = (c - a) / len, uy = (d - b) / len;
+    g.moveTo(a, b).lineTo(c, d).stroke({ width: 2, color, alpha: 0.9 });
+    g.poly([c, d, c - ux * 9 - uy * 5, d - uy * 9 + ux * 5, c - ux * 9 + uy * 5, d - uy * 9 - ux * 5]).fill({ color, alpha: 0.95 });
+  }
+
+  /** Befehlsmarken der gewählten eigenen Einheiten. Jede Kachel nur einmal, Wege der Patrouille gestrichelt. */
+  private orders(state: SimState, selected: ReadonlySet<number>, time: number): void {
+    const g = this.ground, t = this.top;
+    const seen = new Set<string>();
+    const pulse = 0.75 + 0.25 * Math.sin(time * 4);
+    let n = 0, lead = true;
+    for (const u of state.units as Unit[]) {
+      if (!selected.has(u.id) || u.team !== 0 || u.dead) continue;
+      if (++n > ORDER_MARK_UNITS) break;
+      const o = u.order;
+      if (o.t === "move" || o.t === "amove" || o.t === "retreat") {
+        const layer = o.t === "retreat" ? 0 : o.layer, z = LAYER_Z[layer] ?? 0;
+        const color = ORDER_COLORS[o.t];
+        // dünne Linie von der Figur zum Ziel
+        const [ux, uy] = this.scr(u.x, u.y, u.z), [tx, ty] = this.scr(o.x + 0.5, o.y + 0.5, z);
+        t.moveTo(ux, uy).lineTo(tx, ty).stroke({ width: 1, color, alpha: 0.28 });
+        const key = `${o.x},${o.y},${layer}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        this.ring(z > 0 ? t : g, o.x + 0.5, o.y + 0.5, z, color, pulse);
+      } else if (o.t === "patrol") {
+        const pts = o.pts.map(([x, y, l]) => ({ x, y, z: LAYER_Z[l] ?? 0 }));
+        const rk = o.pts.map((p) => p.join(",")).join(";");
+        // gestrichelter Weg nur für den Ersten der Gruppe, sonst wird es bei vielen Figuren ein Netz
+        if (lead && !seen.has(rk)) {
+          seen.add(rk);
+          this.route(t, pts, ORDER_COLORS.patrol, pts.length > 2, 0.45);
+        }
+        pts.forEach((q, i) => {
+          const key = `p${q.x},${q.y},${q.z}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          this.ring(q.z > 0 ? t : g, q.x + 0.5, q.y + 0.5, q.z, ORDER_COLORS.patrol, i === o.i % pts.length ? pulse : 0.55);
+          // Wimpel nur am Weg des Ersten, die übrigen Plätze der Formation als Rauten
+          if (lead) this.flag(t, q.x + 0.5, q.y + 0.5, q.z, ORDER_COLORS.patrol);
+        });
+        lead = false;
+      }
+    }
   }
 
   /** Flugfortschritt zwischen zwei Ticks fortschreiben (Schrittweite aus der Beobachtung, sonst wie in der Simulation). */

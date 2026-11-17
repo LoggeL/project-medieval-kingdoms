@@ -38,6 +38,7 @@ export const TERRAIN: Record<TerrainKey, TerrainDef> = {
 // ---------------------------------------------------------------- Waren, Lagertypen, Rezepte (eigene Dateien)
 export * from "./goods";
 export * from "./recipes";
+export * from "./befehle";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 

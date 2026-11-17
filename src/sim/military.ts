@@ -1,57 +1,80 @@
 /**
- * Militär: Verhalten eigener Soldaten je Befehl (bewegen, angreifen, halten, stationieren, untätig),
- * die Befehle selbst, Stationierung auf Mauer- und Turmposten sowie die Ausbildung in der Kaserne.
+ * Militär: Verhalten eigener Soldaten je Befehl (bewegen, angreifen, halten, stationieren, untätig nach Haltung),
+ * die Befehle selbst, Stationierung auf Mauer- und Turmposten sowie die Ausbildung in der Kaserne. Bewegen in Formation,
+ * Angriffsmarsch, Patrouille, Rückzug, Haltung und Formation stehen in befehle.ts (ADR 0018).
  *
  * Auf dem Posten schießen Schützen auf das gefährlichste Ziel in Reichweite (combat.pickTarget). Nahkämpfer bewachen
  * ihren Abschnitt: Kommt ein Gegner bis auf TUNING.postLeash Felder an ein Tor oder eine Treppe in der Nähe ihres
  * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
  * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, GOODS, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
-import { walkLayerAt } from "./build";
+import { BUILDINGS, DEFAULT_STANCE, GOODS, STANCES, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
+import { commandAct } from "./befehle";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
 import { goalAround, lineClear, stepToward, stop, tileGoal, travel, unitNode } from "./move";
 import { available } from "./storage";
 import { applyBoost, levelOf, lockedBy } from "./research";
 import type { CommandResult, UnitOrder } from "./types";
-import { TPS, distToRect, newUnitAI, setAnim, type SBuilding, type SUnit, type World } from "./world";
+import { TPS, distToRect, face, newUnitAI, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
 // ---------------------------------------------------------------- Verhalten
 export function soldierAct(w: World, u: SUnit): void {
   const o = u.order;
+  // Standplatz (Haltung defensiv / Stellung halten) bzw. Kampfbeginn unterwegs (Angriffsmarsch, Patrouille, befehle.ts)
+  if (u.ai.anchor && o.t !== "idle" && o.t !== "amove" && o.t !== "patrol") delete u.ai.anchor;
   switch (o.t) {
     case "move": {
       const r = travel(w, u, tileGoal(o.x, o.y, o.layer, 0));
-      if (r === "arrived" || r === "unreachable") u.order = { t: "idle" };
+      if (r === "arrived" || r === "unreachable") {
+        // Formation: am Ziel in die befohlene Richtung blicken
+        if (r === "arrived" && (o.fx || o.fy)) face(u, o.fx!, o.fy!);
+        u.order = { t: "idle" };
+      }
       return;
     }
     case "attack": return attackOrder(w, u, o);
     case "hold": fightInPlace(w, u); return;
     case "station": return stationAct(w, u, o);
-    default: return idleSoldier(w, u);
+    case "idle": return idleSoldier(w, u);
+    default: if (!commandAct(w, u)) idleSoldier(w, u);
   }
 }
 
+/**
+ * Untätig nach Haltung (STANCES): aggressiv greift in Sichtweite an und verfolgt weit, defensiv nur in der Nähe und
+ * kehrt an seinen Platz zurück, „Stellung halten“ kämpft nur in Reichweite.
+ */
 function idleSoldier(w: World, u: SUnit): void {
+  const st = STANCES[u.stance ?? DEFAULT_STANCE];
+  if (st.engage === null) { fightInPlace(w, u); return; }
   const ai = u.ai;
+  if (st.anchored && !ai.anchor) ai.anchor = [u.x, u.y, u.layer];
+  const a = ai.anchor;
+  const near = (t: SUnit) => (st.anchored && a ? Math.hypot(t.x - a[0], t.y - a[1]) : Math.hypot(t.x - u.x, t.y - u.y)) <= st.leash;
   const t = w.aliveUnit(ai.target);
   if (t) {
-    const leash = TUNING.sight * 1.5;
-    if (Math.hypot(t.x - u.x, t.y - u.y) <= leash && chase(w, u, t)) return;
+    if (near(t) && chase(w, u, t)) return;
     ai.target = 0; stop(u);
   } else ai.target = 0;
   if ((w.s.tick + u.id) % 10 === 0) {
+    const ok = (x: SUnit) => !st.anchored || near(x);
     const e = isRanged(u.key)
-      ? pickTarget(w, u, TUNING.sight, () => true)
-      : nearestEnemy(w, u, TUNING.sight, (x) => meleeReachable(w, u, x));
+      ? pickTarget(w, u, st.engage, ok)
+      : nearestEnemy(w, u, st.engage, (x) => ok(x) && meleeReachable(w, u, x));
     if (e) { ai.target = e.id; return; }
+  }
+  // defensiv: zurück an den Standplatz
+  if (st.anchored && a && Math.hypot(u.x - a[0], u.y - a[1]) > 0.75) {
+    const r = travel(w, u, { ...tileGoal(Math.floor(a[0]), Math.floor(a[1]), a[2], 0), endX: a[0], endY: a[1] });
+    if (r === "unreachable") ai.anchor = [u.x, u.y, u.layer];
+    if (r !== "arrived") return;
   }
   if (u.anim === "gehen" || u.anim === "angriff" || u.anim === "schiessen") setAnim(u, "stehen");
 }
 
 /** Angreifen, sonst hinterherlaufen. false = Ziel unerreichbar. */
-function chase(w: World, u: SUnit, t: SUnit): boolean {
+export function chase(w: World, u: SUnit, t: SUnit): boolean {
   if (inRangeUnit(u, t)) { strikeUnit(w, u, t); return true; }
   const ai = u.ai;
   const d = Math.hypot(t.x - u.x, t.y - u.y);
@@ -158,45 +181,10 @@ function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>)
 }
 
 // ---------------------------------------------------------------- Befehle
-function ownSoldiers(w: World, ids: number[]): SUnit[] {
+export function ownSoldiers(w: World, ids: number[]): SUnit[] {
   const out: SUnit[] = [];
   for (const id of ids) { const u = w.aliveUnit(id); if (u && u.team === 0 && isSoldier(u.key) && !out.includes(u)) out.push(u); }
   return out;
-}
-
-const SPIRAL: [number, number][] = (() => {
-  const out: [number, number][] = [];
-  for (let r = 0; r <= 6; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === r) out.push([dx, dy]);
-  return out.sort((a, b) => a[0] ** 2 + a[1] ** 2 - (b[0] ** 2 + b[1] ** 2));
-})();
-
-export function cmdMove(w: World, ids: number[], x: number, y: number): CommandResult {
-  const units = ownSoldiers(w, ids);
-  if (!units.length) return { ok: false, reason: "Keine Soldaten ausgewählt" };
-  if (!w.inMap(x, y)) return { ok: false, reason: "Außerhalb der Karte" };
-  const nav = w.nav;
-  const layer = walkLayerAt(w, x, y);
-  const taken = new Set<number>();
-  const moved: number[] = [];
-  for (const u of units) {
-    const c = nav.comp[0][unitNode(w, u)];
-    let target = -1;
-    for (const [dx, dy] of SPIRAL) {
-      const tx = x + dx, ty = y + dy;
-      if (!w.inMap(tx, ty)) continue;
-      const n = nav.node(layer, tx, ty);
-      if (taken.has(n) || !nav.open(n, 0) || nav.linkOnly[n]) continue;
-      if (c >= 0 && nav.comp[0][n] !== c) continue;
-      target = n; break;
-    }
-    if (target < 0 && c >= 0) target = nav.nearestInComp(0, c, x, y, layer);
-    if (target < 0) continue;
-    taken.add(target);
-    u.order = { t: "move", x: nav.tileX(target), y: nav.tileY(target), layer: nav.layerOf(target) };
-    u.ai.target = 0; stop(u);
-    moved.push(u.id);
-  }
-  return moved.length ? { ok: true, ids: moved } : { ok: false, reason: "Dort kommt niemand hin" };
 }
 
 export function cmdAttack(w: World, ids: number[], target: number): CommandResult {
@@ -213,7 +201,8 @@ export function cmdAttack(w: World, ids: number[], target: number): CommandResul
 export function cmdHold(w: World, ids: number[]): CommandResult {
   const units = ownSoldiers(w, ids);
   if (!units.length) return { ok: false, reason: "Keine Soldaten ausgewählt" };
-  for (const u of units) { u.order = { t: "hold" }; u.ai.target = 0; stop(u); setAnim(u, "stehen"); }
+  // Halten = Haltung „Stellung halten“ (ADR 0018): bleibt auch nach dem nächsten Marsch stehen, bis eine andere gewählt wird
+  for (const u of units) { u.order = { t: "hold" }; u.stance = "stellung"; u.ai.target = 0; stop(u); setAnim(u, "stehen"); }
   return { ok: true, ids: units.map((u) => u.id) };
 }
 

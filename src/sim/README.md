@@ -15,7 +15,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `jobs.ts` | Aufträge ausführen: Arbeitszyklen aus den Daten (auch `process`), Tragen (Hofstapel und Ausgabestapel), Anliefern (Baustelle, Forschung, Eingangspuffer), Bauen, Rekrut holt Waffe |
 | `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
-| `military.ts` | Soldatenverhalten je Befehl, Befehle bewegen/angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
+| `military.ts` | Soldatenverhalten je Befehl, untätig nach Haltung (aggressiv, defensiv, Stellung halten), Befehle angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
+| `befehle.ts` | Truppenführung (ADR 0018): Formationsplätze (`placeGroup`, `planFormation`), Bewegen in Formation, Angriffsmarsch, Patrouille, Rückzug, Haltung und Formation wechseln, Tempo der Gruppe |
 | `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Rückzug) |
 | `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden |
 | `debug.ts` | Hilfen für Tests (fertig bauen, Einheiten setzen, Lager füllen) |
@@ -40,6 +41,7 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 - Rückzug: Angreifer unter `TUNING.retreatHp` ihrer LP oder als Letzte ihrer Welle (nachdem andere gefallen oder geflohen sind) haben `activity` „flieht“, kämpfen nicht mehr und verlassen die Karte am Anmarschpunkt (ohne Tod, ohne Kopfgeld). Danach meldet die Welle „abgewehrt“.
 - Nahkampf gegen Gebäude nur aus dem Nachbarfeld (nicht durch eine Mauer hindurch); wer auf einer Treppe steht, trifft sie in jeder Höhe.
 - Einführung: `TUTORIAL` in `src/data` ist eine Zielkette; jeder Schritt erscheint als Meldung (`kind` „info“), sobald der vorige erreicht ist, erledigte Schritte werden übersprungen.
+- Befehle der Truppenführung (ADR 0018): `bewegen` (mit `fx`/`fy` = Blickrichtung aus dem Rechtsziehen), `angriffsbewegung`, `patrouille` (`pts` = Wegmarken, höchstens 8), `rueckzug`, `haltung`, `formation`. Aufträge an der Einheit: `move` (mit `fx`/`fy`/`pace`), `amove`, `patrol` (`pts` je Einheit samt Formationsversatz, `i` = nächste Marke), `retreat`. `Unit.stance` und `Unit.formation` fehlen, solange die Voreinstellung gilt (`DEFAULT_STANCE`, `DEFAULT_FORMATION`). `Game.planFormation(units, x, y, fx, fy)` liefert die Plätze für die Vorschau, dieselben, die der Befehl vergibt. `activity` dazu: „marschiert“, „patrouilliert“, „zieht_zurueck“; „haelt“ auch bei Haltung `stellung`.
 - Ein Tor in einem fertigen Mauerstück übernimmt dessen Steine (`costAt` in `build.ts`); die Vorschau prüft dieselben Kosten.
 
 ## Verarbeitung erweitern (ADR 0011)
@@ -68,7 +70,8 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 
 ## Grenzen (Stand Prototyp)
 
-- Kein echtes Ausweichen zwischen Figuren; nur stehende Soldaten schieben sich auseinander. Wartende Arbeiter einer Werkstatt stehen auf eigenen Feldern neben dem Eingang.
+- Kein echtes Ausweichen zwischen Figuren; nur stehende Soldaten schieben sich auseinander (eigene stehende Soldaten weichen eigenen Durchgehenden nicht, damit die Formation hält).
+- Formationen geben noch keinen Kampfbonus; der Sammelpunkt des Rückzugs ist fest (Eingang des Bergfrieds, sonst der Lagerplatz). Wartende Arbeiter einer Werkstatt stehen auf eigenen Feldern neben dem Eingang.
 - Angreifer kommen nicht durch Tore und Turmtüren, eigene Treppen dürfen sie aber benutzen: Wer durch eine Bresche im Hof steht, steigt auf den Wehrgang (und von dort auf Türme). Eine Treppe außen an der Mauer ist deshalb eine Schwachstelle.
 - Holzfäller und Steinmetze ohne Baum bzw. Fels in Reichweite warten an ihrer Hütte (Meldung „keine Bäume mehr“), bis der Spieler abreißt.
 - Abriss gibt die Hälfte der Kosten sofort ins Lager zurück (nicht als getragene Ware), bei Verarbeitungsgebäuden auch Puffer, Ausgabestapel und die Eingänge eines laufenden Arbeitsgangs (ebenso beim Rezeptwechsel); was nicht ins Lager passt, verfällt.

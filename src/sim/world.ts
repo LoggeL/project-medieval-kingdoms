@@ -87,6 +87,11 @@ export interface UnitAI {
   visit?: { b: number; k: number; s: number; wait: number; done: boolean };
   /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
   sortie?: boolean;
+  /** Haltung defensiv bzw. Stellung halten: Standplatz (x, y, Ebene), zu dem der Soldat nach dem Kampf zurückkehrt; beim
+   *  Angriffsmarsch und auf Patrouille der Punkt, an dem der Kampf begann (Verfolgungsgrenze, ADR 0018). */
+  anchor?: [number, number, number];
+  /** Patrouille: unerreichbare Wegmarken in Folge. */
+  pfail?: number;
 }
 export type SUnit = Unit & { ai: UnitAI };
 

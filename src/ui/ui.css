@@ -555,20 +555,41 @@ kbd {
 .mk-cmds { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .mk-cmd { height: 36px; font-family: var(--mk-f-text); font-size: 14px; font-weight: 700; justify-content: flex-start; padding: 0 8px; }
 .mk-cmd kbd { margin-left: auto; }
-.mk-cmd-glyph { width: 16px; height: 16px; flex: none; }
-/* Zinnen: Stationieren */
-.mk-g-station {
-  background:
-    linear-gradient(#e9d9b3, #e9d9b3) 0 0 / 4px 6px no-repeat,
-    linear-gradient(#e9d9b3, #e9d9b3) 6px 0 / 4px 6px no-repeat,
-    linear-gradient(#e9d9b3, #e9d9b3) 12px 0 / 4px 6px no-repeat,
-    linear-gradient(#e9d9b3, #e9d9b3) 0 6px / 16px 10px no-repeat;
+/* Befehlsikonen: assets/ui/befehle.png, 10 Spalten zu 64 px (per Codex, art/prompts/befehle_ikonen.txt, ADR 0018) */
+.mk-bicon {
+  display: inline-block;
+  flex: none;
+  width: var(--mk-bs, 22px);
+  height: var(--mk-bs, 22px);
+  background-image: var(--mk-tex-befehle);
+  background-size: calc(var(--mk-bs, 22px) * 10) var(--mk-bs, 22px);
+  background-position: calc(var(--mk-bi, 0) * var(--mk-bs, 22px) * -1) 0;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55));
 }
-/* Schild: Halten */
-.mk-g-hold {
-  clip-path: polygon(10% 0, 90% 0, 90% 50%, 50% 100%, 10% 50%);
-  background: linear-gradient(90deg, #e9d9b3 45%, #b9a57a 45%);
+/* Befehlsknöpfe: Ikone über dem Namen, damit „Angriffsmarsch“ und „Stationieren“ ganz lesbar bleiben; Schild oben rechts */
+.mk-cmds .mk-cmd { height: auto; min-height: 46px; flex-direction: column; justify-content: center; gap: 1px; padding: 3px 4px 4px; font-size: 13px; }
+.mk-cmd > span:not(.mk-bicon) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+.mk-root .mk-cmds .mk-cmd .mk-key { position: absolute; top: 2px; bottom: auto; right: 2px; margin: 0; }
+/* Umschalter Formation und Haltung: drei gleich breite Knöpfe, Ikone über dem Namen */
+.mk-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.mk-seg-btn {
+  height: auto;
+  min-height: 46px;
+  padding: 3px 2px 4px;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--mk-f-text);
+  font-size: 12px;
 }
+.mk-seg-btn > span:not(.mk-bicon) { white-space: nowrap; }
+.mk-root .mk-seg-btn .mk-key { top: 2px; bottom: auto; right: 2px; }
+.mk-seg-btn.mk-on .mk-bicon { filter: drop-shadow(0 1px 0 rgba(255, 240, 200, 0.7)); }
+/* Titelzeile mit „weiter“-Knopf rechts hinter dem Trenner */
+.mk-sec-row { display: contents; }
+.mk-sec-title .mk-cycle { order: 2; height: 22px; padding: 0 4px 0 6px; font-family: var(--mk-f-text); font-size: 12px; gap: 4px; }
+.mk-sec-title::after { order: 1; }
+.mk-root .mk-cycle .mk-key { position: static; }
 
 /* ------------------------------------------------------------------ Fußleiste */
 .mk-bottom {
@@ -974,6 +995,7 @@ kbd {
   .mk-cmd kbd { display: none; }
   .mk-root .mk-tab .mk-key { display: none; }
   .mk-cmd { font-size: 13px; padding: 0 6px; }
+  .mk-cmds .mk-cmd { font-size: 12px; padding: 3px 2px 4px; }
 }
 .mk-root:has(.mk-build.mk-collapsed) { --mk-bottom-h: 52px; }
 

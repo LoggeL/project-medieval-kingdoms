@@ -1,0 +1,20 @@
+Icon sheet for the unit command buttons of an original isometric medieval strategy game (High to Late Middle Ages).
+
+Layout: exactly 10 separate icons arranged in a regular grid of 5 columns and 2 rows on a fully transparent background. Every icon sits centred in its own equal square cell, with wide empty transparent gaps between the cells so each icon can be cut out cleanly. Icons must not touch or overlap each other. No background plates, no frames, no circles behind the icons, no shadows on the background.
+
+Row 1, left to right:
+1. Man the walls: a short section of grey stone castle wall with three crenellations (merlons), a small blue pennant on top.
+2. Hold position: a heater shield (blue field, light sandstone border) planted upright in the ground with a spear standing straight behind it.
+3. Patrol: two small wooden marker stakes with blue pennants, connected by a looping dotted path of footprints that goes from one stake to the other and back.
+4. Attack move: a steel sword pointing forward and up, with a bold red arrow curving forward beside the blade.
+5. Retreat: a plain white cloth flag on a wooden pole, waving, with a bold light-blue arrow curving backwards underneath it.
+Row 2, left to right:
+6. Line formation: seven small round blue shields in one straight horizontal row, seen slightly from above.
+7. Block formation: nine small round blue shields packed tightly in a square of three by three, seen slightly from above.
+8. Loose formation: five small round blue shields scattered widely with large gaps between them, seen slightly from above.
+9. Aggressive stance: a war axe and a sword crossed, blades bright steel, with a small red flame-shaped pennant above them.
+10. Defensive stance: a round wooden shield with an iron boss and rim, a short sword lowered behind it, a small blue pennant.
+
+Style: hand-crafted pixel art game icons in the same style as detailed isometric pixel-art buildings, crisp hard pixel edges, no anti-aliased blur, no gradients, limited warm earthy palette (oak and clay brown, sandstone beige, slate grey, steel blue-grey, muted green) with small saturated heraldic accents (royal blue, gold, wax red), dark brown 1-pixel outline around every object, light from the upper left in 3 to 4 hard steps. Objects seen slightly from above, in a three-quarter view, readable at 32 pixels. Consistent scale and line weight across all 10 icons.
+
+Strictly no text, no letters, no numbers, no runes, no labels, no watermark, no signature, no user interface, no frame. Original design, not resembling any existing game.

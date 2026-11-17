@@ -12,8 +12,9 @@
  * Ausbilden auf U I O, Abriss auf Entf (am Mac auch die Löschtaste ⌫), Forschungsbaum auf F (Knopf „Forschung“ in der
  * Fußleiste und im Bergfried-Panel; der Forschungsbaum wertet F selbst aus, damit F ihn auch wieder schließt), Ausbau
  * des gewählten Bergfrieds auf G. Stationieren (T), Halten (H) und Auswahl (Esc) behalten ihre Tasten und zeigen sie
- * jetzt auch auf dem Knopf. tests/data/hotkeys.test.ts prüft, dass keine Taste
- * doppelt belegt ist.
+ * jetzt auch auf dem Knopf. Befehle der Soldaten (ADR 0018): Patrouille J, Angriffsmarsch K, Formation L, Haltung Ö,
+ * Rückzug Z (deutsche Aufschrift; Code KeyY). tests/data/hotkeys.test.ts und tests/data/befehle-tasten.test.ts prüfen,
+ * dass keine Taste doppelt belegt ist.
  */
 import type { BuildingDef } from "./index";
 
@@ -71,6 +72,16 @@ export const BUTTON_KEYS = {
   ausbauen: ["KeyG"],
   stationieren: APP_KEYS.stationieren,
   halten: APP_KEYS.halten,
+  /**
+   * Befehlsleiste der gewählten Soldaten (ADR 0018), nur solange das Auswahlpanel sie zeigt. A wäre üblich, ist aber
+   * Kamera (WASD); darum die Reihe J K L Ö rechts daneben und Z (QWERTZ, „zurück“) für den Rückzug.
+   * Angriffsmarsch und Patrouille warten danach auf Klicks in die Welt; L und Ö schalten Formation bzw. Haltung weiter.
+   */
+  patrouille: ["KeyJ"],
+  angriffsbewegung: ["KeyK"],
+  formation: ["KeyL"],
+  haltung: ["Semicolon"],
+  rueckzug: ["KeyY"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** Tastenschild: Tastaturlayout als Zuordnung code → Zeichen (navigator.keyboard.getLayoutMap), wenn bekannt. */

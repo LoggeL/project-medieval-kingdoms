@@ -249,14 +249,15 @@ export function updateDeaths(w: World): void {
 }
 
 // ---------------------------------------------------------------- Abstand halten
-/** Stehende Soldaten schieben sich leicht auseinander, damit Gruppen nicht in einem Punkt kleben. */
+/** Stehende Soldaten schieben sich leicht auseinander, damit Gruppen nicht in einem Punkt kleben (eigene nur unter Stehenden). */
 export function separate(w: World): void {
   const R = 0.42;
   for (const u of w.s.units) {
     if (u.dead || !isSoldier(u.key) || u.anim === "gehen" || u.order.t === "station") continue;
     let px = 0, py = 0;
     w.grid.query(u.x, u.y, R, (o) => {
-      if (o === u || o.dead || o.layer !== u.layer) return;
+      // Eigene Soldaten nur von Stehenden: Wer vorbeigeht, schiebt niemanden aus seinem Formationsplatz (ADR 0018)
+      if (o === u || o.dead || o.layer !== u.layer || (u.team === 0 && o.anim === "gehen")) return;
       let dx = u.x - o.x, dy = u.y - o.y;
       const d = Math.hypot(dx, dy);
       if (d >= R) return;

@@ -7,6 +7,7 @@ import { UNITS } from "../data";
 import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
 import { carryFactor } from "./research";
+import { orderSpeed } from "./befehle";
 import type { Goal } from "./nav";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -93,7 +94,8 @@ export function blockedNode(u: SUnit): number {
 export function evictUnits(w: World): void {
   const nav = w.nav;
   for (const u of w.s.units) {
-    if (u.dead || u.layer !== 0 || u.inside) continue;
+    // wer gerade über Treppe oder Turmtür hinaufsteigt (Ebene wechselt erst am Knoten), steht nicht auf dem Boden
+    if (u.dead || u.layer !== 0 || u.inside || u.z > 0.05) continue;
     const n = unitNode(w, u);
     if (nav.linkOnly[n] || nav.open(n, u.team)) continue;
     const free = nav.nearestOpen(u.team, nav.tileX(n), nav.tileY(n), 0);
@@ -143,7 +145,8 @@ function advance(w: World, u: SUnit): boolean {
 
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */
 export function speedOf(w: World, u: SUnit): number {
-  const base = UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1);
+  // Rückzug schneller, Formation im Tempo des Langsamsten (befehle.ts)
+  const base = orderSpeed(u, UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1));
   if (u.layer > 0) return base;
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;

@@ -5,8 +5,12 @@
  * Mausrad (zur Maus hin), Q dreht nach links (rotate −1), E nach rechts (rotate +1), wie die Knöpfe ⟲/⟳.
  * Leertaste: Pause/Weiter (global, auch wenn ein Knopf den Fokus hat).
  * Auswahl: Linksklick (pixelgenau, oberstes Objekt), Rahmen ziehen (eigene Einheiten), Shift ergänzt,
- * Doppelklick wählt alle sichtbaren gleicher Art. Rechtsklick: Feind angreifen, sonst bewegen (auch auf den Wehrgang).
- * T stationieren, H halten, Strg+Ziffer Gruppe speichern, Ziffer Gruppe wählen. F9 Debug-Anzeige.
+ * Doppelklick wählt alle sichtbaren gleicher Art. Rechtsklick: Feind angreifen, sonst bewegen (auch auf den Wehrgang),
+ * in der Formation der Soldaten. Rechts ziehen (mit gewählten Soldaten): Ziel ist der Punkt unter dem Drücken, die
+ * Zugrichtung ist die Blickrichtung der Formation (Vorschau der Plätze); ohne Soldaten schwenkt Rechtsziehen weiter die
+ * Kamera, die mittlere Taste immer. Befehle mit Klick in die Welt (Werkzeug „befehl“, ADR 0018): Angriffsmarsch
+ * (Ziel oder Gegner) und Patrouille (Umschalt + Klick setzt weitere Wegmarken); Rechtsklick oder Esc bricht ab.
+ * T stationieren, H halten. Kontrollgruppen (Strg+Ziffer, Ziffer, zweimal = Kamera) in src/app/groups.ts. F9 Debug-Anzeige.
  * Tastenbelegung aus src/data/hotkeys.ts (APP_KEYS). Die Tasten der Knöpfe unten und im Auswahlpanel (Reiter, Baukarten,
  * Ausbilden, Abriss) wertet die Oberfläche aus (src/ui/hotkeys.ts). Keine Taste wirkt, solange ein Eingabefeld den Fokus
  * hat oder eine Tafel (z. B. die Hilfe) offen ist.
@@ -18,8 +22,11 @@
  * Leistung: Treffer und Vorschau unter der Maus werden nur neu berechnet, wenn sich Maus, Kamera, Werkzeug, Auswahl
  * oder der Tick ändern; der Mauszeiger (CSS cursor) wird nur bei Änderung gesetzt.
  */
-import { BUILDINGS, UNITS, levelDef, type BuildingKey } from "../data";
+import { BUILDINGS, COMMAND_TUNING, UNITS, levelDef, type BuildingKey } from "../data";
 import { APP_KEYS, type AppAction } from "../data/hotkeys";
+import { ORDER_COLORS } from "../render/overlays";
+import { LAYER_Z } from "../sim/nav";
+import { groupDigit, installControlGroups } from "./groups";
 import { keyBlocked } from "../ui/hotkeys";
 import { footprint } from "../sim/geom";
 import type { CommandResult, Game, PlacementCheck } from "../sim/types";
@@ -32,6 +39,8 @@ const DRAG_PX = 5;
 const EDGE_PX = 6;
 const PAN_SPEED = 900; // Bildschirmpixel je Sekunde
 const DBL_MS = 320;
+/** Ab so viel Bildschirmweg (px) ist ein Rechtsklick ein Rechtsziehen (Formation ausrichten). */
+const FACE_PX = 12;
 /** Umkreis (Felder) um die Maus, in dem gültige Bauplätze enger Baubänder markiert werden. */
 const ANCHOR_R = 6;
 
@@ -59,6 +68,8 @@ export class Input {
   private left: { sx: number; sy: number; drag: boolean; shift: boolean } | null = null;
   private pan: { sx: number; sy: number; moved: boolean; button: number } | null = null;
   private wallStart: { x: number; y: number } | null = null;
+  /** Rechtsziehen mit gewählten Soldaten: Startpunkt (Bildschirm, Welt) und ob schon gezogen wird. */
+  private face: { sx: number; sy: number; wx: number; wy: number; drag: boolean } | null = null;
   private markers: Marker[] = [];
   private wheelAcc = 0;
   private lastClick = { t: 0, id: 0 };
@@ -92,7 +103,21 @@ export class Input {
     window.addEventListener("keyup", (e) => { if (e.code === "Space" && !keyBlocked(e)) e.preventDefault(); }, true);
     window.addEventListener("keydown", (e) => this.keydown(e));
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    window.addEventListener("blur", () => { this.keys.clear(); this.left = null; this.pan = null; this.inWindow = false; });
+    window.addEventListener("blur", () => { this.keys.clear(); this.left = null; this.pan = null; this.face = null; this.inWindow = false; });
+    // Kontrollgruppen (vor der eigenen Tastenauswertung, die Ziffern dann überspringt)
+    installControlGroups(window, {
+      groups: ctx.store.groups,
+      selected: () => this.ownSelected(),
+      alive: (ids) => this.alive(ids),
+      select: (ids, add) => ctx.store.select({ units: add ? [...ctx.store.selection.units, ...ids] : ids, building: null }),
+      lookAt: (x, y) => ctx.bridge.lookAt(x, y),
+      center: (ids) => {
+        const us = ctx.game.state.units.filter((u) => ids.includes(u.id));
+        return us.length ? [us.reduce((a, u) => a + u.x, 0) / us.length, us.reduce((a, u) => a + u.y, 0) / us.length] : null;
+      },
+      notify: (text, kind) => this.notify(text, kind),
+      now: () => performance.now(),
+    }, keyBlocked);
   }
 
   private get r(): GameRenderer { return this.ctx.renderer; }
@@ -125,6 +150,13 @@ export class Input {
     const [x, y] = this.pos(e);
     this.mx = x; this.my = y; this.over = true; this.moved = true;
     try { this.ctx.canvas.setPointerCapture(e.pointerId); } catch { /* Zeiger nicht aktiv (z. B. synthetisch) */ }
+    if (e.button === 2 && this.tool.t === "auswahl" && this.ownSoldiers().length) {
+      // Rechtsziehen mit Soldaten: Formation ausrichten (Rechtsklick ohne Ziehen wie bisher)
+      const [wx, wy] = this.r.worldAt(x, y);
+      this.face = { sx: x, sy: y, wx, wy, drag: false };
+      e.preventDefault();
+      return;
+    }
     if (e.button === 1 || e.button === 2) {
       this.pan = { sx: x, sy: y, moved: false, button: e.button };
       e.preventDefault();
@@ -149,6 +181,7 @@ export class Input {
       if (this.pan.moved) this.r.camera.pan(-dx, -dy);
     }
     if (this.left && !this.left.drag && Math.abs(x - this.left.sx) + Math.abs(y - this.left.sy) > DRAG_PX && this.tool.t === "auswahl") this.left.drag = true;
+    if (this.face && !this.face.drag && Math.abs(x - this.face.sx) + Math.abs(y - this.face.sy) > FACE_PX) this.face.drag = true;
     if (x !== this.mx || y !== this.my) this.moved = true;
     this.mx = x; this.my = y;
   }
@@ -156,6 +189,13 @@ export class Input {
   private up(e: PointerEvent): void {
     const [x, y] = this.pos(e);
     this.mx = x; this.my = y; this.moved = true;
+    if (this.face && e.button === 2) {
+      const f = this.face;
+      this.face = null;
+      if (f.drag) this.faceMove(f, x, y);
+      else this.rightClick(x, y, e.shiftKey);
+      return;
+    }
     if (this.pan && (e.button === 1 || e.button === 2)) {
       const p = this.pan;
       this.pan = null;
@@ -180,6 +220,7 @@ export class Input {
       if (l.drag) this.boxSelect(l.sx, l.sy, x, y, e.shiftKey);
       else this.clickSelect(x, y, e.shiftKey);
     } else if (t.t === "bauen") this.build(t, x, y, e.shiftKey);
+    else if (t.t === "befehl") this.command(t, x, y, e.shiftKey);
     else if (t.t === "abriss") this.demolish(x, y, e.shiftKey);
   }
 
@@ -231,8 +272,62 @@ export class Input {
   }
 
   private ownSelected(): number[] {
+    return this.alive(this.ctx.store.selection.units);
+  }
+
+  /** Von diesen IDs die lebenden eigenen Einheiten. */
+  private alive(ids: number[]): number[] {
     const st = this.ctx.game.state;
-    return this.ctx.store.selection.units.filter((id) => st.units.some((u) => u.id === id && u.team === 0 && !u.dead));
+    return ids.filter((id) => st.units.some((u) => u.id === id && u.team === 0 && !u.dead));
+  }
+
+  /** Gewählte eigene Soldaten (ohne Arbeiter). */
+  private ownSoldiers(): number[] {
+    const st = this.ctx.game.state;
+    return this.ownSelected().filter((id) => {
+      const u = st.units.find((q) => q.id === id);
+      return !!u && UNITS[u.key].role !== "arbeiter";
+    });
+  }
+
+  /** Ziel und Blickrichtung beim Rechtsziehen: Ziel unter dem Drücken, Richtung = Zugrichtung in der Welt. */
+  private faceTarget(f: { sx: number; sy: number; wx: number; wy: number }, x: number, y: number) {
+    const tile = this.r.tileAt(f.sx, f.sy, (tx, ty) => this.ctx.game.walkLayerAt(tx, ty));
+    const [wx, wy] = this.r.worldAt(x, y);
+    return { tile, fx: wx - f.wx, fy: wy - f.wy };
+  }
+
+  private faceMove(f: { sx: number; sy: number; wx: number; wy: number }, x: number, y: number): void {
+    const units = this.ownSoldiers();
+    if (!units.length) return;
+    const { tile, fx, fy } = this.faceTarget(f, x, y);
+    const res = this.ctx.bridge.dispatch({ t: "bewegen", units, x: tile.x, y: tile.y, fx, fy });
+    this.report(res, "Dort kommen sie nicht hin.");
+    if (res.ok) this.markers.push({ x: tile.x + 0.5, y: tile.y + 0.5, z: tile.z, t0: this.time, color: ORDER_COLORS.move });
+  }
+
+  /** Klick mit dem Befehlswerkzeug: Angriffsmarsch bzw. Wegmarke der Patrouille. */
+  private command(t: Extract<Tool, { t: "befehl" }>, x: number, y: number, shift: boolean): void {
+    const { store, bridge } = this.ctx;
+    const units = this.ownSoldiers();
+    if (!units.length) { store.setTool({ t: "auswahl" }); return; }
+    const tile = this.r.tileAt(x, y, (tx, ty) => this.ctx.game.walkLayerAt(tx, ty));
+    if (t.cmd === "angriffsbewegung") {
+      const enemy = this.r.pick(x, y, (h) => h.team !== 0);
+      const res = enemy
+        ? bridge.dispatch({ t: "angreifen", units, target: enemy.id })
+        : bridge.dispatch({ t: "angriffsbewegung", units, x: tile.x, y: tile.y });
+      this.report(res, "Angriffsmarsch nicht möglich.");
+      if (res.ok) this.markers.push({ x: tile.x + 0.5, y: tile.y + 0.5, z: tile.z, t0: this.time, color: ORDER_COLORS.amove });
+      if (res.ok && !shift) store.setTool({ t: "auswahl" });
+      return;
+    }
+    const pts = [...t.pts, { x: tile.x, y: tile.y }];
+    const res = bridge.dispatch({ t: "patrouille", units, pts });
+    this.report(res, "Patrouille nicht möglich.");
+    if (res.ok) this.markers.push({ x: tile.x + 0.5, y: tile.y + 0.5, z: tile.z, t0: this.time, color: ORDER_COLORS.patrol });
+    if (res.ok && shift && pts.length < COMMAND_TUNING.patrolPoints) store.setTool({ ...t, pts });
+    else if (res.ok || !shift) store.setTool({ t: "auswahl" });
   }
 
   private rightClick(x: number, y: number, _shift: boolean): void {
@@ -360,21 +455,8 @@ export class Input {
     this.keys.add(e.code);
     const is = (a: AppAction) => (APP_KEYS[a] as readonly string[]).includes(e.code);
     if (is("debug")) { e.preventDefault(); this.ctx.toggleDebug(); return; }
-    if (e.ctrlKey || e.metaKey) {
-      const n = digit(e.code);
-      if (n !== null && e.ctrlKey) {
-        e.preventDefault();
-        store.groups.set(n, this.ownSelected());
-        this.notify(`Gruppe ${n} gespeichert`);
-      }
-      return;
-    }
-    const n = digit(e.code);
-    if (n !== null) {
-      const g = store.groups.get(n);
-      if (g?.length) store.select({ units: g, building: null });
-      return;
-    }
+    // Strg/Cmd-Kombinationen gehören dem Browser bzw. den Kontrollgruppen, Ziffern den Kontrollgruppen (groups.ts)
+    if (e.ctrlKey || e.metaKey || groupDigit(e.code) !== null) return;
     const action = (Object.keys(APP_KEYS) as AppAction[]).find(is);
     switch (action) {
       case "drehenLinks": bridge.rotate(-1); break;
@@ -401,6 +483,7 @@ export class Input {
         break;
       }
       case "abbrechen":
+        if (this.face) { this.face = null; break; }
         if (store.tool.t !== "auswahl") { store.setTool({ t: "auswahl" }); this.wallStart = null; }
         else store.select({ units: [], building: null });
         break;
@@ -438,10 +521,13 @@ export class Input {
     if (this.markers.length && time - this.markers[0].t0 >= 0.8) this.markers = this.markers.filter((m) => time - m.t0 < 0.8);
 
     // Treffer und Vorschau nur bei Änderungen neu auswerten
-    const t = this.tool;
     const store = this.ctx.store;
+    // Befehlswerkzeug ohne Soldaten (gefallen, abgewählt): zurück zur Auswahl
+    if (store.tool.t === "befehl" && !this.ownSoldiers().length) store.setTool({ t: "auswahl" });
+    const t = this.tool;
     const key = `${this.mx},${this.my},${this.over ? 1 : 0},${this.pan ? 1 : 0},${this.ctx.game.state.tick},${cam.x},${cam.y},${cam.r},${cam.zoom},` +
-      `${t.t === "bauen" ? t.key + t.o : t.t},${this.wallStart ? this.wallStart.x + ":" + this.wallStart.y : ""},${store.selection.units.length}`;
+      `${t.t === "bauen" ? t.key + t.o : t.t === "befehl" ? t.cmd + t.pts.length : t.t},${this.wallStart ? this.wallStart.x + ":" + this.wallStart.y : ""},${store.selection.units.length},` +
+      `${this.face?.drag ? this.face.sx + ":" + this.face.sy : ""}`;
     if (this.moved || key !== this.hoverKey) {
       this.hoverKey = key;
       this.moved = false;
@@ -462,7 +548,31 @@ export class Input {
     let reason = "";
     const t = this.tool;
     const inside = this.over && this.mx >= 0;
-    if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
+    if (this.face?.drag) {
+      // Rechtsziehen: Plätze der Formation und Blickrichtung zeigen (dieselbe Rechnung wie der Befehl)
+      const { tile, fx, fy } = this.faceTarget(this.face, this.mx, this.my);
+      const len = Math.hypot(fx, fy) || 1;
+      const slots = this.ctx.game.planFormation?.(this.ownSoldiers(), tile.x, tile.y, fx, fy) ?? [];
+      const cx = tile.x + 0.5, cy = tile.y + 0.5;
+      preview = { kind: "formation", slots, from: [cx, cy], to: [cx + (fx / len) * 2.5, cy + (fy / len) * 2.5] };
+      this.setCursor("crosshair");
+    } else if (t.t === "befehl" && inside) {
+      const tile = this.r.tileAt(this.mx, this.my, (tx, ty) => this.ctx.game.walkLayerAt(tx, ty));
+      const here = { x: tile.x, y: tile.y, z: tile.z };
+      if (t.cmd === "patrouille") {
+        const st = this.ctx.game.state, ids = new Set(this.ownSoldiers());
+        const us = st.units.filter((u) => ids.has(u.id));
+        const start = us.length ? { x: Math.floor(us.reduce((a, u) => a + u.x, 0) / us.length), y: Math.floor(us.reduce((a, u) => a + u.y, 0) / us.length), z: 0 } : here;
+        const marks = t.pts.map((p) => ({ x: p.x, y: p.y, z: LAYER_Z[this.ctx.game.walkLayerAt(p.x, p.y)] ?? 0 }));
+        preview = { kind: "route", pts: [start, ...marks, here], color: ORDER_COLORS.patrol, loop: marks.length > 0, flags: true };
+        reason = t.pts.length ? "Nächste Wegmarke (Umschalt + Klick: noch eine)" : "Patrouille: Wegmarke setzen (Umschalt + Klick: weitere)";
+      } else {
+        const enemy = this.r.pick(this.mx, this.my, (h) => h.team !== 0);
+        preview = { kind: "route", pts: [here], color: ORDER_COLORS.amove, loop: false, flags: false };
+        reason = enemy ? "Angriffsmarsch: diesen Gegner angreifen" : "Angriffsmarsch: Ziel wählen, unterwegs wird gekämpft";
+      }
+      this.setCursor("crosshair");
+    } else if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
       const end = this.r.tileAt(this.mx, this.my);
       const s = this.wallStart ?? end;
       const id = `wall:${s.x}:${s.y}:${end.x}:${end.y}`;
@@ -513,7 +623,3 @@ function originAt(key: BuildingKey, o: number, tx: number, ty: number): [number,
   return [tx - Math.floor((w - 1) / 2), ty - Math.floor((h - 1) / 2)];
 }
 
-function digit(code: string): number | null {
-  const m = /^Digit([0-9])$/.exec(code);
-  return m ? Number(m[1]) : null;
-}

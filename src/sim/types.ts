@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, Good, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
+import type { AnimKey, BuildingKey, FormationKey, Good, RecipeKey, StanceKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -143,9 +143,22 @@ export interface ResearchState {
   }) | null;
 }
 
+/** Wegpunkt eines Befehls: Tile und Laufebene. */
+export type OrderPoint = [x: number, y: number, layer: number];
+
 export type UnitOrder =
   | { t: "idle" }
-  | { t: "move"; x: number; y: number; layer: number }
+  /**
+   * Bewegen (ADR 0018): fx/fy = Blickrichtung am Ziel (Formation), pace = Höchsttempo der Gruppe (Felder/s), damit eine
+   * Formation zusammen ankommt. Fehlen in alten Spielständen.
+   */
+  | { t: "move"; x: number; y: number; layer: number; fx?: number; fy?: number; pace?: number }
+  /** Angriffsmarsch: zum Ziel gehen, unterwegs Gegner angreifen, danach weiter. */
+  | { t: "amove"; x: number; y: number; layer: number; fx?: number; fy?: number; pace?: number }
+  /** Patrouille: Wegmarken der Reihe nach (i = nächste), danach wieder von vorn; unterwegs Gegner angreifen. */
+  | { t: "patrol"; pts: OrderPoint[]; i: number; pace?: number }
+  /** Rückzug zum Bergfried bzw. Sammelplatz: schneller, ohne zu kämpfen. */
+  | { t: "retreat"; x: number; y: number }
   | { t: "attack"; target: number; kind: "unit" | "building" }
   | { t: "station"; building: number; post: number }
   | { t: "hold" }
@@ -185,11 +198,17 @@ export interface Unit {
   activity?: UnitActivity;
   /** Boni aus der Forschung (Reichweite in Feldern, Rüstung), fehlt = keine. */
   boost?: { range?: number; armor?: number };
+  /** Soldaten: Haltung (STANCES), fehlt = DEFAULT_STANCE. */
+  stance?: StanceKey;
+  /** Soldaten: Formation beim Bewegen (FORMATIONS), fehlt = DEFAULT_FORMATION. */
+  formation?: FormationKey;
 }
 
 export type UnitActivity =
   | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
-  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet";
+  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet"
+  /** Befehle der Soldaten (ADR 0018). */
+  | "marschiert" | "patrouilliert" | "zieht_zurueck";
 
 export interface Projectile {
   id: number;
@@ -237,8 +256,21 @@ export type Command =
   | { t: "mauer"; x0: number; y0: number; x1: number; y1: number }
   | { t: "abreissen"; id: number }
   | { t: "rekrutieren"; building: number; unit: UnitKey }
-  /** Ziel-Tile; ist er Teil eines Wehrgangs, gehen die Einheiten hinauf (wenn erreichbar). */
-  | { t: "bewegen"; units: number[]; x: number; y: number }
+  /**
+   * Ziel-Tile; ist er Teil eines Wehrgangs, gehen die Einheiten hinauf (wenn erreichbar). Am Boden stellen sie sich in
+   * ihrer Formation auf; fx/fy = Blickrichtung (Rechtsziehen), sonst die Marschrichtung.
+   */
+  | { t: "bewegen"; units: number[]; x: number; y: number; fx?: number; fy?: number }
+  /** Angriffsmarsch zum Tile (Formation wie bewegen). */
+  | { t: "angriffsbewegung"; units: number[]; x: number; y: number; fx?: number; fy?: number }
+  /** Patrouille vom Standort über die Wegmarken (Tiles) und zurück. */
+  | { t: "patrouille"; units: number[]; pts: { x: number; y: number }[] }
+  /** Rückzug zum Bergfried (ohne Bergfried zum Sammelplatz). */
+  | { t: "rueckzug"; units: number[] }
+  /** Haltung setzen. */
+  | { t: "haltung"; units: number[]; stance: StanceKey }
+  /** Formation setzen; stehende Soldaten stellen sich sofort am Ort neu auf. */
+  | { t: "formation"; units: number[]; formation: FormationKey }
   | { t: "angreifen"; units: number[]; target: number }
   /** Automatisch auf freie Posten verteilen (zuerst Wehrgang, dann Türme). */
   | { t: "stationieren"; units: number[] }
@@ -258,6 +290,9 @@ export type Command =
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }
 
+/** Platz einer Einheit in einer Formation (Tile, Laufebene, Höhe für die Darstellung). */
+export interface FormationSlot { id: number; x: number; y: number; layer: number; z: number }
+
 export interface PlacementCheck {
   ok: boolean;
   reason?: string;
@@ -276,6 +311,8 @@ export interface Game {
   wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck;
   /** Laufebene am Tile, falls dort ein Wehrgang ist (für Zielwahl der Maus), sonst 0. */
   walkLayerAt(x: number, y: number): number;
+  /** Formationsplätze für einen Bewegungsbefehl (Vorschau beim Rechtsziehen): dieselbe Rechnung wie „bewegen“. */
+  planFormation?(units: number[], x: number, y: number, fx?: number, fy?: number): FormationSlot[];
   /** Spielstand als JSON (Speichern) und Laden. */
   save(): string;
 }

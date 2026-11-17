@@ -31,6 +31,7 @@ export const mountUi: MountUi = (root, bridge) => {
     root.style.setProperty(`--mk-tex-${t}`, `url("${new URL(`ui/${t}_kachel.png`, base).href}")`);
   }
   root.style.setProperty("--mk-tex-forschung", `url("${new URL("ui/forschung.png", base).href}")`);
+  root.style.setProperty("--mk-tex-befehle", `url("${new URL("ui/befehle.png", base).href}")`);
 
   const toastLayer = h("div.mk-toasts");
   const rectOf = (el: HTMLElement) => (el.isConnected && !el.hidden ? el.getBoundingClientRect() : null);

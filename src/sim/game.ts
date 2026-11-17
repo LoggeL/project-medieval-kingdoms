@@ -3,7 +3,8 @@
  *
  * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
  * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
- * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
+ * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit (beim Rückzug
+ * schneller, befehle.animRate) → Lagerstatistik.
  */
 import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
 import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
@@ -14,12 +15,13 @@ import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
 import { emptyMap, generateMap } from "./mapgen";
-import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
+import { cmdAttack, cmdHold, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
+import { animRate, cmdFormation, cmdGroupMove, cmdPatrol, cmdRetreat, cmdStance, planFormation } from "./befehle";
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
 import { storeDirect, updateStock } from "./storage";
 import { updateActivity, updateGates, updateRecruits } from "./activity";
-import type { Command, CommandResult, Game, PlacementCheck, SimState } from "./types";
+import type { Command, CommandResult, FormationSlot, Game, PlacementCheck, SimState } from "./types";
 import { PATH_BUDGET, SAVE_VERSION, TPS, World, type Meta, type SBuilding, type SState, type SUnit } from "./world";
 
 export interface GameOptions {
@@ -46,6 +48,9 @@ export class Simulation implements Game {
     return { ok: r.ok, reason: r.reason, tiles: r.tiles };
   }
   walkLayerAt(x: number, y: number): number { return walkLayerAt(this.world, Math.floor(x), Math.floor(y)); }
+  planFormation(units: number[], x: number, y: number, fx?: number, fy?: number): FormationSlot[] {
+    return planFormation(this.world, units, Math.floor(x), Math.floor(y), fx, fy);
+  }
   save(): string { return JSON.stringify({ v: SAVE_VERSION, state: this.world.s, meta: this.world.meta }); }
 }
 
@@ -138,7 +143,7 @@ export function step(w: World): void {
   separate(w);
   updateProjectiles(w);
   updateDeaths(w);
-  for (const u of s.units) u.animT += 1 / TPS;
+  for (const u of s.units) u.animT += animRate(u) / TPS;
   updateStock(w);
 }
 
@@ -199,7 +204,12 @@ export function runCommand(w: World, c: Command): CommandResult {
       return { ok: true, ids: [c.id] };
     }
     case "rekrutieren": return cmdRecruit(w, c.building, c.unit);
-    case "bewegen": return cmdMove(w, c.units, Math.floor(c.x), Math.floor(c.y));
+    case "bewegen": return cmdGroupMove(w, c.units, Math.floor(c.x), Math.floor(c.y), c.fx, c.fy, "move");
+    case "angriffsbewegung": return cmdGroupMove(w, c.units, Math.floor(c.x), Math.floor(c.y), c.fx, c.fy, "amove");
+    case "patrouille": return cmdPatrol(w, c.units, c.pts ?? []);
+    case "rueckzug": return cmdRetreat(w, c.units);
+    case "haltung": return cmdStance(w, c.units, c.stance);
+    case "formation": return cmdFormation(w, c.units, c.formation);
     case "angreifen": return cmdAttack(w, c.units, c.target);
     case "stationieren": return cmdStation(w, c.units);
     case "halten": return cmdHold(w, c.units);
