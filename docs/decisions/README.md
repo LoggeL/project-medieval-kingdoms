@@ -4,6 +4,8 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 
 | # | Thema | Status |
 |---|---|---|
-| [0001](0001-engine.md) | Engine / Framework | Vorschlag |
+| [0001](0001-engine.md) | Engine / Framework | Angenommen: Browser, TypeScript + PixiJS |
+| [0002](0002-koordinaten-und-drehung.md) | Koordinatensystem und 90°-Drehung | Angenommen |
+| [0003](0003-prototyp-architektur.md) | Architektur des Prototyps (Schichten, Tick, Befehle) | Angenommen |
 
-Geplant: 0002 Koordinatensystem und Rotation · 0003 Art-Pipeline · 0004 Simulationsmodell (Tick, ECS) · 0005 Pfadfindung · 0006 Speicherformat
+Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

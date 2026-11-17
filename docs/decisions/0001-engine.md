@@ -1,6 +1,6 @@
 # 0001 – Engine / Framework
 
-**Status:** Plattform entschieden: **Browser** (Logge, 17.11.2026, vorerst). Framework TypeScript + PixiJS weiterhin Vorschlag.
+**Status:** Plattform entschieden: **Browser** (Logge, 17.11.2026, vorerst). Framework **TypeScript + PixiJS + Vite** für den Prototyp angenommen (17.11.2026, Details in [0003](0003-prototyp-architektur.md)).
 
 ## Kontext
 2D-Isometrie mit echter 90°-Drehung, mehrere Zoomstufen, große Karten, hunderte gleichzeitig animierte Figuren, mehrschichtige Pfadfindung (Boden und Wehrgänge), datengetriebene Inhalte, Speichern. Die Simulation muss ohne Renderer testbar sein. Weder Godot noch Phaser bringen eine drehbare Iso-Ansicht mit, der Iso-Renderer wird in jedem Fall selbst gebaut.
