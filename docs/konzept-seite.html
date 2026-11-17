@@ -1,8 +1,29 @@
 <title>Medieval Kingdoms Konzept</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Jacquarda+Bastarda+9&family=Pixelify+Sans:wght@400;600;700&display=swap">
+<!-- SCHRIFTEN: selbst gehostet, keine Anfrage an Google Fonts (DSGVO). Die woff2-Dateien kopiert das Dockerfile
+     aus den npm-Paketen @fontsource/* nach /fonts/ (dieselben Schnitte wie src/ui/fonts.css im Spiel).
+     Artifact-Fassung (claude.ai erlaubt Stylesheets nur von Google Fonts): den Block von SCHRIFTEN bis /SCHRIFTEN
+     durch den Google-Fonts-Link ersetzen und den Link „Prototyp spielen“ absolut machen. Fertiger Befehl dafür
+     in docs/DEPLOYMENT.md, Abschnitt „Konzeptseite als Artifact“. -->
+<style>
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/alegreya-sans-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/alegreya-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/alegreya-sans-latin-ext-500-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/alegreya-sans-latin-500-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/alegreya-sans-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/alegreya-sans-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Alegreya Sans"; font-style: italic; font-weight: 400; font-display: swap; src: url("/fonts/alegreya-sans-latin-ext-400-italic.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Alegreya Sans"; font-style: italic; font-weight: 400; font-display: swap; src: url("/fonts/alegreya-sans-latin-400-italic.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Jacquarda Bastarda 9"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/jacquarda-bastarda-9-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Jacquarda Bastarda 9"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/jacquarda-bastarda-9-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/pixelify-sans-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/pixelify-sans-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/pixelify-sans-latin-ext-600-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/pixelify-sans-latin-600-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/pixelify-sans-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: "Pixelify Sans"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/pixelify-sans-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+</style>
+<!-- /SCHRIFTEN -->
 <style>
 /* Layout: one reading column (~46rem) on slate "Kalkstein"; figures, tables and diagrams break out to a wide column (~70rem). Pixel display type for names, pixel-blackletter for chapter titles, humanist sans for reading. */
 :root {
@@ -87,6 +108,17 @@ p { margin: 0; }
 .hero h1 .pre { display: block; font-size: 0.42em; color: var(--gold); letter-spacing: 0.18em; margin-bottom: 0.35rem; }
 .lede { font-size: clamp(1.15rem, 2.2vw, 1.4rem); line-height: 1.5; max-width: 44rem; }
 .lede strong { color: var(--accent); font-weight: 700; }
+/* Link zum spielbaren Prototyp (/spiel/), im Stil der Knöpfe, aber größer und in Wappenblau */
+.play { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
+.play-btn {
+  font-family: var(--f-display); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.03em; text-decoration: none;
+  color: var(--surface); background: var(--accent); border: 1px solid var(--accent); border-bottom: 4px solid color-mix(in srgb, var(--accent) 50%, #000);
+  border-radius: 4px; padding: 0.55rem 1.1rem; display: inline-flex; align-items: center; gap: 0.55rem;
+}
+.play-btn:hover { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.play-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+.play-btn .tri { width: 0; height: 0; border-block: 0.4em solid transparent; border-left: 0.65em solid currentColor; }
+.play-note { font-size: 0.95rem; color: var(--muted); max-width: 30rem; }
 
 .scene {
   background: var(--scene-bg); border: 1px solid var(--line); border-radius: 6px;
@@ -452,6 +484,7 @@ footer.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--l
   <p class="label">Spielkonzept · Entwurf v1 · 16. November 2026</p>
   <h1><span class="pre">PROJECT:</span>MEDIEVAL KINGDOMS</h1>
   <p class="lede">Ein isometrisches Pixelart-RTS über drei Jahrhunderte. Aus einer hölzernen Turmhügelburg wird eine lebendige Burgstadt. <strong>Jeder Stein wird sichtbar gebrochen, gefahren und vermauert</strong>, und jede Mauer ist ein Ort, den die eigenen Soldaten wirklich besetzen.</p>
+  <p class="play"><a class="play-btn" href="/spiel/"><span class="tri" aria-hidden="true"></span>Prototyp spielen</a><span class="play-note">Läuft direkt im Browser, am besten am Rechner mit Maus und Tastatur. Ein früher Stand: Holzfäller, Steinbruch, Lager, Kaserne und eine Mauer zum Besetzen.</span></p>
 
   <figure class="scene" style="margin:0">
     <div class="scene-stage" id="stage" tabindex="0" role="group" aria-label="Isometrische Beispielszene. Mit Q und E drehen.">
