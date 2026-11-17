@@ -3,7 +3,7 @@
  * zur Höhe des nächsten Knotens (so steigt sie sichtbar entlang der Treppe). Pfadsuchen sind pro Tick
  * begrenzt (World.budget); wer keine bekommt, wartet einen Tick.
  */
-import { UNITS } from "../data";
+import { LIFE, UNITS } from "../data";
 import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
 import { carryFactor } from "./research";
@@ -145,7 +145,7 @@ function advance(w: World, u: SUnit): boolean {
 
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */
 export function speedOf(w: World, u: SUnit): number {
-  const base = UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1);
+  const base = UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1) * (u.run ? LIFE.run.factor : 1);
   if (u.layer > 0) return base;
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;

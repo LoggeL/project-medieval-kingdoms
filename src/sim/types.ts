@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, CropKey, Good, RationKey, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
+import type { AnimalAnim, AnimalKey, AnimKey, BuildingKey, CropKey, Good, RationKey, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -16,7 +16,8 @@ export interface Tile {
   building: number;
 }
 
-export type TreeState = "stehend" | "faellt" | "liegt" | "stumpf";
+/** waechst: nachwachsender Baum (Setzling, Jungbaum, halbwüchsig; Tree.stage), noch nicht fällbar (ADR 0016). */
+export type TreeState = "stehend" | "faellt" | "liegt" | "stumpf" | "waechst";
 
 export interface Tree {
   id: number;
@@ -31,6 +32,35 @@ export interface Tree {
   /** Verbleibende Stämme, wenn liegend. */
   logs: number;
   reservedBy: number;                 // Einheiten-ID oder 0
+  /** Nachwachsen (ADR 0016): Wachstumsstufe 0..2 im Zustand "waechst"; Ticks seit Beginn der Stufe bzw. seit dem Fällen (Stumpf). Fehlt = 0. */
+  stage?: number;
+  age?: number;
+}
+
+/**
+ * Tier (ADR 0016): eigene Objekte neben den Einheiten, kein Teil von Kampf und Wegnetz. Weidetiere ziehen um ihren
+ * Weideplatz, Wild flieht vor Figuren, Krähen fliegen auf. Wild ist jagdbar (src/sim/animals.ts: findGame, killAnimal, takeMeat).
+ */
+export interface Animal {
+  id: number;
+  key: AnimalKey;
+  /** Position in Welt (wie Unit), Höhe z in Höhenstufen (nur fliegende Vögel). */
+  x: number; y: number; z: number;
+  px: number; py: number; pz: number;
+  fx: number; fy: number;
+  anim: AnimalAnim;
+  animT: number;
+  /** Weideplatz (Mitte des Streifgebiets). */
+  hx: number; hy: number;
+  /** Aktuelles Ziel. */
+  tx: number; ty: number;
+  /** ruht/grast, zieht, flieht, fliegt; tot. Ticks im Zustand bis zum nächsten Wechsel. */
+  mode: "ruht" | "zieht" | "flieht" | "fliegt" | "tot";
+  t: number;
+  hp: number;
+  /** Erlegtes Wild: verbleibendes Fleisch; Jäger, der es reserviert hat (0 = niemand). */
+  meat: number;
+  reservedBy: number;
 }
 
 export interface Rock {
@@ -229,6 +259,10 @@ export interface Unit {
   activity?: UnitActivity;
   /** Boni aus der Forschung (Reichweite in Feldern, Rüstung), fehlt = keine. */
   boost?: { range?: number; armor?: number };
+  /** Tick des letzten erlittenen Treffers (Zusammenzucken in der Darstellung, ADR 0016). Fehlt = nie. */
+  hitT?: number;
+  /** Rennt (fliehender Tagelöhner): schneller, Rennbilder. Fehlt = geht. */
+  run?: boolean;
 }
 
 export type UnitActivity =
@@ -275,6 +309,8 @@ export interface SimState {
   research: ResearchState;
   /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
   outcome?: "niederlage";
+  /** Tiere (ADR 0016); fehlt in Spielständen ohne Tiere und im leeren Szenario. */
+  animals?: Animal[];
 }
 
 export type Command =

@@ -14,6 +14,7 @@ import { Overlays, WALL_GHOST_ALPHA, type Marker, type Preview } from "./overlay
 import { interiorTargets, stepInteriors } from "./interior";
 import { ObjectLayer, type Hit } from "./scene";
 import { DustLayer } from "./dust";
+import { daylightTint } from "./life";
 import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
 
@@ -140,6 +141,10 @@ export class GameRenderer {
     this.objects.update(state, cam.r, alpha, cam.viewRect(160), {
       selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight, ghosts, interiors: this.interiors,
     });
+    // Tageslicht (ADR 0016): Gelände und Objekte gemeinsam gefärbt, aus dem Tick (die Pause hält die Tageszeit an)
+    const day = daylightTint(state.tick);
+    this.terrain.container.tint = day;
+    this.objects.container.tint = day;
     // Rauch läuft in Spielzeit (steht in der Pause, doppelt so schnell bei 2×)
     this.smoke.update(this.objects.emitters, (state.tick + alpha) / TICKS_PER_SECOND, cam.r);
     // Baustaub, Späne und Abrissstaub (Zeiten kommen aus der Objektebene)

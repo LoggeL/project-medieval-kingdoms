@@ -47,7 +47,7 @@ function plotReason(w: World, f: FieldDef, x: number, y: number, fp: Set<string>
   if (!f.terrain.includes(t.terrain)) return `${TERRAIN[t.terrain].name}: hier wächst nichts`;
   if (t.building || fp.has(`${x},${y}`)) return "Hier steht schon etwas";
   if (plotAt(w.s, x, y)) return "Hier liegt schon ein Feld";
-  if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf")) return "Bäume im Weg";
+  if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf" && tr.state !== "waechst")) return "Bäume im Weg";
   if (w.s.rocks.some((r) => r.x === x && r.y === y && r.amount > 0)) return "Felsbrocken im Weg";
   for (const b of w.s.buildings) {
     if (!hasDoor(b.key)) continue;
@@ -87,6 +87,10 @@ export function newFarm(w: World, b: SBuilding): FarmState | undefined {
   if (!f) return undefined;
   const plan = fieldPlan(w, b.key, b.x, b.y, b.o);
   const plots: Plot[] = plan.tiles.filter((t) => t.ok).map((t) => ({ x: t.x, y: t.y, stage: 0, t: 0, by: 0 }));
+  // Nachwachsende Bäume (ADR 0016) sperren ein Beet nicht, das neue Feld räumt sie (wie die Baustelle); Stümpfe auf
+  // Beeten treiben nicht mehr aus (forest.ts: canGrow).
+  const onPlot = new Set(plots.map((p) => w.idx(p.x, p.y)));
+  w.s.trees = w.s.trees.filter((t) => t.state !== "waechst" || !onPlot.has(w.idx(t.x, t.y)));
   return { crop: f.crop, plots, harvested: 0 };
 }
 

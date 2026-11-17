@@ -971,6 +971,337 @@
     ]
    },
    "row": 272
+  },
+  {
+   "key": "tageloehner_leben",
+   "name": "Tagelöhner (Leben)",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "rennen": [
+     1,
+     8
+    ],
+    "treffer": [
+     9,
+     2
+    ],
+    "geben": [
+     11,
+     3
+    ],
+    "sitzen": [
+     14,
+     1
+    ],
+    "plaudern": [
+     15,
+     2
+    ]
+   },
+   "base": "tageloehner",
+   "row": 280
+  },
+  {
+   "key": "speer_leben",
+   "name": "Speerträger (Leben)",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "rennen": [
+     1,
+     8
+    ],
+    "treffer": [
+     9,
+     2
+    ],
+    "geben": [
+     11,
+     3
+    ],
+    "sitzen": [
+     14,
+     1
+    ],
+    "plaudern": [
+     15,
+     2
+    ]
+   },
+   "base": "speer",
+   "row": 288
+  },
+  {
+   "key": "schwert_leben",
+   "name": "Schwertkämpfer (Leben)",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "rennen": [
+     1,
+     8
+    ],
+    "treffer": [
+     9,
+     2
+    ],
+    "geben": [
+     11,
+     3
+    ],
+    "sitzen": [
+     14,
+     1
+    ],
+    "plaudern": [
+     15,
+     2
+    ]
+   },
+   "base": "schwert",
+   "row": 296
+  },
+  {
+   "key": "bogen_leben",
+   "name": "Bogenschütze (Leben)",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "rennen": [
+     1,
+     8
+    ],
+    "treffer": [
+     9,
+     2
+    ],
+    "geben": [
+     11,
+     3
+    ],
+    "sitzen": [
+     14,
+     1
+    ],
+    "plaudern": [
+     15,
+     2
+    ]
+   },
+   "base": "bogen",
+   "row": 304
+  },
+  {
+   "key": "schaf",
+   "name": "Schaf",
+   "showcase": false,
+   "frames": 23,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "grasen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ],
+    "rennen": [
+     17,
+     6
+    ]
+   },
+   "row": 312
+  },
+  {
+   "key": "kuh",
+   "name": "Kuh",
+   "showcase": false,
+   "frames": 23,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "grasen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ],
+    "rennen": [
+     17,
+     6
+    ]
+   },
+   "row": 320
+  },
+  {
+   "key": "pferd",
+   "name": "Pferd",
+   "showcase": false,
+   "frames": 23,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "grasen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ],
+    "rennen": [
+     17,
+     6
+    ]
+   },
+   "row": 328
+  },
+  {
+   "key": "hirsch",
+   "name": "Hirsch",
+   "showcase": false,
+   "frames": 23,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "grasen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ],
+    "rennen": [
+     17,
+     6
+    ]
+   },
+   "row": 336
+  },
+  {
+   "key": "reh",
+   "name": "Reh",
+   "showcase": false,
+   "frames": 23,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "grasen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ],
+    "rennen": [
+     17,
+     6
+    ]
+   },
+   "row": 344
+  },
+  {
+   "key": "kraehe",
+   "name": "Krähe",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "fliegen": [
+     9,
+     4
+    ],
+    "picken": [
+     13,
+     3
+    ],
+    "auffliegen": [
+     16,
+     1
+    ]
+   },
+   "shadow": false,
+   "row": 352
   }
  ],
  "team_swap": {

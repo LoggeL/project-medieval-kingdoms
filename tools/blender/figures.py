@@ -827,8 +827,395 @@ def pose_dying(root, pv, i, dirz):
 
 def unit_meta(key):
     u = UNITS[key]
+    if u.get("animal") or u.get("program"):
+        return extra_meta(key, u)
     return {"key": key, "name": u["name"], "showcase": u.get("showcase", True), "frames": NCOLS,
             "anims": anims_of(u, STYLE.get("walk_frames", 8))}
+
+
+# ---------------------------------------------------------------- lebendige Welt (ADR 0016)
+# Two extra kinds of sheet entries, both new rows only (the sheets of the other units stay byte-identical):
+#  - "program": "leben" + "base": <unit>: the same figure as the base unit with new animations in its own sheet
+#    (run, hit, hand over, sit, chat). Columns: LEBEN_COLS.
+#  - "animal": <kind>: procedural quadrupeds (sheep, cow, horse, red and roe deer) and the crow. Columns: ANIMAL_COLS
+#    resp. BIRD_COLS. Animals have no team colour.
+LEBEN_COLS = {"stehen": [0, 1], "rennen": [1, 8], "treffer": [9, 2], "geben": [11, 3], "sitzen": [14, 1], "plaudern": [15, 2]}
+ANIMAL_COLS = {"stehen": [0, 1], "gehen": [1, 8], "grasen": [9, 4], "sterben": [13, 3], "tot": [16, 1], "rennen": [17, 6]}
+BIRD_COLS = {"stehen": [0, 1], "gehen": [1, 8], "fliegen": [9, 4], "picken": [13, 3], "auffliegen": [16, 1]}
+ANIMAL_NCOLS = 23
+
+
+def extra_cols(u):
+    if u.get("program") == "leben":
+        return LEBEN_COLS, NCOLS
+    if u.get("animal") == "kraehe":
+        return BIRD_COLS, NCOLS
+    return ANIMAL_COLS, ANIMAL_NCOLS
+
+
+def extra_meta(key, u):
+    cols, n = extra_cols(u)
+    m = {"key": key, "name": u["name"], "showcase": u.get("showcase", False), "frames": n, "anims": dict(cols)}
+    if u.get("base"):
+        m["base"] = u["base"]
+    if u.get("shadow") is False:
+        m["shadow"] = False
+    return m
+
+
+def render_pair(sc, base_path):
+    """Flat colour pass and light pass of the current pose (the same two passes as main())."""
+    sh = sc.display.shading
+    sh.light = "FLAT"
+    sc.render.filepath = base_path + ".png"
+    bpy.ops.render.render(write_still=True)
+    cols_ = {o.name: tuple(o.color) for o in bpy.data.objects if o.type == "MESH"}
+    for o in bpy.data.objects:
+        if o.type == "MESH":
+            o.color = (0.8, 0.8, 0.8, 1)
+    sh.light = "STUDIO"
+    cav = STYLE.get("cavity")
+    if cav:
+        sh.show_cavity = True
+        sh.cavity_type = "WORLD"
+        sh.cavity_valley_factor = cav
+        sh.cavity_ridge_factor = 0.0
+    sc.render.filepath = base_path + "_l.png"
+    bpy.ops.render.render(write_still=True)
+    sh.show_cavity = False
+    for o in bpy.data.objects:
+        if o.type == "MESH":
+            o.color = cols_[o.name]
+
+
+# --- people: new animations of an existing figure ("program": "leben")
+def leben_pose(unit, pv, base, hip, legs, root, col):
+    """Pose for column col of the leben sheet. Held arms (weapon, shield, bow) mostly keep their grip."""
+    hold = set(unit.get("hold", []))
+    la, kb = math.radians(44), math.radians(80)
+
+    def arm(side, a, elbow=None):
+        if "arm" + side in hold:
+            b = [math.degrees(x) for x in base["arm" + side]]
+            pv["arm" + side].rotation_euler = rot((b[0] + (a[0] - b[0]) * 0.25, b[1], b[2]))
+            return
+        pv["arm" + side].rotation_euler = rot(a)
+        if elbow is not None:
+            pv["elbow" + side].rotation_euler = rot((elbow, 0, 0))
+
+    def legs_(l, r, kl=0.0, kr=0.0):
+        pv["legL"].rotation_euler = (math.radians(l), 0, 0)
+        pv["legR"].rotation_euler = (math.radians(r), 0, 0)
+        pv["kneeL"].rotation_euler = (math.radians(kl), 0, 0)
+        pv["kneeR"].rotation_euler = (math.radians(kr), 0, 0)
+        pv["ankleL"].rotation_euler = (-math.radians(l + kl), 0, 0)
+        pv["ankleR"].rotation_euler = (-math.radians(r + kr), 0, 0)
+
+    if 1 <= col <= 8:
+        # run: long stride, high knees, forward lean, bent arms swinging against the legs
+        ph = (col - 1) / 8
+        s, c = math.sin(2 * math.pi * ph), math.cos(2 * math.pi * ph)
+        kL = kb * max(0.0, -c) + kb * 0.45 * max(0.0, s)
+        kR = kb * max(0.0, c) + kb * 0.45 * max(0.0, -s)
+        pv["legL"].rotation_euler = (s * la, 0, 0)
+        pv["legR"].rotation_euler = (-s * la, 0, 0)
+        pv["kneeL"].rotation_euler = (kL, 0, 0)
+        pv["kneeR"].rotation_euler = (kR, 0, 0)
+        pv["ankleL"].rotation_euler = (-(s * la + kL) * 0.6, 0, 0)
+        pv["ankleR"].rotation_euler = (-(-s * la + kR) * 0.6, 0, 0)
+        hip.location.z = legs * math.cos(la * abs(s)) * 0.97 + 0.05 * abs(c)
+        if STYLE.get("quantize_hip"):
+            hip.location.z = legs - round((legs - hip.location.z) / PXM) * PXM
+        pv["upper"].rotation_euler = (math.radians(14), 0, 0)
+        aa = 46
+        arm("L", (-s * aa - 10, 0, -6), -75)
+        arm("R", (s * aa - 10, 0, 6), -75)
+        return
+    if col in (9, 10):
+        # hit: the body is thrown back, arms fly out, one foot steps back
+        k = 1.0 if col == 9 else 0.55
+        pv["upper"].rotation_euler = (math.radians(-18 * k), 0, 0)
+        arm("L", (-35 * k, 0, 28 * k))
+        arm("R", (-30 * k, 0, -28 * k))
+        legs_(-6 * k, 16 * k, 10 * k, 18 * k)
+        return
+    if 11 <= col <= 13:
+        # hand over / put down: bend forward, both arms reach out low
+        lean, a = ((14, -48), (26, -72), (18, -60))[col - 11]
+        pv["upper"].rotation_euler = (math.radians(lean), 0, 0)
+        arm("L", (a, 0, -8), -20)
+        arm("R", (a, 0, 8), -20)
+        legs_(-8, 6, 12, 6)
+        return
+    if col == 14:
+        # sitting on the ground, knees up, forearms resting on the knees
+        pv["upper"].rotation_euler = (math.radians(6), 0, 0)
+        legs_(-78, -72, 118, 112)
+        arm("L", (-52, 0, -14), -35)
+        arm("R", (-48, 0, 14), -35)
+        ground(root)
+        return
+    if col in (15, 16):
+        # chatting: one hand gestures, weight on one leg
+        if col == 15:
+            arm("R", (-58, 0, -12), -55)
+            arm("L", (-12, 0, 6))
+            pv["upper"].rotation_euler = (math.radians(4), 0, 0)
+        else:
+            arm("R", (-34, 0, -18), -80)
+            arm("L", (-26, 0, 14), -30)
+            pv["upper"].rotation_euler = (math.radians(-2), 0, 0)
+        legs_(-4, 5, 4, 0)
+        return
+    # col 0: standing like the base sheet
+
+
+# --- animals
+# Sizes in metres (model: forward = -y, up = +z). "leg" = height of the leg pivots, body = (width, length, height),
+# neck = (thickness, length, angle above the horizontal), head = (width, length, height).
+ANIMAL_SPECS = {
+    "schaf": {"leg": 0.36, "body": (0.46, 0.92, 0.42), "neck": (0.13, 0.22, 52), "head": (0.15, 0.24, 0.16),
+              "tail": 0.12, "legw": 0.07, "c": {"body": "wool", "leg": "wool_face", "head": "wool_face", "hoof": "hoof"},
+              "wool": True, "ears": 0.09},
+    "kuh": {"leg": 0.7, "body": (0.62, 1.55, 0.66), "neck": (0.26, 0.34, 38), "head": (0.26, 0.42, 0.26),
+            "tail": 0.55, "legw": 0.12, "c": {"body": "cow", "leg": "cow", "head": "cow", "hoof": "hoof"},
+            "spots": "cow_spot", "horns": 0.16, "udder": True, "ears": 0.1},
+    "pferd": {"leg": 0.86, "body": (0.5, 1.45, 0.6), "neck": (0.22, 0.7, 58), "head": (0.2, 0.5, 0.24),
+              "tail": 0.6, "legw": 0.1, "c": {"body": "horse", "leg": "horse", "head": "horse", "hoof": "hoof"},
+              "mane": "mane", "ears": 0.1, "socks": "horse_sock"},
+    "hirsch": {"leg": 0.76, "body": (0.42, 1.2, 0.5), "neck": (0.16, 0.55, 64), "head": (0.16, 0.36, 0.18),
+               "tail": 0.12, "legw": 0.07, "c": {"body": "deer", "leg": "deer", "head": "deer", "hoof": "hoof"},
+               "belly": "deer_belly", "antlers": True, "ears": 0.12},
+    "reh": {"leg": 0.52, "body": (0.32, 0.86, 0.38), "neck": (0.11, 0.38, 64), "head": (0.12, 0.26, 0.13),
+            "tail": 0.0, "legw": 0.055, "c": {"body": "roe", "leg": "roe", "head": "roe", "hoof": "hoof"},
+            "belly": "deer_belly", "rump": "deer_belly", "ears": 0.11},
+}
+
+
+def build_quadruped(kind):
+    sp = ANIMAL_SPECS[kind]
+    c = sp["c"]
+    lg = sp["leg"]
+    bw, bl, bh = sp["body"]
+    root = empty("root")
+    body = empty("hip", (0, 0, lg + bh * 0.28), root)        # the trunk; bobs and pitches in the gaits
+    pv = {"body": body}
+    ball("trunk", (bw / 2, bl / 2, bh / 2), (0, 0, 0), c["body"], body)
+    if sp.get("belly"):
+        ball("belly", (bw * 0.42, bl * 0.4, bh * 0.3), (0, 0.02, -bh * 0.2), sp["belly"], body)
+    if sp.get("rump"):
+        ball("rump", (bw * 0.36, bh * 0.2, bh * 0.3), (0, bl * 0.47, 0.02), sp["rump"], body)
+    if sp.get("wool"):
+        for i in range(10):
+            a = 2 * math.pi * i / 10
+            ball("wool%d" % i, (bw * 0.26, bl * 0.2, bh * 0.24),
+                 (bw * 0.3 * math.cos(a), bl * 0.3 * math.sin(a), bh * 0.18 + 0.03 * (i % 2)), c["body"], body)
+    if sp.get("spots"):
+        for (x, y, z, s) in ((0.6, -0.1, 0.25, 0.32), (-0.6, 0.25, 0.15, 0.36), (0.55, 0.32, -0.05, 0.22), (-0.5, -0.3, 0.3, 0.2)):
+            ball("spot", (bw * 0.22, bl * s * 0.5, bh * 0.28), (x * bw * 0.42, y * bl * 0.6, z * bh), sp["spots"], body)
+    if sp.get("udder"):
+        ball("udder", (bw * 0.18, bl * 0.1, bh * 0.14), (0, bl * 0.24, -bh * 0.48), "udder", body)
+    # legs: shoulder/hip pivots, a knee half way, a hoof
+    lw = sp["legw"]
+    for name, sx, sy in (("LF", 1, -1), ("RF", -1, -1), ("LH", 1, 1), ("RH", -1, 1)):
+        p = empty("leg" + name, (sx * bw * 0.28, sy * bl * 0.34, -bh * 0.1), body)
+        pv["leg" + name] = p
+        top = lg - bh * 0.18
+        box("thigh" + name, (lw * 1.35, lw * 1.6, top * 0.55), (0, 0, -top * 0.27), c["leg"], p)
+        k = empty("knee" + name, (0, 0, -top * 0.52), p)
+        pv["knee" + name] = k
+        box("shin" + name, (lw, lw, top * 0.5), (0, 0, -top * 0.24), sp.get("socks", c["leg"]) if sy < 0 else c["leg"], k)
+        box("hoof" + name, (lw * 1.15, lw * 1.25, max(top * 0.09, PXM)), (0, -lw * 0.1, -top * 0.48), c["hoof"], k)
+    # neck and head: the neck turns down for grazing, the head stays roughly level
+    nw, nl, up = sp["neck"]
+    neck = empty("neck", (0, -bl * 0.4, bh * 0.15), body)
+    pv["neck"] = neck
+    box("neckbox", (nw, nw * 1.2, nl), (0, 0, nl * 0.45), c["head"] if kind == "schaf" else c["body"], neck)
+    if sp.get("wool"):
+        ball("woolneck", (nw * 0.9, nw * 1.1, nl * 0.5), (0, 0, nl * 0.2), c["body"], neck)
+    if sp.get("mane"):
+        box("mane", (nw * 0.45, nw * 0.5, nl * 1.0), (0, nw * 0.62, nl * 0.5), sp["mane"], neck)
+    neck.rotation_euler = (math.radians(90 - up), 0, 0)
+    hd = empty("headp", (0, 0, nl * 0.95), neck)
+    pv["head"] = hd
+    hw_, hl_, hh_ = sp["head"]
+    ball("skull", (hw_ / 2, hl_ * 0.3, hh_ / 2), (0, 0, 0), c["head"], hd)
+    box("muzzle", (hw_ * 0.7, hl_ * 0.62, hh_ * 0.72), (0, -hl_ * 0.38, -hh_ * 0.12), c["head"], hd)
+    box("nose", (hw_ * 0.6, PXM, hh_ * 0.4), (0, -hl_ * 0.7, -hh_ * 0.2), "hoof", hd)
+    if sp.get("ears"):
+        for sx in (1, -1):
+            box("ear", (sp["ears"] * 0.9, sp["ears"] * 0.35, sp["ears"] * 0.45), (sx * hw_ * 0.62, hl_ * 0.1, hh_ * 0.35), c["head"], hd,
+                rot=(0, math.radians(sx * 20), 0))
+    if sp.get("horns"):
+        for sx in (1, -1):
+            cone("horn", 0.035, 0.0, sp["horns"], (sx * hw_ * 0.55, hl_ * 0.05, hh_ * 0.6), "horn", hd, rot=(0, math.radians(sx * 55), 0))
+    if sp.get("mane"):
+        box("forelock", (hw_ * 0.4, hw_ * 0.3, hh_ * 0.35), (0, -hl_ * 0.05, hh_ * 0.52), sp["mane"], hd)
+    if sp.get("antlers"):
+        for sx in (1, -1):
+            a = empty("antler", (sx * hw_ * 0.32, hl_ * 0.08, hh_ * 0.45), hd)
+            a.rotation_euler = (math.radians(4), math.radians(sx * 38), 0)
+            box("beam", (th(0.04), th(0.04), 0.55), (0, 0, 0.27), "antler", a)
+            for (z, ang, ln) in ((0.12, 60, 0.2), (0.32, 45, 0.18), (0.5, -30, 0.16)):
+                # tines point forward (-y) and up from the beam
+                box("tine", (th(0.03), th(0.03), ln), (0, -math.sin(math.radians(ang)) * ln * 0.5, z + math.cos(math.radians(ang)) * ln * 0.5),
+                    "antler", a, rot=(math.radians(ang), 0, 0))
+    hd.rotation_euler = (-math.radians(90 - up) * 0.85, 0, 0)
+    pv["head_rest"] = tuple(hd.rotation_euler)
+    if sp["tail"] > 0:
+        t = empty("tail", (0, bl * 0.48, bh * 0.15), body)
+        pv["tail"] = t
+        mat = sp.get("mane", c["body"]) if kind == "pferd" else (c["leg"] if kind == "kuh" else c["body"])
+        tw = 0.1 if kind == "pferd" else th(0.05)
+        box("tailbox", (tw, tw * 1.2, sp["tail"]), (0, 0, -sp["tail"] * 0.5), mat, t)
+        t.rotation_euler = (math.radians(-18), 0, 0)
+    return root, body, pv
+
+
+CROW_S = 1.7  # larger than life, so the bird reads at 32 px per 1.8 m
+
+
+def build_crow():
+    s = CROW_S
+    root = empty("root")
+    body = empty("hip", (0, 0, 0.13 * s), root)
+    pv = {"body": body}
+    ball("cbody", (0.075 * s, 0.15 * s, 0.075 * s), (0, 0, 0), "crow", body)
+    hd = empty("headp", (0, -0.12 * s, 0.07 * s), body)
+    pv["head"] = hd
+    ball("chead", (0.055 * s, 0.06 * s, 0.055 * s), (0, 0, 0), "crow", hd)
+    cone("beak", 0.022 * s, 0.0, 0.07 * s, (0, -0.075 * s, -0.005 * s), "beak", hd, rot=(math.radians(90), 0, 0))
+    box("ctail", (0.07 * s, 0.13 * s, 0.015 * s), (0, 0.19 * s, 0.01 * s), "crow", body, rot=(math.radians(-15), 0, 0))
+    for side, sx in (("L", 1), ("R", -1)):
+        w = empty("wing" + side, (sx * 0.06 * s, -0.02 * s, 0.03 * s), body)
+        pv["wing" + side] = w
+        box("wingbox" + side, (0.26 * s, 0.11 * s, 0.018 * s), (sx * 0.13 * s, 0.02 * s, 0), "crow_wing", w)
+        lg = empty("leg" + side, (sx * 0.03 * s, 0.0, -0.05 * s), body)
+        pv["leg" + side] = lg
+        box("cleg" + side, (th(0.012), th(0.012), 0.08 * s), (0, 0, -0.04 * s), "beak", lg)
+    return root, body, pv
+
+
+def wings(pv, spread, flap):
+    """spread 0 = folded along the body, 1 = open; flap = up (+) / down (-) degrees."""
+    for side, sx in (("L", 1), ("R", -1)):
+        pv["wing" + side].rotation_euler = (0, math.radians(-sx * flap * spread), math.radians(sx * (1 - spread) * 78))
+
+
+def animal_pose(kind, pv, root, col, dirz):
+    """Pose for column col of an animal sheet (ANIMAL_COLS / BIRD_COLS)."""
+    root.rotation_euler = (0, 0, dirz)
+    root.location = (0, 0, 0)
+    b = pv["body"]
+    if kind == "kraehe":
+        b.rotation_euler = (0, 0, 0)
+        b.location.z = 0.13 * CROW_S
+        pv["head"].rotation_euler = (0, 0, 0)
+        wings(pv, 0, 0)
+        for side in ("L", "R"):
+            pv["leg" + side].rotation_euler = (0, 0, 0)
+        if 1 <= col <= 8:
+            ph = (col - 1) / 8  # two hops per cycle
+            b.location.z += 0.05 * abs(math.sin(2 * math.pi * ph))
+            b.rotation_euler = (math.radians(6 * math.sin(4 * math.pi * ph)), 0, 0)
+        elif 9 <= col <= 12:
+            wings(pv, 1, (62, 20, -38, 8)[col - 9])
+            for side in ("L", "R"):
+                pv["leg" + side].rotation_euler = (math.radians(70), 0, 0)
+            b.rotation_euler = (math.radians(-4), 0, 0)
+        elif 13 <= col <= 15:
+            b.rotation_euler = (math.radians((22, 48, 32)[col - 13]), 0, 0)
+            pv["head"].rotation_euler = (math.radians((15, 35, 20)[col - 13]), 0, 0)
+        elif col == 16:
+            wings(pv, 1, 75)
+            b.rotation_euler = (math.radians(-18), 0, 0)
+        ground(root)
+        return
+    sp = ANIMAL_SPECS[kind]
+    neck, head = pv["neck"], pv["head"]
+    up = sp["neck"][2]
+    b.rotation_euler = (0, 0, 0)
+    b.location.z = sp["leg"] + sp["body"][2] * 0.28
+    neck.rotation_euler = (math.radians(90 - up), 0, 0)
+    head.rotation_euler = pv["head_rest"]
+    for n in ("LF", "RF", "LH", "RH"):
+        pv["leg" + n].rotation_euler = (0, 0, 0)
+        pv["knee" + n].rotation_euler = (0, 0, 0)
+
+    def leg(n, a, k):
+        pv["leg" + n].rotation_euler = (math.radians(a), 0, 0)
+        # front knees bend backwards (hoof up behind), hind hocks forwards
+        pv["knee" + n].rotation_euler = (math.radians(k if n.endswith("F") else -k), 0, 0)
+
+    if 1 <= col <= 8:
+        # four-beat walk: left hind, left fore, right hind, right fore
+        ph = (col - 1) / 8
+        for n, off in (("LH", 0.0), ("LF", 0.25), ("RH", 0.5), ("RF", 0.75)):
+            phi = 2 * math.pi * (ph + off)
+            leg(n, 24 * math.sin(phi), 34 * max(0.0, -math.cos(phi)))
+        b.location.z += 0.015 * math.cos(4 * math.pi * ph)
+        neck.rotation_euler = (math.radians(90 - up + 4 * math.sin(4 * math.pi * ph)), 0, 0)
+    elif 9 <= col <= 12:
+        # grazing: neck down to the grass, small chewing movements of the head
+        k = (0.6, 1.0, 1.0, 1.0)[col - 9]
+        neck.rotation_euler = (math.radians(90 - up + (up + 58) * k), 0, 0)
+        head.rotation_euler = (math.radians((-20, 8, -6, 12)[col - 9]), 0, 0)
+        leg("LF", -6 if col >= 11 else 0, 4)
+    elif 13 <= col <= 16:
+        # dying: knees give way, the animal falls onto its side and lies still
+        roll = (14, 45, 80, 90)[col - 13]
+        root.rotation_euler = (0, math.radians(roll), dirz)
+        for n in ("LF", "RF", "LH", "RH"):
+            leg(n, (10, 25, 30, 32)[col - 13] * (1 if n.endswith("H") else -1), (40, 60, 30, 20)[col - 13])
+        neck.rotation_euler = (math.radians(90 - up + (10, 30, 50, 60)[col - 13]), 0, 0)
+        # a little away from the camera, so legs pointing towards it stay inside the cell
+        away = sp["body"][1] * 0.35 * (col - 12) / 4
+        root.location = (AWAY[0] * away, AWAY[1] * away, 0)
+    elif 17 <= col <= 22:
+        # running (bound / gallop): fore and hind legs in pairs, stretched in the flight phase
+        phi = 2 * math.pi * (col - 17) / 6
+        fa = 38 * math.sin(phi)
+        ha = 38 * math.sin(phi + math.pi * 0.7)
+        for n in ("LF", "RF"):
+            leg(n, -fa + (4 if n == "RF" else 0), 55 * max(0.0, math.cos(phi)))
+        for n in ("LH", "RH"):
+            leg(n, -ha + (4 if n == "RH" else 0), 45 * max(0.0, math.cos(phi + math.pi * 0.7)))
+        b.rotation_euler = (math.radians(7 * math.sin(phi + 0.6)), 0, 0)
+        b.location.z += 0.06 * max(0.0, math.sin(phi - 0.4))
+        neck.rotation_euler = (math.radians(90 - up + 14 + 6 * math.sin(phi)), 0, 0)
+    ground(root)
+
+
+def render_extra(key, unit, sc, dirs, only_cols):
+    """Render one sheet entry of the lebendige Welt (people program "leben" or an animal)."""
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+    target = STYLE["height_px"]
+    camera(STYLE.get("cell_px", int(round(target * 1.75))), target / 1.8)
+    cols, n = extra_cols(unit)
+    os.makedirs(os.path.join(OUT, key), exist_ok=True)
+    wanted = sorted({c for a, l in cols.values() for c in range(a, a + l)})
+    wanted = [c for c in wanted if only_cols is None or c in only_cols]
+    if unit.get("program") == "leben":
+        bu = UNITS[unit["base"]]
+        root, hip, pv, legs, action_only = build(bu)
+        base = {k: tuple(v.rotation_euler) for k, v in pv.items()}
+        for o in action_only:
+            bpy.data.objects[o].hide_render = True
+        for d in dirs:
+            dirz = math.radians(45 + d * 45)
+            for f in wanted:
+                pose_reset(root, hip, pv, base, legs, dirz)
+                leben_pose(bu, pv, base, hip, legs, root, f)
+                render_pair(sc, os.path.join(OUT, key, "d%d_f%d" % (d, f)))
+        return
+    kind = unit["animal"]
+    root, body, pv = build_crow() if kind == "kraehe" else build_quadruped(kind)
+    for d in dirs:
+        dirz = math.radians(45 + d * 45)
+        for f in wanted:
+            animal_pose(kind, pv, root, f, dirz)
+            render_pair(sc, os.path.join(OUT, key, "d%d_f%d" % (d, f)))
 
 
 # ---------------------------------------------------------------- main
@@ -860,6 +1247,12 @@ def main():
         meta["body_dy"].append(round((legs_m - legs_m * math.cos(la * abs(s_))) * ppm * math.cos(math.radians(30)), 3))
     for key in names:
         unit = UNITS[key]
+        if unit.get("animal") or unit.get("program"):
+            # lebendige Welt (ADR 0016): animals and new animations of existing figures, in their own sheet rows
+            render_extra(key, unit, sc, dirs, only_cols)
+            meta["units"].append(unit_meta(key))
+            print("rendered", key, flush=True)
+            continue
         # clear previous figure
         for o in list(bpy.data.objects):
             bpy.data.objects.remove(o, do_unlink=True)
@@ -946,6 +1339,9 @@ def main():
         meta["units"] = [unit_meta(k) for k in UNITS if k in keys]
         if QUICK:
             meta["dirs"] = old.get("dirs", meta["dirs"])
+    # animal sheets have more columns than NCOLS: no body bob for the extra columns (dither anchor)
+    most = max([NCOLS] + [u.get("frames", NCOLS) for u in meta["units"]])
+    meta["body_dy"] += [0.0] * (most - len(meta["body_dy"]))
     json.dump(meta, open(rj, "w"), indent=1, ensure_ascii=False)
 
 

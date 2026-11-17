@@ -79,7 +79,7 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
   const d = road ? undefined : doorAt(w, x, y);
   if (d) return `Versperrt den Eingang: ${BUILDINGS[d.key].name}`;
   if (w.s.rocks.some((r) => r.x === x && r.y === y && r.amount > 0)) return "Felsbrocken im Weg";
-  if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf")) return "Bäume im Weg";
+  if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf" && tr.state !== "waechst")) return "Bäume im Weg";
   return null;
 }
 

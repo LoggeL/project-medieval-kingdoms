@@ -328,7 +328,7 @@ def render(mat, band, base_only=False, outline=True, f=0, ground_shadow=None, jo
         sm = alpha > 0
         out[sm, :3] = hexrgb(BSHADOW.get("color", "#1c2412")).astype(np.uint8)
         out[sm, 3] = alpha[sm]
-    elif outline and SHADOW:
+    elif outline and SHADOW and UNIT_SHADOW:
         # cast shadow: every figure pixel at height hgt above the feet lands at (x + hgt*dx, foot - hgt*dy)
         foot = h - STYLE.get("foot_margin_px", 4)
         ys, xs = np.nonzero(fig)
@@ -391,8 +391,11 @@ units = [u["key"] for u in META["units"]]
 ndirs = len(META["dirs"])
 used = set()
 SELF_BANDS = PX.get("self_shadow_bands", 2)
+UNIT_SHADOW = True
 for ui, u in enumerate(units):
     nf = META["units"][ui].get("frames", FRAMES)
+    # "shadow": false in units.json (crow: flies, the game draws its shadow on the ground itself)
+    UNIT_SHADOW = META["units"][ui].get("shadow", True) is not False
     sheet = Image.new("RGBA", (CW * nf, CH * ndirs), (0, 0, 0, 0))
     front = None
     for d in range(ndirs):
@@ -470,7 +473,9 @@ clash = team_cols & other
 atlas = None
 if not BLD:
     # figures: one atlas with every unit in sheet order, 8 direction rows each (unit i starts at row 8 i)
-    at = Image.new("RGBA", (CW * FRAMES, CH * ndirs * len(units)), (0, 0, 0, 0))
+    # as wide as the widest unit (animal sheets have more columns, ADR 0016); with only 17-column units unchanged
+    wide = max([FRAMES] + [m.get("frames", FRAMES) for m in META["units"]])
+    at = Image.new("RGBA", (CW * wide, CH * ndirs * len(units)), (0, 0, 0, 0))
     for ui, u in enumerate(units):
         at.paste(Image.open(os.path.join(a.out, u + ".png")), (0, ui * ndirs * CH))
         META["units"][ui]["row"] = ui * ndirs

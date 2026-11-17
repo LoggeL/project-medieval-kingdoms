@@ -5,7 +5,7 @@
  * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Material anliefern (Baustellen und
  * Forschung im Wechsel) und Hofstapel ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
-import { BUILDINGS, GOODS, TUNING, UNITS, equipmentOf, levelDef, storeOf, type Good, type StoreKey, type TechKey } from "../data";
+import { BUILDINGS, GOODS, LIFE, TUNING, UNITS, equipmentOf, levelDef, storeOf, type AnimKey, type Good, type StoreKey, type TechKey } from "../data";
 import { canWork } from "./build";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
@@ -15,7 +15,7 @@ import { haulable, inputAvailable, inputOrders, reserveOutput } from "./producti
 import { isSite, levelOf } from "./research";
 import { hungerBlocks, immigrationFactor } from "./food";
 import type { StorageSlot } from "./types";
-import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
+import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
 export const DISPATCH_EVERY = TPS / 2;
 
@@ -201,8 +201,10 @@ export function idlePeasant(w: World, u: SUnit): void {
   const ai = u.ai;
   if (ai.flee > 0) {
     ai.flee--;
+    u.run = true; // fliehende Tagelöhner rennen (ADR 0016)
     const r = travel(w, u, tileGoal(ai.cx, ai.cy, 0, 1));
     if (r !== "moving" && r !== "waiting") ai.flee = 0;
+    if (ai.flee <= 0) delete u.run;
     return;
   }
   if ((w.s.tick + u.id) % 5 === 0) {
@@ -214,10 +216,34 @@ export function idlePeasant(w: World, u: SUnit): void {
       if (n >= 0) { ai.cx = nav.tileX(n); ai.cy = nav.tileY(n); ai.flee = 4 * TPS; ai.think = 0; return; }
     }
   }
-  if (ai.think > 0) { ai.think--; setAnim(u, "stehen"); return; }
+  if (ai.think > 0) { ai.think--; setAnim(u, idlePose(w, u)); return; }
   const [x, y] = campSpot(w, u);
   const r = travel(w, u, tileGoal(x, y, 0, 0));
-  if (r === "arrived" || r === "unreachable") { setAnim(u, "stehen"); ai.think = 2 * TPS; ai.fresh = false; }
+  if (r === "arrived" || r === "unreachable") { setAnim(u, idlePose(w, u)); ai.think = 2 * TPS; ai.fresh = false; }
+}
+
+/**
+ * Ruhebild eines Tagelöhners ohne Auftrag (ADR 0016): wechselt alle LIFE.idle.switchSeconds zwischen Stehen, Sitzen und
+ * Plaudern; geplaudert wird nur mit einem anderen untätigen Tagelöhner daneben (beide drehen sich zueinander).
+ * Rein aus Tick und ID, ohne Zufall.
+ */
+export function idlePose(w: World, u: SUnit): AnimKey {
+  const I = LIFE.idle;
+  const phase = (Math.floor((w.s.tick + u.id * 53) / (I.switchSeconds * TPS)) + u.id) % 3;
+  if (phase === 0) return "stehen";
+  if (phase === 2) {
+    let mate: SUnit | null = null;
+    w.grid.query(u.x, u.y, I.chatRadius, (o) => {
+      const m = o as SUnit;
+      if (m === u || m.dead || m.team !== u.team || m.key !== "tageloehner" || m.ai.job || m.ai.flee > 0) return;
+      if (Math.hypot(m.x - u.x, m.y - u.y) > I.chatRadius) return;
+      mate = m;
+      return true;
+    });
+    const m = mate as SUnit | null;
+    if (m) { face(u, m.x - u.x, m.y - u.y); return "plaudern"; }
+  }
+  return "sitzen";
 }
 
 function campSpot(w: World, u: SUnit): [number, number] {

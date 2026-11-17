@@ -339,7 +339,9 @@ export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | 
 export type AnimKey =
   | "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "schmelzen" | "schmieden" | "schnitzen"
   | "pfluegen" | "saeen" | "ernten" | "pfluecken"
-  | "angriff" | "schiessen" | "sterben" | "tot";
+  | "angriff" | "schiessen" | "sterben" | "tot"
+  // lebendige Welt (ADR 0016): Ruhebilder untätiger Tagelöhner
+  | "sitzen" | "plaudern";
 
 /** Schadensarten des Konzepts (05): Hieb, Stich, Wucht, Pfeil, Bolzen, Kugel. */
 export type DamageType = "stich" | "hieb" | "pfeil" | "wucht" | "bolzen" | "kugel";
@@ -575,3 +577,6 @@ export function levelDef(key: BuildingKey, level = 1): BuildingDef {
 
 /** Höchste Stufe eines Gebäudes (1 ohne Ausbaustufen). */
 export const maxLevel = (key: BuildingKey): number => BUILDINGS[key].levels?.length ?? 1;
+
+// ---------------------------------------------------------------- Lebendige Welt (Tiere, Wald, Fahnen, Tageslicht; ADR 0016)
+export * from "./leben";
