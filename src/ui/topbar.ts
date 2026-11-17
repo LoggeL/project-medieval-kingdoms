@@ -1,8 +1,10 @@
 /**
- * Kopfleiste (dunkles Eichenholz mit Eisenbeschlägen): Waren, Waffen, Gold, Bevölkerung, Lager,
- * aktuelle Ereignisse mit Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe.
+ * Kopfleiste (dunkles Eichenholz mit Eisenbeschlägen): Waren nach Gruppen (GOOD_GROUPS: Rohstoffe, Waffen, Nahrung),
+ * Gold, Bevölkerung, Bestand und Kapazität je Lagertyp (STORES: Lagerhaus, Kornkammer), aktuelle Ereignisse mit
+ * Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe. Neue Waren und Lagertypen erscheinen
+ * hier aus den Daten, ohne Änderung an dieser Datei.
  */
-import { GOODS, TICKS_PER_SECOND, type Good } from "../data";
+import { BUILDINGS, GOODS, GOOD_GROUPS, GOOD_KEYS, STORES, STORE_KEYS, TICKS_PER_SECOND, type BuildingKey, type Good, type StoreKey } from "../data";
 import { ZOOMS, zoomLabel } from "../data/view";
 import type { SimState } from "../sim/types";
 import { createAudioControl } from "./audio";
@@ -20,8 +22,9 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
     const el = h("div.mk-res", { title: GOODS[g].name }, icons.make("ware", g, 24, 24), val);
     return { g, el, val };
   };
-  const raw = (["holz", "stein", "eisen"] as Good[]).map(goodCell);
-  const arms = (["speer", "schwert", "bogen"] as Good[]).map(goodCell);
+  const groups = GOOD_GROUPS.map((gr) => ({ gr, cells: GOOD_KEYS.filter((g) => GOODS[g].group === gr.key).map(goodCell) }))
+    .filter((x) => x.cells.length);
+  const cells = groups.flatMap((x) => x.cells);
 
   const goldVal = h("span.mk-num");
   const gold = h("div.mk-res.mk-res-gold", { title: "Gold" }, coin(), goldVal);
@@ -29,11 +32,17 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
   const popVal = h("span.mk-num");
   const pop = h("div.mk-res", { title: "Bevölkerung / Wohnraum" }, icons.make("einheit", "tageloehner", 24, 24), popVal);
 
-  const capVal = h("span.mk-num");
-  const capFill = h("span.mk-bar-fill");
-  const cap = h("div.mk-res.mk-res-cap", { title: "Lagerbestand / Lagerkapazität" },
-    icons.make("gebaeude", "lager", 28, 28),
-    h("span.mk-cap-col", null, capVal, h("span.mk-bar.mk-bar-cap", null, capFill)));
+  // Bestand / Kapazität je Lagertyp, mit dem Bild des Lagers, das diesen Typ aufnimmt
+  const storeBuilding = (k: StoreKey): BuildingKey =>
+    (Object.keys(BUILDINGS) as BuildingKey[]).find((b) => (BUILDINGS[b].storage?.kind ?? (BUILDINGS[b].storage ? "material" : null)) === k && !BUILDINGS[b].seat) ?? "lager";
+  const caps = STORE_KEYS.map((k) => {
+    const val = h("span.mk-num");
+    const fill = h("span.mk-bar-fill");
+    const el = h(`div.mk-res.mk-res-cap.mk-res-cap-${k}` as "div", { title: `${STORES[k].name}: Bestand / Kapazität` },
+      icons.make("gebaeude", storeBuilding(k), 28, 28),
+      h("span.mk-cap-col", null, val, h("span.mk-bar.mk-bar-cap", null, fill)));
+    return { k, el, val, fill };
+  });
 
   // Ereignisse: neueste Meldung und Überfall
   const evText = h("span.mk-ev-text");
@@ -68,11 +77,8 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
 
   const el = h("header.mk-top.mk-wood", null,
     h("div.mk-top-res", null,
-      h("div.mk-res-group", { "aria-label": "Rohstoffe" }, ...raw.map((r) => r.el)),
-      h("span.mk-sep"),
-      h("div.mk-res-group", { "aria-label": "Waffen" }, ...arms.map((r) => r.el)),
-      h("span.mk-sep"),
-      gold, pop, cap),
+      ...groups.flatMap((x) => [h(`div.mk-res-group.mk-res-group-${x.gr.key}` as "div", { "aria-label": x.gr.label }, ...x.cells.map((r) => r.el)), h("span.mk-sep")]),
+      gold, pop, ...caps.map((c) => c.el)),
     events,
     h("div.mk-top-ctl", null,
       h("div.mk-group", { role: "group", "aria-label": "Geschwindigkeit" }, ...speedBtns),
@@ -82,14 +88,16 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
   return {
     el,
     update(s) {
-      for (const r of [...raw, ...arms]) setText(r.val, num(s.stock[r.g] ?? 0));
+      for (const r of cells) setText(r.val, num(s.stock[r.g] ?? 0));
       setText(goldVal, num(s.gold));
       setText(popVal, `${num(s.population)}/${num(s.housing)}`);
       setClass(pop, "mk-warn", s.population >= s.housing);
-      const total = (Object.values(s.stock) as number[]).reduce((a, b) => a + b, 0);
-      setText(capVal, `${num(total)}/${num(s.capacity)}`);
-      setBar(capFill, s.capacity ? total / s.capacity : 0);
-      setClass(cap, "mk-warn", s.capacity > 0 && total >= s.capacity * 0.9);
+      for (const c of caps) {
+        const st = s.stores?.[c.k] ?? { used: 0, cap: 0 };
+        setText(c.val, `${num(st.used)}/${num(st.cap)}`);
+        setBar(c.fill, st.cap ? st.used / st.cap : 0);
+        setClass(c.el, "mk-warn", st.cap > 0 && st.used >= st.cap * 0.9);
+      }
 
       // Überfall: raid.next ist der Tick der nächsten Welle, auch während eine Welle läuft.
       const secs = (s.raid.next - s.tick) / TICKS_PER_SECOND;

@@ -1169,7 +1169,7 @@ def stone_slab(mb, side, box, z0, z1, gap=None, group=None, row=0.3):
         masonry(mb, p[0], p[1], p[2], p[3], max(z0, gap[2]), z1, row=row, top=True, sides=side, group=group)
 
 
-def cut_house(mb, x0, x1, y0, y1, base, eave, th=0.16, gaps=None, posts=1.1, plinth=True):
+def cut_house(mb, x0, x1, y0, y1, base, eave, th=0.16, gaps=None, posts=1.1, plinth=True, wall="plaster"):
     """Hollow framed house walls for a cutaway: stone base 0..base (unless plinth=False), plastered wall with posts
     base..eave on the full sides, a timber sill on the low sides. gaps: side -> (a, b, top) door opening."""
     gaps = gaps or {}
@@ -1185,7 +1185,7 @@ def cut_house(mb, x0, x1, y0, y1, base, eave, th=0.16, gaps=None, posts=1.1, pli
         if is_low:
             slab(mb, "timber", side, box, base, base + 0.16, ground_gap, group=g)
             continue
-        slab(mb, "plaster", side, box, base, eave - 0.12, gap)
+        slab(mb, wall, side, box, base, eave - 0.12, gap)
         slab(mb, "timber", side, box, eave - 0.12, eave, gap)  # top plate (no roof above)
         bx0, bx1, by0, by1 = box
         if side in "sn":
@@ -1943,6 +1943,563 @@ def b_bergfried_innen(lvl):
     return build
 
 
+# ---------------------------------------------------------------- bread chain (ADR 0011): granary, mill, bakery, goods
+def sack(mb, x, y, z, mat="sack", s=1.0, rz=0.0, fill=None):
+    """Sack standing upright: tied neck, or open with its filling on top (fill = material, e.g. thatch for grain)."""
+    with mb.at((x, y, z), rz):
+        mb.blob(mat, (0, 0, 0.22 * s), (0.2 * s, 0.17 * s, 0.22 * s), seg=8, rings=5, jitter=0.05)
+        if fill:
+            mb.cyl(mat, (0, 0, 0.42 * s), 0.16 * s, 0.08 * s, n=8, r2=0.18 * s)
+            mb.cyl(fill, (0, 0, 0.465 * s), 0.15 * s, 0.03 * s, n=8)
+        else:
+            mb.cyl(mat, (0, 0, 0.47 * s), 0.06 * s, 0.1 * s, n=6, r2=0.1 * s)
+            mb.cyl("rope", (0, 0, 0.43 * s), 0.075 * s, 0.03 * s, n=6)
+
+
+def sack_lying(mb, x, y, z, mat="sack", rz=0.0):
+    """Full sack lying on its side (long axis along local y), tied end towards +y."""
+    with mb.at((x, y, z), rz):
+        mb.blob(mat, (0, 0, 0.14), (0.21, 0.3, 0.14), seg=8, rings=5, jitter=0.04)
+        mb.cyl(mat, (0, 0.33, 0.13), 0.055, 0.1, n=6, rot=(90, 0, 0))
+        mb.cyl("rope", (0, 0.29, 0.13), 0.07, 0.025, n=6, rot=(90, 0, 0))
+
+
+def loaf(mb, x, y, z, s=1.0, long=False, rz=0.0):
+    """Bread: round loaf with a lighter scored top, or a long loaf."""
+    with mb.at((x, y, z), rz):
+        if long:
+            mb.blob("bread", (0, 0, 0.06 * s), (0.17 * s, 0.075 * s, 0.065 * s), seg=8, rings=4, jitter=0.03)
+            for k in (-1, 0, 1):
+                mb.box("wood_hi", (k * 0.07 * s, 0, 0.12 * s), (0.02 * s, 0.07 * s, 0.012 * s), rot=(0, 0, 30))
+        else:
+            mb.blob("bread", (0, 0, 0.055 * s), (0.11 * s, 0.11 * s, 0.065 * s), seg=8, rings=4, jitter=0.03)
+            mb.box("wood_hi", (0, 0, 0.115 * s), (0.12 * s, 0.025 * s, 0.012 * s), rot=(0, 0, 40))
+
+
+def basket(mb, x, y, z, fill=None, r=0.26, h=0.24):
+    """Wicker basket with a rim; fill = 'bread' (loaves heaped on top) or a material heaped inside (grain)."""
+    mb.cyl("thatch_dk", (x, y, z + h / 2), r, h, n=10, r2=r * 1.12)
+    for q in (0.3, 0.65):
+        mb.cyl("thatch", (x, y, z + h * q), r * (1 + 0.12 * q) + 0.008, 0.03, n=10)
+    mb.cyl("wood_hi", (x, y, z + h - 0.015), r * 1.14, 0.035, n=10)
+    if fill == "bread":
+        for (dx, dy, dz) in ((-0.1, -0.07, 0), (0.1, -0.05, 0), (0.0, 0.1, 0), (0.02, -0.01, 0.07)):
+            loaf(mb, x + dx * r / 0.26, y + dy * r / 0.26, z + h - 0.05 + dz, s=0.85)
+    elif fill:
+        mb.blob(fill, (x, y, z + h - 0.02), (r * 0.95, r * 0.95, 0.07), seg=8, rings=4, jitter=0.04)
+
+
+# stacks in the storage bays (1 x 1, level 0 empty), the same sprites stand at the processing buildings' piles
+_SACK_GRID = [(x, y, 0.0) for y in (-0.3, 0.3) for x in (-0.48, 0.0, 0.48)] + \
+             [(x, y, 0.25) for y in (-0.3, 0.3) for x in (-0.24, 0.24)] + [(0.0, -0.3, 0.5), (0.0, 0.3, 0.5)]
+_SACK_COUNT = [0, 3, 6, 10, 12]
+
+
+def b_stapel_getreide(mb, var):
+    """Grain: burlap sacks lying in courses (3, 6, 10, 12) on two boards, an open sack of grain in front from level 2."""
+    if not var:
+        return
+    for y in (-0.3, 0.3):
+        mb.bx("wood", -0.75, 0.75, y - 0.12, y + 0.12, STACK_Z, STACK_Z + 0.05)
+    for i, (x, y, z) in enumerate(_SACK_GRID[:_SACK_COUNT[var]]):
+        sack_lying(mb, x, y, STACK_Z + 0.05 + z, "sack", rz=180 if (i % 2) else 0)
+    if var >= 2:
+        sack(mb, 0.62, -0.62, STACK_Z, "sack", s=0.85, fill="thatch")
+
+
+def b_stapel_mehl(mb, var):
+    """Flour: white linen sacks lying in courses, flour dust on the boards, a flour barrel from level 3."""
+    if not var:
+        return
+    for y in (-0.3, 0.3):
+        mb.bx("wood", -0.75, 0.75, y - 0.12, y + 0.12, STACK_Z, STACK_Z + 0.05)
+    mb.cyl("flour", (-0.45, -0.58, STACK_Z + 0.006), 0.22, 0.012, n=9)
+    n = _SACK_COUNT[var] - (2 if var >= 3 else 0)
+    for i, (x, y, z) in enumerate(_SACK_GRID[:n]):
+        sack_lying(mb, x, y, STACK_Z + 0.05 + z, "cloth", rz=180 if (i % 2) else 0)
+    if var >= 3:
+        barrel(mb, 0.68, -0.62, STACK_Z, r=0.22, h=0.6)
+        mb.cyl("flour", (0.68, -0.62, STACK_Z + 0.62), 0.19, 0.02, n=10)
+
+
+def b_stapel_brot(mb, var):
+    """Bread: wicker baskets with loaves (1-4), a board of long loaves across the back baskets at level 4."""
+    if not var:
+        return
+    spots = [(-0.34, -0.28), (0.34, -0.28), (-0.34, 0.32), (0.34, 0.32)]
+    for (x, y) in spots[:var]:
+        basket(mb, x, y, STACK_Z, "bread")
+    if var >= 4:
+        mb.bx("wood_hi", -0.7, 0.7, 0.62, 0.86, STACK_Z, STACK_Z + 0.32)
+        for k in range(4):
+            loaf(mb, -0.48 + k * 0.32, 0.74, STACK_Z + 0.32, long=True, rz=90)
+
+
+# granary: same outline and gate position as the storehouse (access tile in front of the -y wall), plank walls, thatch
+KK_X, KK_Y0, KK_Y1, KK_BASE, KK_EAVE = 3.5, -2.95, 3.6, 0.5, 2.6
+KK_DOOR = (-0.75, 0.75, 2.1)
+
+
+def board_wall(mb, x0, x1, y0, y1, z0, z1, pitch=0.27):
+    """Closed plank-clad wall body: a core, vertical boards proud on every face, corner posts, a rail and a top plate."""
+    mb.bx("wood", x0 + 0.02, x1 - 0.02, y0 + 0.02, y1 - 0.02, z0, z1)
+    k, x = 0, x0
+    while x < x1 - 0.05:
+        m = "log" if k % 3 == 0 else "wood_hi"
+        xa, xb = x + 0.02, min(x1, x + pitch) - 0.02
+        mb.bx(m, xa, xb, y0 - 0.02, y0 + 0.03, z0, z1)
+        mb.bx(m, xa, xb, y1 - 0.03, y1 + 0.02, z0, z1)
+        x += pitch
+        k += 1
+    k, y = 0, y0
+    while y < y1 - 0.05:
+        m = "log" if k % 3 == 0 else "wood_hi"
+        ya, yb = y + 0.02, min(y1, y + pitch) - 0.02
+        mb.bx(m, x0 - 0.02, x0 + 0.03, ya, yb, z0, z1)
+        mb.bx(m, x1 - 0.03, x1 + 0.02, ya, yb, z0, z1)
+        y += pitch
+        k += 1
+    for (px, py) in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+        mb.bx("timber", px - 0.12, px + 0.12, py - 0.12, py + 0.12, z0, z1 + 0.04)
+    for (za, zb) in ((z0 + (z1 - z0) * 0.45, z0 + (z1 - z0) * 0.45 + 0.1), (z1 - 0.12, z1)):
+        mb.bx("timber", x0 - 0.05, x1 + 0.05, y0 - 0.05, y0, za, zb)
+        mb.bx("timber", x0 - 0.05, x1 + 0.05, y1, y1 + 0.05, za, zb)
+        mb.bx("timber", x0 - 0.05, x0, y0, y1, za, zb)
+        mb.bx("timber", x1, x1 + 0.05, y0, y1, za, zb)
+
+
+def kk_gate(mb, y0):
+    """Double plank door from the ground (cut through the plinth) with frame, iron bands and a stone sill."""
+    a, b, top = KK_DOOR
+    mb.bx("timber", a - 0.16, a, y0 - 0.1, y0 + 0.02, 0, top + 0.05)
+    mb.bx("timber", b, b + 0.16, y0 - 0.1, y0 + 0.02, 0, top + 0.05)
+    mb.bx("timber", a - 0.22, b + 0.22, y0 - 0.12, y0 + 0.02, top, top + 0.2)
+    for (l0, l1) in ((a, -0.02), (0.02, b)):
+        mb.bx("door", l0, l1, y0 - 0.09, y0 - 0.04, 0.02, top)
+        for q in range(1, 3):
+            xx = l0 + (l1 - l0) * q / 3
+            mb.bx("wood", xx - 0.012, xx + 0.012, y0 - 0.1, y0 - 0.08, 0.02, top)
+        for zz in (0.4, top - 0.4):
+            mb.bx("iron", l0 + 0.04, l1 - 0.04, y0 - 0.12, y0 - 0.09, zz - 0.04, zz + 0.04)
+    mb.bx("stone_top", a - 0.3, b + 0.3, y0 - 0.5, y0 - 0.05, 0, 0.1)
+
+
+def kk_apron(mb, var):
+    """Fill level in front of the door: grain sacks, a basket of bread, a flour sack and a barrel (variants 0..4)."""
+    y = -3.42
+    if var >= 1:
+        sack(mb, -2.3, y, 0, "sack", rz=8, fill="thatch")
+    if var >= 2:
+        basket(mb, 2.25, y, 0, "bread")
+    if var >= 3:
+        sack(mb, -1.78, y - 0.04, 0, "cloth", rz=-12)
+        barrel(mb, 1.62, y + 0.02, 0, r=0.25, h=0.66)
+    if var >= 4:
+        sack_lying(mb, -2.05, y + 0.02, 0.42, "sack", rz=90)
+        basket(mb, 2.78, y + 0.08, 0, "thatch", r=0.22, h=0.22)
+
+
+def b_kornkammer(mb, var):
+    """Granary 3 x 3: stone plinth with vent slits, vertical plank walls, thatched roof (ridge along x), a sheaf over the
+    double door under a small shingled porch roof. Variant = fill level (sacks and baskets in front of the door)."""
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    x, y0, y1 = KK_X, KK_Y0, KK_Y1
+    masonry(mb, -x - 0.05, x + 0.05, y0 - 0.05, y1 + 0.05, 0, KK_BASE, row=0.25, top=True)
+    for xx in (-2.5, -1.6, 1.6, 2.5):
+        mb.bx("window", xx - 0.13, xx + 0.13, y0 - 0.08, y0 - 0.04, 0.17, 0.31)
+    for yy in (-1.7, 0.3, 2.3):
+        mb.bx("window", x + 0.04, x + 0.08, yy - 0.13, yy + 0.13, 0.17, 0.31)
+        mb.bx("window", -x - 0.08, -x - 0.04, yy - 0.13, yy + 0.13, 0.17, 0.31)
+    board_wall(mb, -x, x, y0, y1, KK_BASE, KK_EAVE)
+    cy = (y0 + y1) / 2
+    with mb.at((0, cy, 0)):
+        gable_roof(mb, 2 * x, (y1 - y0) / 2 + 0.45, KK_EAVE, 2.5, "thatch", ov=0.35, row=0.42, thick=0.2, gable="wood",
+                   ridge="thatch_dk", edge="thatch_dk")
+    kk_gate(mb, y0)
+    top = KK_DOOR[2]
+    # porch roof over the door on two posts, the sheaf of grain (house sign) above the door
+    for px in (-1.05, 1.05):
+        mb.bx("timber", px - 0.07, px + 0.07, y0 - 0.92, y0 - 0.78, 0, top + 0.42)
+    mb.bx("timber", -1.15, 1.15, y0 - 0.92, y0 - 0.78, top + 0.32, top + 0.44)
+    mb.box("shingle", (0, y0 - 0.5, top + 0.55), (2.6, 1.15, 0.07), rot=(18, 0, 0))
+    mb.cyl("thatch", (0, y0 - 0.12, top + 0.4), 0.13, 0.42, n=8, r2=0.2)
+    mb.cyl("rope", (0, y0 - 0.12, top + 0.36), 0.15, 0.05, n=8)
+    # hatches in the gable walls
+    mb.bx("timber", x + 0.02, x + 0.08, 0.0, 0.62, 1.3, 1.85)
+    mb.bx("door", x + 0.06, x + 0.1, 0.06, 0.56, 1.36, 1.79)
+    mb.bx("timber", -x - 0.08, -x - 0.02, 0.0, 0.62, 1.3, 1.85)
+    mb.bx("door", -x - 0.1, -x - 0.06, 0.06, 0.56, 1.36, 1.79)
+    kk_apron(mb, var)
+
+
+def b_kornkammer_innen(mb, var):
+    """Granary cutaway: plank floor with six bays (shelves from buildings.json, the same as
+    BUILDINGS.kornkammer.storage.shelves in src/data), racks with sacks and baskets on the full walls, a grain bin at the
+    back. Goods (stapel_*) and carriers are drawn by the game on top, then the low front walls (_front)."""
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    x, y0, y1 = KK_X, KK_Y0, KK_Y1
+    mb.rnd = random.Random(1000 * mb.seed + 77)
+    th = 0.16
+    cut_house(mb, -x, x, y0, y1, KK_BASE, KK_EAVE, th=th, gaps={"s": KK_DOOR}, posts=0.9, wall="wood_hi")
+    plank_floor(mb, -x + th, x - th, y0 + th, y1 - th, 0.0, STACK_Z - 0.01, pitch=0.36, along="x")
+    mb.bx("stone_top", KK_DOOR[0], KK_DOOR[1], y0 - 0.5, y0 + th, 0, 0.06)
+    d = mb.view
+    for k, (sx, sy) in enumerate(DEFS["kornkammer_innen"]["shelves"]):
+        cx, cy = sx * T, sy * T
+        sg = 1 if cx > 0 else -1
+        mb.bx("wood", cx - 0.9, cx + 0.9, cy - 0.78, cy + 0.78, STACK_Z - 0.01, STACK_Z)
+        kx = cx - sg * 0.93
+        mb.bx("timber", kx - 0.03, kx + 0.03, cy - 0.78, cy + 0.78, STACK_Z, STACK_Z + 0.08)
+        if not low_side("e" if sg > 0 else "w", d):
+            wx = sg * (x - th - 0.06)
+            for yy in (cy - 0.86, cy + 0.86):
+                mb.bx("timber", wx - 0.05, wx + 0.05, yy - 0.05, yy + 0.05, 0, 2.45)
+            mb.bx("wood_hi", min(wx, wx - sg * 0.42), max(wx, wx - sg * 0.42), cy - 0.84, cy + 0.84, 2.0, 2.05)
+            if k % 2:
+                basket(mb, wx - sg * 0.21, cy - 0.3, 2.05, "bread", r=0.17, h=0.16)
+                basket(mb, wx - sg * 0.21, cy + 0.3, 2.05, "thatch", r=0.17, h=0.16)
+            else:
+                for q in range(2):
+                    sack(mb, wx - sg * 0.21, cy - 0.3 + q * 0.6, 2.05, "sack" if q else "cloth", s=0.7)
+    # back wall at full height: grain bin with a heap of grain, wooden shovel, a beam scale
+    if not low_side("n", d):
+        yb = y1 - th
+        mb.bx("wood", -0.85, 0.85, yb - 0.75, yb, 0, 0.95)
+        mb.bx("wood_hi", -0.88, 0.88, yb - 0.78, yb - 0.7, 0, 1.0)
+        mb.blob("thatch", (0, yb - 0.38, 0.92), (0.75, 0.32, 0.16), seg=8, rings=4, jitter=0.05)
+        mb.box("wood_hi", (1.15, yb - 0.25, 0.75), (0.08, 0.05, 1.5), rot=(-10, 0, 0))
+        mb.box("wood_hi", (1.15, yb - 0.38, 0.12), (0.28, 0.32, 0.04), rot=(-10, 0, 0))
+        mb.bx("timber", -0.07, 0.07, yb - 0.35, yb, 2.15, 2.3)
+        mb.box("rope", (0, yb - 0.3, 1.95), (0.02, 0.02, 0.4))
+        mb.bx("wood", -0.55, 0.55, yb - 0.33, yb - 0.27, 1.73, 1.77)
+        for sx in (-0.5, 0.5):
+            mb.box("rope", (sx, yb - 0.3, 1.6), (0.015, 0.015, 0.26))
+            mb.cyl("iron", (sx, yb - 0.3, 1.47), 0.13, 0.03, n=8)
+    kk_apron(mb, var)
+
+
+# windmill: round stone tower, cap with the windshaft along +x, four sails turning in the y-z plane on the +x side
+ML_R0, ML_R1, ML_H = 2.4, 1.9, 5.6
+ML_HUB = (2.75, 0.0, 6.12)
+ML_SAIL = 3.7
+ML_N = 20
+ML_DOOR = (-0.55, 0.55, 2.0)
+
+
+def ml_r(z):
+    return ML_R0 + (ML_R1 - ML_R0) * z / ML_H
+
+
+def mill_ground(mb):
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.1, S - 0.1, -S + 0.1, S - 0.1, ragged=0.3)
+
+
+def mill_tower(mb):
+    mb.cyl("stone", (0, 0, ML_H / 2), ML_R0, ML_H, n=ML_N, r2=ML_R1)
+    z = 0.42
+    while z < ML_H - 0.2:
+        mb.cyl("mortar", (0, 0, z), ml_r(z) + 0.012, 0.04, n=ML_N)
+        z += 0.42
+    r = mb.rnd
+    for i in range(90):
+        a = r.uniform(0, 2 * math.pi)
+        z = r.uniform(0.45, ML_H - 0.3)
+        rr = ml_r(z) * math.cos(math.pi / ML_N)
+        mb.box("stone2" if i % 3 else "stone_top", (rr * math.cos(a), rr * math.sin(a), z), (0.05, r.uniform(0.35, 0.6), 0.3),
+               rot=(0, 0, math.degrees(a)))
+    mb.cyl("stone_top", (0, 0, 0.16), ML_R0 + 0.14, 0.32, n=ML_N)
+    mb.cyl("stone_top", (0, 0, ML_H - 0.08), ML_R1 + 0.1, 0.16, n=ML_N)
+
+
+def mill_door(mb):
+    a, b, top = ML_DOOR
+    y = -ml_r(1.0) * math.cos(math.pi / ML_N)
+    mb.bx("stone_top", a - 0.28, b + 0.28, y - 0.18, y + 0.25, 0, top + 0.28)
+    mb.bx("window", a, b, y - 0.2, y - 0.17, 0.0, top)
+    mb.bx("door", a + 0.02, b - 0.02, y - 0.24, y - 0.19, 0.02, top - 0.02)
+    for zz in (0.45, top - 0.45):
+        mb.bx("iron", a + 0.06, b - 0.06, y - 0.27, y - 0.24, zz - 0.04, zz + 0.04)
+    mb.bx("stone_top", a - 0.35, b + 0.35, y - 0.6, y - 0.15, 0, 0.12)
+
+
+def mill_windows(mb):
+    for (ang, z) in ((54, 2.7), (-54, 3.9), (144, 3.3), (-144, 2.4), (0, 4.2)):
+        rr = ml_r(z) * math.cos(math.pi / ML_N)
+        with mb.at((0, 0, 0), ang):
+            mb.bx("stone_top", -0.34, 0.34, -rr - 0.06, -rr + 0.2, z - 0.12, z + 0.62)
+            mb.bx("window", -0.22, 0.22, -rr - 0.08, -rr - 0.05, z, z + 0.5)
+
+
+def mill_cap(mb):
+    z = ML_H
+    mb.cyl("timber", (0, 0, z + 0.1), ML_R1 + 0.18, 0.2, n=ML_N)
+    with mb.at((0.25, 0, z + 0.2)):
+        mb.bx("wood", -1.75, 1.75, -1.1, 1.1, 0, 0.7)
+        k, x = 0, -1.75
+        while x < 1.7:
+            m = "log" if k % 3 == 0 else "wood_hi"
+            mb.bx(m, x + 0.02, min(1.75, x + 0.27) - 0.02, -1.13, -1.08, 0, 0.7)
+            mb.bx(m, x + 0.02, min(1.75, x + 0.27) - 0.02, 1.08, 1.13, 0, 0.7)
+            x += 0.27
+            k += 1
+        gable_roof(mb, 3.5, 1.4, 0.7, 1.15, "shingle", ov=0.18, row=0.3, thick=0.06, gable="wood", ridge="timber")
+    hx, hy, hz = ML_HUB
+    mb.cyl("timber", ((hx + 1.6) / 2, hy, hz), 0.17, hx - 1.6, n=8, rot=(0, 90, 0))
+    mb.cyl("timber", (hx, hy, hz), 0.3, 0.36, n=8, rot=(0, 90, 0))
+    mb.cyl("iron", (hx + 0.19, hy, hz), 0.16, 0.04, n=8, rot=(0, 90, 0))
+    # tail pole down to the ground on the -x side (the miller turns the cap into the wind with it)
+    p0, p1 = (-1.4, 0.0, z + 0.45), (-3.35, 0.0, 0.75)
+    L = math.dist(p0, p1)
+    ang = math.degrees(math.atan2(-(p1[2] - p0[2]), p1[0] - p0[0]))
+    mb.box("timber", tuple((p0[i] + p1[i]) / 2 for i in range(3)), (L, 0.16, 0.16), rot=(0, ang, 0))
+    for sy in (-0.7, 0.7):
+        q0, q1 = (-1.4, sy, z + 0.25), (-2.6, 0.0, 2.9)
+        L2 = math.dist(q0, q1)
+        mb.box("timber", tuple((q0[i] + q1[i]) / 2 for i in range(3)), (L2, 0.09, 0.09),
+               rot=(0, math.degrees(math.atan2(-(q1[2] - q0[2]), math.hypot(q1[0] - q0[0], q1[1] - q0[1]))),
+                    math.degrees(math.atan2(q1[1] - q0[1], q1[0] - q0[0]))))
+    mb.cyl("wood", (-3.35, 0.0, 0.75), 0.32, 0.08, n=10, rot=(90, 0, 0))
+
+
+def mill_sails(mb, ang):
+    """Four sails at angle ang (degrees, turning counter-clockwise seen from +x): stock, cloth on a lattice."""
+    hx, hy, hz = ML_HUB
+    L = ML_SAIL
+    for k in range(4):
+        a = math.radians(ang + 90 * k)
+        ca, sa = math.cos(a), math.sin(a)
+
+        def P(r, w, dx=0.0):
+            return (hx + dx, hy + r * ca - w * sa, hz + r * sa + w * ca)
+        rot = (math.degrees(a), 0, 0)
+        mb.box("timber", P(L / 2, 0.0, 0.1), (0.12, L, 0.15), rot=rot)
+        mb.box("cloth", P((0.85 + L - 0.1) / 2, 0.47, 0.06), (0.03, L - 0.95, 0.74), rot=rot)
+        r_ = 1.0
+        while r_ < L - 0.05:
+            mb.box("wood", P(r_, 0.4, 0.09), (0.035, 0.045, 0.92), rot=rot)
+            r_ += 0.45
+        mb.box("wood", P((0.85 + L) / 2, 0.88, 0.09), (0.04, L - 0.85, 0.05), rot=rot)
+        mb.box("wood", P((0.85 + L) / 2, -0.12, 0.09), (0.035, L - 0.85, 0.04), rot=rot)
+
+
+def mill_extras(mb):
+    """A spare millstone leaning against the tower and a bench."""
+    with mb.at((-2.05, 1.55, 0), 35):
+        mb.cyl("rock_cut", (0, 0, 0.5), 0.5, 0.18, n=12, rot=(0, 72, 0))
+        mb.cyl("iron", (0.06, 0, 0.5), 0.09, 0.2, n=6, rot=(0, 72, 0))
+    with mb.at((1.95, -1.75, 0), -40):
+        mb.bx("wood_hi", -0.55, 0.55, -0.15, 0.15, 0.42, 0.48)
+        for sx in (-0.45, 0.45):
+            mb.bx("wood", sx - 0.05, sx + 0.05, -0.12, 0.12, 0, 0.42)
+
+
+def b_muehle(mb, var):
+    """Tower windmill 3 x 3 with the door at model -y (access tile in front). Variant = sail position, 15 degrees per
+    step (6 steps = a quarter turn, the sails look the same after 90 degrees); the game cycles them while the miller works."""
+    mill_ground(mb)
+    mill_tower(mb)
+    mill_door(mb)
+    mill_windows(mb)
+    mill_cap(mb)
+    mill_extras(mb)
+    mill_sails(mb, 45 + 15 * var)
+
+
+def b_muehle_innen(mb, var):
+    """Windmill cutaway (ground floor): millstones in their wooden tun on a platform, hopper with grain above, the
+    upright shaft with the spur wheel, meal bin, sacks, ladder. Cap and sails are gone, as is every roof in a cutaway."""
+    mill_ground(mb)
+    scratch = MB(mb.seed)
+    scratch.rnd = mb.rnd
+    mill_tower(scratch)          # same random draws as the exterior, so the extras below match
+    mb.rnd = random.Random(1000 * mb.seed + 77)
+    d = mb.view
+    mb.cyl("wood", (0, 0, 0.02), ML_R0 - 0.3, 0.04, n=ML_N)
+    zf = 0.04
+    chord = 2 * ML_R0 * math.sin(math.pi / ML_N) + 0.04
+    door_i = round(270 / (360 / ML_N)) % ML_N
+    for i in range(ML_N):
+        a = 2 * math.pi * i / ML_N
+        ca, sa = math.cos(a), math.sin(a)
+        g = "f:%.4f:%.4f" % (ca, sa)
+        low = is_front(g, d)
+        rr = ML_R0 * math.cos(math.pi / ML_N) - 0.2
+        h = 0.75 if low else 2.6
+        mb.box("stone_top", ((rr + 0.12) * ca, (rr + 0.12) * sa, 0.16), (0.5, chord + 0.08, 0.32), rot=(0, 0, math.degrees(a)),
+               group=g if low else None)
+        if i == door_i:
+            for k in (-1, 1):
+                px = k * (ML_DOOR[1] + 0.15)
+                mb.bx("stone_top", px - 0.13, px + 0.13, -rr - 0.25, -rr + 0.2, 0, h if low else ML_DOOR[2] + 0.28,
+                      group=g if low else None)
+            if not low:
+                mb.bx("stone_top", ML_DOOR[0] - 0.28, ML_DOOR[1] + 0.28, -rr - 0.25, -rr + 0.2, ML_DOOR[2], ML_DOOR[2] + 0.28)
+                mb.bx("stone", ML_DOOR[0] - 0.28, ML_DOOR[1] + 0.28, -rr - 0.2, -rr + 0.2, ML_DOOR[2] + 0.28, h)
+            continue
+        mb.box("stone", (rr * ca, rr * sa, h / 2), (0.42, chord, h), rot=(0, 0, math.degrees(a)), group=g if low else None)
+        z = 0.42
+        while z < h - 0.1:
+            mb.box("mortar", (rr * ca, rr * sa, z), (0.44, chord + 0.01, 0.04), rot=(0, 0, math.degrees(a)), group=g if low else None)
+            z += 0.42
+        mb.box("stone_top", (rr * ca, rr * sa, h + 0.04), (0.46, chord + 0.02, 0.08), rot=(0, 0, math.degrees(a)), group=g if low else None)
+    mill_door_step = ML_R0 * math.cos(math.pi / ML_N)
+    mb.bx("stone_top", ML_DOOR[0] - 0.35, ML_DOOR[1] + 0.35, -mill_door_step - 0.6, -mill_door_step - 0.15, 0, 0.12)
+    # millstones on the platform (the miller stands south-east of them, see production.spot in src/data)
+    mx, my = -0.55, 0.85
+    mb.bx("wood", mx - 0.75, mx + 0.75, my - 0.75, my + 0.75, zf, zf + 0.5)
+    for (lx, ly) in ((-0.68, -0.68), (0.68, -0.68), (-0.68, 0.68), (0.68, 0.68)):
+        mb.bx("timber", mx + lx - 0.07, mx + lx + 0.07, my + ly - 0.07, my + ly + 0.07, zf, zf + 0.55)
+    mb.cyl("wood_hi", (mx, my, zf + 0.68), 0.62, 0.36, n=12)
+    mb.cyl("rock_cut", (mx, my, zf + 0.88), 0.52, 0.12, n=12)
+    mb.cyl("iron", (mx, my, zf + 0.95), 0.09, 0.04, n=8)
+    # hopper on a frame, full of grain; upright shaft with the spur wheel near the ceiling
+    for sx in (-0.5, 0.5):
+        mb.bx("timber", mx + sx - 0.05, mx + sx + 0.05, my + 0.45, my + 0.55, zf + 0.5, zf + 1.75)
+    mb.bx("timber", mx - 0.55, mx + 0.55, my + 0.45, my + 0.55, zf + 1.6, zf + 1.7)
+    mb.cyl("wood", (mx, my + 0.15, zf + 1.4), 0.12, 0.5, n=4, r2=0.42, rot=(0, 0, 45))
+    mb.cyl("thatch", (mx, my + 0.15, zf + 1.66), 0.38, 0.04, n=4, rot=(0, 0, 45))
+    mb.box("wood", (mx, my + 0.15, zf + 1.08), (0.08, 0.08, 0.2))
+    mb.cyl("timber", (mx, my, zf + 1.85), 0.09, 1.6, n=8)
+    mb.cyl("wood", (mx, my, 2.35), 0.62, 0.12, n=12)
+    for k in range(12):
+        a = 2 * math.pi * k / 12
+        mb.box("wood_hi", (mx + 0.66 * math.cos(a), my + 0.66 * math.sin(a), 2.35), (0.12, 0.08, 0.14), rot=(0, 0, math.degrees(a)))
+    # meal spout into the bin in front of the platform, flour on top
+    mb.box("wood", (mx + 0.1, my - 0.85, zf + 0.42), (0.1, 0.35, 0.08), rot=(30, 0, 0))
+    mb.bx("wood", mx - 0.35, mx + 0.45, my - 1.3, my - 0.95, zf, zf + 0.5)
+    mb.bx("flour", mx - 0.3, mx + 0.4, my - 1.26, my - 0.99, zf + 0.5, zf + 0.53)
+    # sacks along the wall: grain (burlap) on the east side, flour (linen) on the west
+    for (sx, sy, m, fill) in ((1.5, -0.55, "sack", "thatch"), (1.72, -0.05, "sack", None), (1.15, -0.98, "sack", None),
+                              (-1.75, -0.45, "cloth", None), (-1.55, -0.95, "cloth", "flour")):
+        sack(mb, sx, sy, zf, m, s=0.9, fill=fill)
+    # ladder to the floor above against the back wall (where it stands at full height)
+    if not is_front("f:0.5000:0.8660", d):
+        with mb.at((0.95, 1.6, zf), -30):
+            for sx in (-0.22, 0.22):
+                mb.box("wood_hi", (sx, 0.12, 1.15), (0.06, 0.06, 2.35), rot=(-8, 0, 0))
+            for k in range(1, 7):
+                zz = k * 0.33
+                mb.bx("wood", -0.22, 0.22, 0.12 + (zz - 1.15) * math.tan(math.radians(8)) - 0.025,
+                      0.12 + (zz - 1.15) * math.tan(math.radians(8)) + 0.025, zz - 0.025, zz + 0.025)
+
+
+# bakery 3 x 2: house along x, the oven at the east end with its chimney, door at model (-1.27, -1.35)
+BK_X0, BK_X1, BK_Y0, BK_Y1, BK_BASE, BK_EAVE = -3.35, 3.35, -1.35, 2.3, 0.35, 2.55
+BK_DOOR = (-1.72, -0.82, 2.0)
+BK_CHIMNEY = (2.45, 3.05, 0.75, 1.35, 5.15)
+
+
+def bk_outside(mb):
+    """Things outside the bakery: woodpile for the oven at the west gable, a step stone, a barrel at the back."""
+    log_pile(mb, BK_X0 - 0.3, 0.75, 0, 3, length=1.1, r=0.1, axis="y")
+    mb.bx("stone_top", BK_DOOR[0] - 0.15, BK_DOOR[1] + 0.15, BK_Y0 - 0.42, BK_Y0 - 0.05, 0, 0.12)
+    barrel(mb, BK_X0 - 0.15, 2.2, 0, r=0.25, h=0.62)
+
+
+def b_baeckerei(mb, var):
+    """Bakery 3 x 2: stone plinth, timber frame, tiled roof (ridge along x), the oven chimney through the roof at the east
+    end, door with a loaf sign, shuttered windows. The game shows smoke over the chimney while the baker bakes."""
+    S0, S1 = 3 * T / 2, T
+    ground(mb, "dirt", -S0 + 0.05, S0 - 0.05, -S1 + 0.05, S1 - 0.05, ragged=0.08)
+    x0, x1, y0, y1 = BK_X0, BK_X1, BK_Y0, BK_Y1
+    masonry(mb, x0 - 0.05, x1 + 0.05, y0 - 0.05, y1 + 0.05, 0, BK_BASE, row=0.175, top=True)
+    timber_frame(mb, x0, x1, y0, y1, BK_BASE, BK_EAVE, spacing=1.1)
+    cy = (y0 + y1) / 2
+    with mb.at((0, cy, 0)):
+        gable_roof(mb, x1 - x0, (y1 - y0) / 2 + 0.42, BK_EAVE, 1.95, "roof_tile", ov=0.3, row=0.32, thick=0.08, gable="plaster",
+                   ridge="roof_tile")
+    cx0, cx1, cy0, cy1, ctop = BK_CHIMNEY
+    masonry(mb, cx0, cx1, cy0, cy1, 0.0, ctop, row=0.27)
+    mb.bx("mortar", cx0 + 0.07, cx1 - 0.07, cy0 + 0.07, cy1 - 0.07, ctop - 0.02, ctop + 0.02)
+    mb.bx("stone_top", cx0 - 0.06, cx1 + 0.06, cy0 - 0.06, cy1 + 0.06, ctop - 0.2, ctop - 0.08)
+    a, b, top = BK_DOOR
+    door(mb, "s", ((a + b) / 2, y0, 0.0), w=b - a, h=top)
+    for wx in (0.55, 2.15):
+        window(mb, "s", (wx, y0, 1.25), w=0.6, h=0.55)
+    window(mb, "e", (x1, -0.3, 1.3), w=0.5, h=0.5)
+    # loaf sign on an iron bracket beside the door
+    mb.bx("iron", -0.62, -0.58, y0 - 0.75, y0, 2.18, 2.22)
+    mb.bx("wood_hi", -0.75, -0.45, y0 - 0.72, y0 - 0.68, 1.62, 2.12)
+    with mb.at((-0.6, y0 - 0.76, 1.84), 0):
+        mb.blob("bread", (0, 0, 0), (0.2, 0.06, 0.14), seg=8, rings=4, jitter=0.02)
+    # bread board under the second window (the game's output pile stands in front of the first)
+    mb.bx("wood_hi", 1.75, 2.55, y0 - 0.38, y0 - 0.02, 0.8, 0.86)
+    for sx in (1.85, 2.45):
+        mb.bx("wood", sx - 0.04, sx + 0.04, y0 - 0.3, y0 - 0.1, 0, 0.8)
+    for k in range(3):
+        loaf(mb, 1.9 + k * 0.25, y0 - 0.2, 0.86, s=0.9)
+    bk_outside(mb)
+
+
+def b_baeckerei_innen(mb, var):
+    """Bakery cutaway: stone floor, the domed oven at the east end with the fire in its mouth (the baker faces it, see
+    production.spot/face in src/data), kneading trough, table with loaves, flour sacks, bread shelf on the back wall."""
+    S0, S1 = 3 * T / 2, T
+    ground(mb, "dirt", -S0 + 0.05, S0 - 0.05, -S1 + 0.05, S1 - 0.05, ragged=0.08)
+    mb.rnd = random.Random(1000 * mb.seed + 77)
+    x0, x1, y0, y1 = BK_X0, BK_X1, BK_Y0, BK_Y1
+    th = 0.15
+    d = mb.view
+    cut_house(mb, x0, x1, y0, y1, BK_BASE, BK_EAVE, th=th, gaps={"s": BK_DOOR}, posts=1.1)
+    # stone flags
+    k = 0
+    xx = x0 + th
+    while xx < x1 - th - 0.02:
+        yy = y0 + th
+        while yy < y1 - th - 0.02:
+            mb.bx("stone_top" if (k % 3) else "stone", xx + 0.02, min(x1 - th, xx + 0.62) - 0.02, yy + 0.02, min(y1 - th, yy + 0.6) - 0.02, 0, 0.04)
+            yy += 0.6
+            k += 1
+        xx += 0.62
+        k += 1
+    # oven: masonry base with the mouth facing -x, domed top, chimney up to the wall plate
+    ox0, ox1, oy0, oy1 = 2.0, x1 - th, -0.95, 1.6
+    masonry(mb, ox0, ox1, oy0, oy1, 0.04, 0.95, row=0.23)
+    mb.blob("stone", ((ox0 + ox1) / 2 + 0.05, (oy0 + oy1) / 2, 0.95), ((ox1 - ox0) / 2, (oy1 - oy0) / 2, 0.5), seg=10, rings=5, jitter=0.03)
+    mb.bx("window", ox0 - 0.03, ox0 + 0.02, 0.0, 0.55, 0.5, 0.88)
+    mb.bx("stone_top", ox0 - 0.08, ox0 + 0.02, -0.1, 0.65, 0.88, 0.98)
+    mb.bx("stone_top", ox0 - 0.25, ox0 + 0.02, -0.15, 0.7, 0.44, 0.5)
+    for (fy, fh) in ((0.12, 0.16), (0.27, 0.24), (0.42, 0.14)):
+        mb.box("gold", (ox0 - 0.04, fy, 0.5 + fh / 2), (0.03, 0.08, fh))
+    mb.bx("target", ox0 - 0.045, ox0 - 0.035, 0.05, 0.5, 0.5, 0.54)
+    cx0, cx1, cy0, cy1, _ = BK_CHIMNEY
+    masonry(mb, cx0, cx1, cy0, cy1, 1.2, BK_EAVE, row=0.27, top=True)
+    # peel and wood for the fire
+    mb.box("wood_hi", (ox0 - 0.15, -1.08, 1.05), (0.05, 0.05, 2.0), rot=(0, -8, 0))
+    mb.box("wood_hi", (ox0 - 0.29, -1.08, 0.12), (0.3, 0.22, 0.03), rot=(0, -8, 0))
+    log_pile(mb, 2.55, -1.12 + 0.02, 0.04, 2, length=0.7, r=0.08, axis="x")
+    # kneading trough against the back wall, dough inside
+    tx0, tx1 = -1.0, 0.7
+    for lx in (tx0 + 0.1, tx1 - 0.1):
+        mb.bx("wood", lx - 0.05, lx + 0.05, 1.5, 1.95, 0, 0.62)
+    mb.bx("wood", tx0, tx1, 1.42, 2.02, 0.62, 0.95)
+    mb.bx("flour", tx0 + 0.07, tx1 - 0.07, 1.49, 1.95, 0.95, 0.97)
+    mb.blob("cloth", (-0.3, 1.72, 0.97), (0.3, 0.18, 0.06), seg=8, rings=4, jitter=0.05)
+    # table with loaves in front of the window, south of the baker's path
+    mb.bx("wood_hi", -0.2, 0.95, -0.95, -0.42, 0.78, 0.84)
+    for (lx, ly) in ((-0.13, -0.88), (0.88, -0.88), (-0.13, -0.49), (0.88, -0.49)):
+        mb.bx("wood", lx - 0.04, lx + 0.04, ly - 0.04, ly + 0.04, 0.04, 0.78)
+    for (bx_, by_, lg) in ((0.05, -0.7, False), (0.32, -0.62, False), (0.62, -0.75, True), (0.75, -0.55, False)):
+        loaf(mb, bx_, by_, 0.84, s=1.0, long=lg, rz=20)
+    # flour sacks and a flour bin at the west end
+    for (sx, sy, fill) in ((-2.75, 1.65, None), (-2.3, 1.75, "flour"), (-2.85, 1.1, None)):
+        sack(mb, sx, sy, 0.04, "cloth", s=0.9, fill=fill)
+    mb.bx("wood", -2.95, -2.35, -0.9, -0.4, 0.04, 0.62)
+    mb.bx("flour", -2.9, -2.4, -0.85, -0.45, 0.62, 0.64)
+    # bread shelf on the back wall (only where it stands at full height)
+    if not low_side("n", d):
+        yb = y1 - th
+        for sx in (-2.0, -0.6):
+            mb.bx("timber", sx - 0.04, sx + 0.04, yb - 0.38, yb, 1.55, 1.62)
+        mb.bx("wood_hi", -2.2, -0.4, yb - 0.4, yb, 1.62, 1.67)
+        for q in range(5):
+            loaf(mb, -2.05 + q * 0.37, yb - 0.2, 1.67, s=0.95, long=q % 2 == 1)
+    bk_outside(mb)
+
+
 # ---------------------------------------------------------------- construction sites
 # Outlines of the main bodies (metres, model axes), taken from the b_* functions above. A site shows: stake-out
 # (variant 0), foundation (variant 1); the game then draws the scaffold, reveals the finished sprite from the bottom up
@@ -1961,8 +2518,11 @@ SITE_RECTS = {
     "lager": [(-3 * T / 2 + 0.15, 3 * T / 2 - 0.15, -3 * T / 2 + 0.15, 3 * T / 2 - 0.15)],
     "lagerhaus": [(-LH_X, LH_X, LH_Y0, LH_Y1)],
     "bergfried": [(-BF_HW[1] - 0.1, BF_HW[1] + 0.1, -BF_HW[1] - 0.1, BF_HW[1] + 0.1)],
+    "kornkammer": [(-KK_X, KK_X, KK_Y0, KK_Y1)],
+    "muehle": [(-ML_R0, ML_R0, -ML_R0, ML_R0)],
+    "baeckerei": [(BK_X0, BK_X1, BK_Y0, BK_Y1)],
 }
-SITE_KIND = {"steinbruch": "yard", "lager": "yard"}
+SITE_KIND = {"steinbruch": "yard", "lager": "yard", "muehle": "round"}
 # scaffold: outline, number of levels, level height (m)
 SCAFFOLDS = {
     "haus": (SITE_RECTS["haus"][0], 2, 1.45),
@@ -1970,6 +2530,9 @@ SCAFFOLDS = {
     "kaserne": (SITE_RECTS["kaserne"][0], 3, 1.45),
     "turm": (SITE_RECTS["turm"][0], 4, 1.3),
     "lagerhaus": (SITE_RECTS["lagerhaus"][0], 2, 1.45),
+    "kornkammer": (SITE_RECTS["kornkammer"][0], 2, 1.4),
+    "muehle": (SITE_RECTS["muehle"][0], 3, 1.85),
+    "baeckerei": (SITE_RECTS["baeckerei"][0], 2, 1.3),
 }
 SIDE_GROUP = {"s": "f:0:-1", "n": "f:0:1", "e": "f:1:0", "w": "f:-1:0"}
 
@@ -2022,6 +2585,16 @@ def b_site(key):
                     masonry(mb, x0, x1, y1 - t, y1, 0, h, row=0.21, sides="nesw")
                     masonry(mb, x0, x0 + t, y0 + t, y1 - t, 0, h, row=0.21, sides="nesw")
                     masonry(mb, x1 - t, x1, y0 + t, y1 - t, 0, h, row=0.21, sides="nesw")
+                elif kind == "round":
+                    # round tower (windmill): a ring of footing stones
+                    R, n = (x1 - x0) / 2, 20
+                    for i in range(n):
+                        a = 2 * math.pi * i / n
+                        rr = R * math.cos(math.pi / n) - 0.21
+                        c = ((x0 + x1) / 2 + rr * math.cos(a), (y0 + y1) / 2 + rr * math.sin(a))
+                        mb.box("stone" if i % 2 else "stone2", (c[0], c[1], 0.21), (0.42, 2 * R * math.sin(math.pi / n) + 0.03, 0.42),
+                               rot=(0, 0, math.degrees(a)))
+                        mb.box("mortar", (c[0], c[1], 0.43), (0.38, 2 * R * math.sin(math.pi / n) - 0.02, 0.03), rot=(0, 0, math.degrees(a)))
                 else:
                     # yard: levelled ground, posts set along the edge
                     for i in range(4):
@@ -2158,7 +2731,10 @@ BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruc
          "holzfaeller_innen": b_holzfaeller_innen, "kaserne_innen": b_kaserne_innen,
          "bergfried_holz": b_bergfried_holz, "bergfried_stein": b_bergfried_stein, "bergfried_burg": b_bergfried_burg,
          "bergfried_holz_innen": b_bergfried_innen(1), "bergfried_stein_innen": b_bergfried_innen(2),
-         "bergfried_burg_innen": b_bergfried_innen(3)}
+         "bergfried_burg_innen": b_bergfried_innen(3),
+         "kornkammer": b_kornkammer, "kornkammer_innen": b_kornkammer_innen, "muehle": b_muehle, "muehle_innen": b_muehle_innen,
+         "baeckerei": b_baeckerei, "baeckerei_innen": b_baeckerei_innen,
+         "stapel_getreide": b_stapel_getreide, "stapel_mehl": b_stapel_mehl, "stapel_brot": b_stapel_brot}
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})

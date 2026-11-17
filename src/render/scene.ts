@@ -4,10 +4,11 @@
  * Figuren auf Mauer, Turm oder Treppe gehören zum Gebäude unter ihnen und werden zwischen Gebäude und Vorderteil
  * gezeichnet (wie in tools/konzeptseite/bauten.js), in jeder Drehung. Der vordere Lagerzaun ist ein eigenes Objekt nach
  * Stapeln und Figuren im Hof. Figuren, die von Gebäuden oder Bäumen verdeckt sind, bekommen eine dezente Silhouette
- * in Teamfarbe über allem (und bleiben dort anklickbar).
+ * in Teamfarbe über allem (und bleiben dort anklickbar). Verarbeitungsgebäude (ADR 0011) zeigen Eingangspuffer und
+ * Ausgabestapel als eigene Warenstapel, ihr Arbeitsbild (Mühlenflügel) läuft nur, solange gearbeitet wird.
  */
 import { Container, type Texture } from "pixi.js";
-import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
+import { BUILDINGS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
@@ -174,6 +175,9 @@ export class ObjectLayer {
   private prevB = new Map<number, { key: BuildingKey; x: number; y: number; o: number; built: number }>();
   private prevSeen = false;
   private debris: { id: number; key: BuildingKey; x: number; y: number; o: number; built: number; t0: number }[] = [];
+  /** Arbeitszeit je Verarbeitungsgebäude mit workAnim (Spielsekunden, nur solange proc.busy): Phase der Flügel. */
+  private workPhase = new Map<number, number>();
+  private lastTime = -1;
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
@@ -196,6 +200,7 @@ export class ObjectLayer {
     for (const b of state.buildings) this.byId.set(b.id, b);
     const time = (state.tick + alpha) / TICKS_PER_SECOND;
     this.trackDebris(state, time);
+    this.advanceWork(state, time);
     for (const list of this.attached.values()) list.length = 0;
     for (const list of this.insideUnits.values()) list.length = 0;
     this.countResidents(state);
@@ -544,6 +549,8 @@ export class ObjectLayer {
       const a = b.output.amount, cap = def.output.capacity;
       frame = a <= 0 ? 0 : Math.min(sp.frames - 1, 1 + Math.floor(((a - 1) / cap) * (sp.frames - 1)));
     }
+    // Arbeitsbild (Mühlenflügel): Varianten der Reihe nach, nur weiter, solange gearbeitet wird; sonst stehen sie still
+    if (def.workAnim && sp.frames > 1 && b.built >= 1) frame = Math.floor((this.workPhase.get(b.id) ?? 0) * def.workAnim.fps) % sp.frames;
     return { keys: [[k, b.o]], frame };
   }
 
@@ -623,12 +630,50 @@ export class ObjectLayer {
     }
     const before = this.nItems;
     this.closeItem(it);
-    // offen: kein Rauch aus dem (nicht gezeichneten) Schornstein
-    if (spr && b.built >= 1 && this.nItems === before && open < 0.5) this.chimneys(b, spr.keys[0][0], cx, cy);
+    // offen: kein Rauch aus dem (nicht gezeichneten) Schornstein; Werkstätten rauchen nur, solange gearbeitet wird
+    const fire = !def.production || !!b.proc?.busy;
+    if (spr && b.built >= 1 && this.nItems === before && open < 0.5 && fire) this.chimneys(b, spr.keys[0][0], cx, cy);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
     if (def.storage && !spr) this.stackItems(b);
     if (b.built < 1) this.siteItems(b);
     else if (b.upgrade) this.upgradeItems(b);
+    else if (b.proc) this.procItems(b);
+  }
+
+  /** Arbeitszeit der Werkstätten mit Arbeitsbild weiterzählen (nur bei laufendem Arbeitsgang). */
+  private advanceWork(state: SimState, time: number): void {
+    const dt = this.lastTime < 0 ? 0 : Math.max(0, Math.min(0.5, time - this.lastTime));
+    this.lastTime = time;
+    for (const b of state.buildings) {
+      if (!b.proc?.busy || !BUILDINGS[b.key].workAnim) continue;
+      this.workPhase.set(b.id, (this.workPhase.get(b.id) ?? 0) + dt);
+    }
+    if (this.workPhase.size > state.buildings.length) for (const id of [...this.workPhase.keys()]) if (!this.byId.has(id)) this.workPhase.delete(id);
+  }
+
+  /**
+   * Verarbeitung (ADR 0011): Eingangspuffer und Ausgabestapel als Warenstapel an production.inputPiles bzw. outputPiles
+   * (Modellachsen, gedreht wie der Grundriss), Stufe 1–4 nach Menge im Verhältnis zur Obergrenze aus den Daten
+   * (Rezeptmenge × buffer bzw. × stock). Eigene Objekte in der Tiefensortierung wie die Baustoffe einer Baustelle.
+   */
+  private procItems(b: Building): void {
+    const pd = BUILDINGS[b.key].production, p = b.proc;
+    if (!pd || !p) return;
+    const r = RECIPES[p.recipe];
+    const [cx, cy] = center(b.key, b.x, b.y, b.o);
+    const pile = (g: Good, n: number, cap: number, at: readonly [number, number]) => {
+      if (n <= 0) return;
+      const [dx, dy] = modelToWorld(at[0], at[1], b.o);
+      const x = cx + dx, y = cy + dy;
+      const [cu, cv] = toView(x, y, this.r, this.W, this.H);
+      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3, false, false, 0.05);
+      const [X, Y] = this.scr(x, y);
+      const st = this.stackTexture(g, pileLevel(n, cap), b.o);
+      this.part(it, st.tex, X, Y, st.px, st.py);
+      this.closeItem(it);
+    };
+    (Object.keys(r.inputs) as Good[]).forEach((g, i) => pile(g, p.in[g] ?? 0, (r.inputs[g] ?? 1) * pd.buffer, pd.inputPiles[i % pd.inputPiles.length]));
+    (Object.keys(r.outputs) as Good[]).forEach((g, i) => pile(g, p.out[g] ?? 0, (r.outputs[g] ?? 1) * pd.stock, pd.outputPiles[i % pd.outputPiles.length]));
   }
 
   /** Schnittbild und Variante: Wohnhaus nach Bewohnern, sonst wie das Außenbild (Hof, Füllstand vor dem Tor). */

@@ -14,5 +14,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0008](0008-zoom-und-tasten.md) | Zoomstufen, Pixeltreue und Tastenkürzel | Angenommen |
 | [0009](0009-baustellen.md) | Baustellen: Fortschritt aus Material und Arbeit, sichtbare Bauphasen | Angenommen |
 | [0010](0010-gebaeude-als-hindernis.md) | Gebäude als feste Hindernisse, Zugang über Türkacheln | Angenommen |
+| [0011](0011-verarbeitung-und-lagertypen.md) | Verarbeitung nach Rezept, Lagertypen und Kornkammer | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

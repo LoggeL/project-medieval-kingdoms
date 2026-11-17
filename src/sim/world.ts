@@ -24,14 +24,20 @@ export const SAVE_VERSION = 2;
 
 // ---------------------------------------------------------------- Aufträge der Arbeiter
 export type Job =
-  /** Arbeitszyklus des Gebäudes u.home (Schritt im Datenzyklus, Zeit im Schritt in Ticks, reserviertes Ziel). */
-  | { k: "cycle"; step: number; t: number; tgt: number; wait: number }
+  /**
+   * Arbeitszyklus des Gebäudes u.home (Schritt im Datenzyklus, Zeit im Schritt in Ticks, reserviertes Ziel). ins nur
+   * beim Verarbeiten: im Gebäude zurückgelegte Strecke von der Tür zum Arbeitsplatz (Tiles), fehlt = draußen.
+   */
+  | { k: "cycle"; step: number; t: number; tgt: number; wait: number; ins?: number }
   /** Tagelöhner geht zur Werkstatt und wird dort Arbeiter. */
   | { k: "employ"; b: number }
   /** Hofstapel → Lager-Slot. ph 0 = zur Abholung, 1 = mit Ware zum Lager. */
   | { k: "haul"; from: number; to: number; slot: number; good: Good; ph: 0 | 1 }
-  /** Lager-Slot → Baustelle (bzw. mit rk: Forschung im Bergfried `site`). */
-  | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1; rk?: TechKey }
+  /**
+   * Lager-Slot → Baustelle (bzw. mit rk: Forschung im Bergfried `site`; mit pk: Eingangspuffer des
+   * Verarbeitungsgebäudes `site`).
+   */
+  | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1; rk?: TechKey; pk?: true }
   /** Bauen auf einer Baustelle, deren Material vollständig ist. */
   /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
   | { k: "build"; site: number; spot?: number; t?: number }

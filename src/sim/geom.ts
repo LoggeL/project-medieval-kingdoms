@@ -109,6 +109,24 @@ export function storeWalk(key: BuildingKey, x: number, y: number, o: number, k: 
   return [[ex + 0.5, ey + 0.5], ...inside.map(([mx, my]) => modelPoint(key, x, y, o, mx, my))];
 }
 
+/**
+ * Weg eines Arbeiters von der Zugangskachel durch die Tür zu seinem Arbeitsplatz im Gebäude (Weltpunkte): Mitte der
+ * Zugangskachel → knapp hinter der Tür → Arbeitsplatz `spot` (Modellachsen, BuildingDef.production.spot). Die Tür
+ * liegt auf der Höhe von `door` an der Vorderkante. Rückweg = derselbe Weg rückwärts.
+ */
+export function workWalk(key: BuildingKey, x: number, y: number, o: number, spot: [number, number]): [number, number][] {
+  const def = BUILDINGS[key];
+  const [dx] = doorModel(key);
+  const inside: [number, number][] = [[dx, -def.footprint[1] / 2 + 0.25], [dx, spot[1]], spot];
+  const [ex, ey] = entrance(key, x, y, o);
+  return [[ex + 0.5, ey + 0.5], ...inside.map(([mx, my]) => modelPoint(key, x, y, o, mx, my))];
+}
+
+/** Modellpunkt (Tiles ab Grundrissmitte) eines Gebäudes in Welt-Koordinaten. */
+export function modelWorld(key: BuildingKey, x: number, y: number, o: number, m: readonly [number, number]): [number, number] {
+  return modelPoint(key, x, y, o, m[0], m[1]);
+}
+
 /** Länge eines Linienzugs. */
 export function polyLength(pts: [number, number][]): number {
   let L = 0;

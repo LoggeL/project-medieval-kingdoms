@@ -1,13 +1,15 @@
 /**
  * Auswahl-Panel rechts auf Pergament. Erscheint nur bei einer Auswahl.
- * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Hofstapel, Lagerplätze, Ausbildung, Abreißen.
+ * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Verarbeitung (Rezept, Eingangspuffer, Fortschritt, Ausgabestapel,
+ * Stillstandsgrund, Anhalten; ADR 0011), Hofstapel, Lagerplätze, Ausbildung, Abreißen.
  * Bergfried: Stufe, Steuern, Ausbau (Kosten, fehlende Forschung, Fortschritt), laufende Forschung und der Forschungsbaum.
  * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
  * Tasten (src/data/hotkeys.ts): Ausbilden U I O, Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
  * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
-import { BUILDINGS, GOODS, TECHS, UNITS, levelDef, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, RECIPES, TECHS, UNITS, levelDef, recipesOf, type Good, type RecipeKey, type UnitKey } from "../data";
+import { inputCap, outputCap, procProgress, procReason } from "../sim/production";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { h, num, setBar, setClass, setText } from "./dom";
@@ -18,7 +20,7 @@ import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { recruit } from "./unitgrid";
 
-const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
+const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
 const LAYER_NAME = ["am Boden", "auf dem Wehrgang", "auf dem Turm"];
 
 export interface SidePanel { el: HTMLElement; update(s: SimState): void }
@@ -102,6 +104,8 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       upd.push((s) => { const b = get(s); if (b) setText(val, `${b.workers.length} / ${def.workers!.count}`); });
     }
 
+    if (def.production && b0.proc && b0.built >= 1 && b0.team === 0) productionView(b0);
+
     if (def.output && b0.built >= 1) {
       const val = h("span.mk-num");
       const fill = h("span.mk-bar-fill");
@@ -178,6 +182,84 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       setKey(btn, BUTTON_KEYS.abriss);
       body.append(h("div.mk-actions", null, btn));
     }
+  }
+
+  // ------------------------------------------------------------ Verarbeitung (Mühle, Bäckerei, …)
+  function productionView(b0: Building): void {
+    const id = b0.id;
+    const get = (s: SimState) => s.buildings.find((q) => q.id === id);
+    const list = recipesOf(b0.key);
+    const recipeLine = (k: RecipeKey) => {
+      const r = RECIPES[k];
+      const side = (st: Partial<Record<Good, number>>) => (Object.keys(st) as Good[]).flatMap((g) => [
+        h("span.mk-num", { text: `${st[g]}` }), ctx.icons.make("ware", g, 22, 22)]);
+      return h("div.mk-recipe", { title: `${r.name}: ${r.seconds} s je Arbeitsgang` }, ...side(r.inputs), h("span.mk-recipe-arrow", { text: "→" }),
+        ...side(r.outputs), h("span.mk-sub", { text: `${r.seconds} s` }));
+    };
+    // Rezept: fest, oder Auswahl, wenn das Gebäude mehrere kennt
+    const recipeBtns = list.length > 1 ? list.map((k) => {
+      const b = h("button.mk-btn.mk-recipe-btn", { type: "button", title: RECIPES[k].name, onclick: () => {
+        const r = bridge.dispatch({ t: "rezept", building: id, recipe: k });
+        if (!r.ok) ctx.toast(r.reason ?? "Rezept nicht möglich.", "warnung");
+      } }, recipeLine(k));
+      return { k, b };
+    }) : [];
+    const recipeBox = h("div.mk-recipes", null, ...(recipeBtns.length ? recipeBtns.map((x) => x.b) : [recipeLine(b0.proc!.recipe)]));
+    // Eingangspuffer und Ausgabestapel je Ware, Fortschritt des laufenden Arbeitsgangs
+    const goodRow = (g: Good) => {
+      const val = h("span.mk-num"), inc = h("span.mk-inc"), fill = h("span.mk-bar-fill");
+      const el = h("div.mk-row", { title: GOODS[g].name }, ctx.icons.make("ware", g, 24, 24), h("span.mk-bar.mk-bar-stock", null, fill), val, inc);
+      return { g, el, val, inc, fill };
+    };
+    const ins = new Map<RecipeKey, ReturnType<typeof goodRow>[]>();
+    const outs = new Map<RecipeKey, ReturnType<typeof goodRow>[]>();
+    for (const k of list) {
+      ins.set(k, (Object.keys(RECIPES[k].inputs) as Good[]).map(goodRow));
+      outs.set(k, (Object.keys(RECIPES[k].outputs) as Good[]).map(goodRow));
+    }
+    const inBox = h("div.mk-proc-goods"), outBox = h("div.mk-proc-goods");
+    const pFill = h("span.mk-bar-fill"), pPct = h("span.mk-bar-label");
+    const why = h("p.mk-sub.mk-proc-why");
+    const pauseLbl = h("span", { text: "Anhalten" });
+    const pause = h("button.mk-btn.mk-btn-wide", { type: "button", title: "Verarbeitung anhalten: keine Anlieferung, kein neuer Arbeitsgang", onclick: () => {
+      const b = get(bridge.state());
+      if (b?.proc) bridge.dispatch({ t: "produktion", building: id, an: !!b.proc.paused });
+    } }, pauseLbl);
+    body.append(section("Verarbeitung", recipeBox,
+      h("p.mk-label", { text: "Vorrat" }), inBox,
+      h("span.mk-bar.mk-bar-build", null, pFill, pPct),
+      h("p.mk-label", { text: "Fertig, wartet auf Träger" }), outBox,
+      why, h("div.mk-actions", null, pause)));
+    let shown: RecipeKey | null = null;
+    upd.push((s) => {
+      const b = get(s); const p = b?.proc; if (!b || !p) return;
+      if (shown !== p.recipe) {
+        shown = p.recipe;
+        inBox.replaceChildren(...ins.get(p.recipe)!.map((x) => x.el));
+        outBox.replaceChildren(...outs.get(p.recipe)!.map((x) => x.el));
+      }
+      for (const x of recipeBtns) setClass(x.b, "mk-on", x.k === p.recipe);
+      for (const x of ins.get(p.recipe)!) {
+        const n = p.in[x.g] ?? 0, cap = inputCap(b, x.g), on = (p.enroute[x.g] ?? 0) - (p.picked[x.g] ?? 0);
+        setText(x.val, `${n} / ${cap}`);
+        setText(x.inc, on > 0 ? `+${on}` : "");
+        setBar(x.fill, cap ? n / cap : 0);
+      }
+      for (const x of outs.get(p.recipe)!) {
+        const n = p.out[x.g] ?? 0, cap = outputCap(b, x.g);
+        setText(x.val, `${n} / ${cap}`);
+        setText(x.inc, "");
+        setBar(x.fill, cap ? n / cap : 0);
+      }
+      const prog = procProgress(s, b);
+      setBar(pFill, prog);
+      setText(pPct, p.busy ? `${Math.floor(prog * 100)} %` : "ruht");
+      const reason = procReason(s, b);
+      setText(why, reason ?? `${RECIPES[p.recipe].name}: läuft. ${p.done} Arbeitsgänge fertig.`);
+      setClass(why, "mk-warn", !!reason && p.why?.k !== "unterwegs");
+      setText(pauseLbl, p.paused ? "Fortsetzen" : "Anhalten");
+      setClass(pause, "mk-on", !!p.paused);
+    });
   }
 
   // ------------------------------------------------------------ Bergfried: Stufe, Ausbau, Forschung
@@ -502,6 +584,7 @@ const ACTIVITY: Record<UnitActivity, string> = {
   faellt: "Fällt einen Baum",
   zerlegt: "Zerlegt den Stamm",
   baut_ab: "Bricht Stein",
+  verarbeitet: "Arbeitet in der Werkstatt",
   holt_waffe: "Holt die Waffe für die Ausbildung",
   flieht: "Flieht",
   kaempft: "Kämpft",

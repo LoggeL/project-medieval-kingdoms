@@ -5,12 +5,13 @@
  * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Material anliefern (Baustellen und
  * Forschung im Wechsel) und Hofstapel ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
-import { BUILDINGS, TUNING, UNITS, levelDef, type Good, type TechKey } from "../data";
+import { BUILDINGS, GOODS, TUNING, UNITS, levelDef, storeOf, type Good, type StoreKey, type TechKey } from "../data";
 import { canWork } from "./build";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
 import { goalAround, goalEntrance, goalSlot, tileGoal, travel, unitNode, type TravelGoal } from "./move";
-import { hasRoom, reservePut, reserveTake, tidy } from "./storage";
+import { fullMessage, hasRoom, reservePut, reserveTake, tidy } from "./storage";
+import { haulable, inputAvailable, inputOrders, reserveOutput } from "./production";
 import { isSite, levelOf } from "./research";
 import type { StorageSlot } from "./types";
 import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
@@ -77,15 +78,19 @@ export function dispatcher(w: World): void {
     u.ai.job = { k: "build", site: b.id, spot: b.ai.nextSpot ?? 0 }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
-  // 4. Anliefern (Baustellen, Ausbau, Forschung im Bergfried) und Abholen abwechselnd. Die Forschung wechselt sich mit
-  //    den Baustellen ab (Forschung, Baustelle, Forschung …), damit sie auch bei vielen Baustellen gleich Träger bekommt.
-  type Supply = { site: SBuilding; good: Good; rk?: TechKey };
-  const build: Supply[] = [], study: Supply[] = [];
+  // 4. Anliefern und Abholen abwechselnd. Anlieferungen kommen aus drei Quellen, die sich reihum abwechseln
+  //    (Forschung, Baustelle, Verarbeitung, Forschung …), damit keine bei vielen Aufträgen der anderen leer ausgeht.
+  //    Baustellen werden in der Reihenfolge des Setzens beliefert, die Verarbeitungsgebäude und beim Abholen die
+  //    Ausgabestapel wechseln sich ab.
+  type Supply = { site: SBuilding; good: Good; rk?: TechKey; pk?: true };
+  const build: Supply[][] = [], study: Supply[] = [], proc: Supply[][] = [];
   for (const b of own) {
     if (!isSite(b)) continue;
+    const mine: Supply[] = [];
     for (const [g, n] of Object.entries(b.needs) as [Good, number][]) {
-      for (let k = n - (b.ai.enroute[g] ?? 0); k > 0; k--) build.push({ site: b, good: g });
+      for (let k = n - (b.ai.enroute[g] ?? 0); k > 0; k--) mine.push({ site: b, good: g });
     }
+    if (mine.length) build.push(mine);
   }
   const cur = w.s.research.cur;
   const seat = cur ? own.find((b) => b.built >= 1 && BUILDINGS[b.key].seat) : undefined;
@@ -94,63 +99,70 @@ export function dispatcher(w: World): void {
       for (let k = n - (cur.enroute[g] ?? 0); k > 0; k--) study.push({ site: seat, good: g, rk: cur.key });
     }
   }
-  const supplies: Supply[] = [];
-  for (let i = 0; i < build.length || i < study.length; i++) {
-    if (i < study.length) supplies.push(study[i]);
-    if (i < build.length) supplies.push(build[i]);
-  }
-  const hauls: SBuilding[] = [];
   for (const b of own) {
-    if (b.built < 1 || !b.output) continue;
-    for (let k = b.output.amount - b.output.reserved; k > 0; k--) hauls.push(b);
+    const orders = inputOrders(b);
+    if (orders.length) proc.push(orders.map((g) => ({ site: b, good: g, pk: true as const })));
   }
+  const supplies = interleave([study, build.flat(), interleave(proc)]);
+  const hauls = interleave(own.filter((b) => b.built >= 1).map((b) => {
+    const out: { b: SBuilding; good: Good }[] = [];
+    for (const [g, n] of haulable(b)) for (let k = 0; k < n; k++) out.push({ b, good: g });
+    return out;
+  }));
   const noStock = new Set<Good>();
   const noReach = new Set<number>();
-  let full = false;
+  const full = new Set<StoreKey>();
   for (let i = 0; free.length && (i < supplies.length || i < hauls.length); i++) {
     const sp = supplies[i];
-    if (sp && !noStock.has(sp.good)) {
+    // Werkstätten nehmen nur, was frei im Lager liegt (Baustellen und Forschung haben ihre Waren schon verplant)
+    if (sp && !noStock.has(sp.good) && !(sp.pk && !inputAvailable(w, sp.good))) {
       const [cx, cy] = center(sp.site.key, sp.site.x, sp.site.y, sp.site.o);
       const ref = noReach.has(sp.site.id) ? null : reserveTake(w, sp.good, cx, cy);
-      if (!ref) { if (!noReach.has(sp.site.id)) noStock.add(sp.good); }
+      if (!ref) { if (!noReach.has(sp.site.id) && !sp.pk) noStock.add(sp.good); }
       else {
-        const u = take(cx, cy, goalSlot(w, ref.b, ref.k), sp.rk ? goalEntrance(w, sp.site) : goalAround(sp.site));
+        const u = take(cx, cy, goalSlot(w, ref.b, ref.k), sp.rk || sp.pk ? goalEntrance(w, sp.site) : goalAround(sp.site));
         if (!u) {
           unreserveTake(ref.b.slots[ref.k]);
           noReach.add(sp.site.id);
-          w.msg(`${BUILDINGS[sp.site.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
+          w.msg(`${BUILDINGS[sp.site.key].name}: ${sp.pk ? "Das Gebäude" : "Die Baustelle"} ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
         } else {
           u.ai.job = { k: "supply", site: sp.site.id, from: ref.b.id, slot: ref.k, good: sp.good, ph: 0 }; u.order = { t: "job" };
           if (sp.rk && cur) { u.ai.job.rk = sp.rk; cur.enroute[sp.good] = (cur.enroute[sp.good] ?? 0) + 1; }
+          else if (sp.pk && sp.site.proc) { u.ai.job.pk = true; sp.site.proc.enroute[sp.good] = (sp.site.proc.enroute[sp.good] ?? 0) + 1; }
           else sp.site.ai.enroute[sp.good] = (sp.site.ai.enroute[sp.good] ?? 0) + 1;
         }
       }
     }
-    const hb = hauls[i];
-    if (hb && free.length && !full) {
-      const out = hb.output!;
+    const hl = hauls[i];
+    if (hl && free.length && !full.has(storeOf(hl.good))) {
+      const hb = hl.b;
       const [ex, ey] = entrance(hb.key, hb.x, hb.y, hb.o);
-      const ref = reservePut(w, out.good, ex, ey);
-      if (!ref) full = !hasRoom(w, out.good);
+      const ref = reservePut(w, hl.good, ex, ey);
+      if (!ref) { if (!hasRoom(w, hl.good)) { full.add(storeOf(hl.good)); fullMessage(w, hl.good); } }
       else {
         const u = take(ex, ey, goalEntrance(w, hb), goalSlot(w, ref.b, ref.k));
         if (!u) { const sl = ref.b.slots[ref.k]; sl.incoming--; tidy(sl); }
         else {
-          u.ai.job = { k: "haul", from: hb.id, to: ref.b.id, slot: ref.k, good: out.good, ph: 0 }; u.order = { t: "job" };
-          out.reserved++;
+          u.ai.job = { k: "haul", from: hb.id, to: ref.b.id, slot: ref.k, good: hl.good, ph: 0 }; u.order = { t: "job" };
+          reserveOutput(hb, hl.good);
         }
       }
     }
   }
-  if (full) w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
   for (const g of noStock) w.msg(`Für die Baustelle fehlt ${goodName(g)} im Lager.`, "warnung", `fehlt-${g}`, 45, "material_fehlt");
+}
+
+/** Listen reihum zusammenführen: erstes Element jeder Liste, dann das zweite … (leere Listen fallen weg). */
+export function interleave<T>(lists: T[][]): T[] {
+  const out: T[] = [];
+  for (let i = 0; lists.some((l) => i < l.length); i++) for (const l of lists) if (i < l.length) out.push(l[i]);
+  return out;
 }
 
 /** Reservierung zum Abholen zurückgeben (Auftrag kam nicht zustande). */
 function unreserveTake(slot: StorageSlot): void { slot.reserved--; tidy(slot); }
 
-const NAMES: Record<Good, string> = { holz: "Holz", stein: "Stein", eisen: "Eisen", speer: "Speere", schwert: "Schwerter", bogen: "Bögen" };
-const goodName = (g: Good) => NAMES[g];
+const goodName = (g: Good) => GOODS[g].name;
 
 // ---------------------------------------------------------------- Untätige Tagelöhner
 const SPOTS: [number, number][] = (() => {

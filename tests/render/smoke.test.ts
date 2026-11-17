@@ -14,6 +14,8 @@ import { fakeBuildingSheet, fakeFigureSheet } from "./fakes";
 const SPRITE: Record<string, [number, number][]> = {
   haus: [[19.5, -79.5], [6.3, -92.4], [-19.5, -85.8], [-6.3, -72.9]],
   kaserne: [[4.6, -129.1], [-54.9, -103.9], [-4.6, -74.2], [54.9, -99.3]],
+  // Oberkante des Schornsteins im Bild je Ansicht −72, −107, −94, −59 (wie beim Wohnhaus gut 3 px über der Öffnung)
+  baeckerei: [[47.8, -68.6], [21.4, -103.2], [-47.8, -90.0], [-21.4, -55.4]],
 };
 
 describe("Schornsteinrauch", () => {

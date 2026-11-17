@@ -39,6 +39,10 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
       const home = w.buildings.get(u.home);
       const step = home && BUILDINGS[home.key].workers?.cycle[j.step];
       if (!step) return "wartet";
+      if (step.do === "process") {
+        if (j.ins === undefined || u.anim === "gehen") return moving ? "unterwegs" : "wartet";
+        return u.anim === "stehen" ? "wartet" : "verarbeitet";
+      }
       if (step.do === "work") {
         if (u.anim === "stehen") return "wartet";
         return step.effect === "fellTree" ? "faellt" : step.effect === "cutTree" ? "zerlegt" : step.effect === "mineRock" ? "baut_ab" : "baut";

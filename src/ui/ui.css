@@ -948,6 +948,17 @@ kbd {
 @media (max-width: 1365px) {
   .mk-res-group:nth-of-type(2), .mk-res-group + .mk-sep { display: none; }
 }
+/* Nahrungsvorrat (Getreide, Mehl, Brot) erst ab 1600 px; darunter zeigt die Kornkammer-Anzeige Bestand und Kapazität */
+@media (max-width: 1599px) {
+  .mk-res-group-nahrung, .mk-res-group-nahrung + .mk-sep { display: none; }
+}
+/* Sechs Bau-Reiter (mit Nahrung) und Forschung passen zwischen 1024 und 1199 px nur mit schmaleren Reitern;
+   die Tastenschilder bleiben sichtbar (erst unter 1024 px fallen sie weg). */
+@media (max-width: 1199px) {
+  .mk-tab { padding: 0 9px; font-size: 16px; }
+  .mk-root .mk-tab .mk-key { margin-left: 5px; }
+  .mk-tab-research { margin-left: 4px; }
+}
 /* „nächste in “ während einer Welle erst ab 1600 px: bei 1440 px reicht der Platz der Ereignisleiste sonst nicht,
    und die Restzeit würde abgeschnitten (der Tooltip nennt sie ausführlich). */
 @media (max-width: 1599px) {
@@ -1182,3 +1193,14 @@ kbd {
   .mk-top-ctl .mk-btn-audio, .mk-top-ctl .mk-btn-help { width: 25px; min-width: 25px; }
   .mk-top-ctl .mk-zoom-val { min-width: 28px; }
 }
+
+/* ------------------------------------------------------------------ Verarbeitung (Auswahl-Panel, ADR 0011) */
+.mk-recipes { display: flex; flex-direction: column; gap: 4px; }
+.mk-recipe { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mk-recipe .mk-num { font-size: 15px; }
+.mk-recipe-arrow { font-weight: 700; padding: 0 2px; }
+.mk-recipe-btn { justify-content: flex-start; height: auto; padding: 2px 6px; }
+.mk-proc-goods { display: flex; flex-direction: column; gap: 2px; }
+.mk-proc-goods .mk-row .mk-bar { flex: 1 1 auto; }
+.mk-proc-why { margin-top: 4px; }
+.mk-proc-why.mk-warn { color: var(--mk-red-ink); font-weight: 700; }

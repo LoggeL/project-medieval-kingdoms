@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, Good, TechKey, TerrainKey, UnitKey } from "../data";
+import type { AnimKey, BuildingKey, Good, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -82,7 +82,46 @@ export interface Building {
    * (t 0..1). Das Gebäude bleibt dabei in Betrieb.
    */
   upgrade?: { level: number; t: number };
+  /** Verarbeitung nach Rezept (nur Gebäude mit BuildingDef.production, ab Fertigstellung). */
+  proc?: ProcState;
 }
+
+/**
+ * Zustand eines Verarbeitungsgebäudes (src/sim/production.ts, ADR 0011). Alle Mengen in Stück; sichtbar sind Puffer
+ * und Ausgabestapel als Lagerstapel am Gebäude (BuildingDef.production.inputPiles/outputPiles).
+ */
+export interface ProcState {
+  /** Gewähltes Rezept. */
+  recipe: RecipeKey;
+  /** Eingangspuffer: angelieferte, noch nicht verarbeitete Waren. */
+  in: Partial<Record<Good, number>>;
+  /** Eingänge auf dem Weg: zugewiesen (Träger unterwegs) bzw. davon schon aus dem Lager genommen. */
+  enroute: Partial<Record<Good, number>>;
+  picked: Partial<Record<Good, number>>;
+  /** Ausgabestapel und davon für Träger reserviert. */
+  out: Partial<Record<Good, number>>;
+  res: Partial<Record<Good, number>>;
+  /** Ein Arbeitsgang läuft (Eingänge sind entnommen); t = Arbeitssekunden darin. */
+  busy: boolean;
+  t: number;
+  /** Abgeschlossene Arbeitsgänge. */
+  done: number;
+  /** Vom Spieler angehalten: keine Anlieferung, keine Arbeit. */
+  paused?: boolean;
+  /** Warum gerade nicht gearbeitet wird (null = ein Arbeitsgang läuft); Text für die Oberfläche: procReason(). */
+  why: ProcWhy | null;
+}
+
+export type ProcWhy =
+  | { k: "angehalten" }
+  /** Kein Arbeiter angestellt (keine freien Tagelöhner). */
+  | { k: "kein_arbeiter" }
+  /** Der Arbeiter ist auf dem Weg zum Arbeitsplatz. */
+  | { k: "unterwegs" }
+  /** Für einen Arbeitsgang fehlen diese Eingänge im Puffer. */
+  | { k: "eingang"; goods: Good[] }
+  /** Ausgabestapel voll; full = im Lager dieser Waren ist auch kein Platz mehr (sonst kommen die Träger nicht nach). */
+  | { k: "ausgang"; goods: Good[]; full: boolean };
 
 /** Bedarf einer Lieferung: noch fehlende Waren, davon zugewiesen (unterwegs) und schon aus dem Lager genommen. */
 export interface Delivery {
@@ -150,7 +189,7 @@ export interface Unit {
 
 export type UnitActivity =
   | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
-  | "kaempft" | "wache" | "haelt" | "zieht_zu";
+  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet";
 
 export interface Projectile {
   id: number;
@@ -182,6 +221,8 @@ export interface SimState {
   stock: Record<Good, number>;
   /** Lagerkapazität gesamt. */
   capacity: number;
+  /** Bestand und Kapazität je Lagertyp (Lagerhaus, Kornkammer); fehlt vor dem ersten Tick alter Spielstände. */
+  stores?: Record<StoreKey, { used: number; cap: number }>;
   raid: { next: number; wave: number; active: boolean };
   messages: Message[];
   /** Forschung (seit Spielstand-Version 2 immer vorhanden). */
@@ -208,7 +249,11 @@ export type Command =
   /** Laufende Forschung abbrechen: Gold und angelieferte Waren kommen zurück. */
   | { t: "forschung_abbrechen" }
   /** Gebäude (Bergfried) auf die nächste Stufe ausbauen. */
-  | { t: "ausbauen"; building: number };
+  | { t: "ausbauen"; building: number }
+  /** Rezept eines Verarbeitungsgebäudes wählen (nicht passende Puffer-Waren gehen ins Lager zurück). */
+  | { t: "rezept"; building: number; recipe: RecipeKey }
+  /** Verarbeitung anhalten (an = false) oder fortsetzen. */
+  | { t: "produktion"; building: number; an: boolean };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }

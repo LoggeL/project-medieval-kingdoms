@@ -55,5 +55,20 @@
  "geruest_turm": {"name": "Gerüst Mauerturm", "footprint": [2, 2], "variants": ["Standard"], "seed": 73, "front": true, "shadow_fill": false},
  "geruest_lagerhaus": {"name": "Gerüst Lagerhaus", "footprint": [3, 3], "variants": ["Standard"], "seed": 76, "front": true, "shadow_fill": false},
  "baustoff_holz": {"name": "Bauholz", "footprint": [1, 1], "variants": ["leer", "eine Lage", "zwei Lagen", "drei Lagen", "vier Lagen"], "seed": 74},
- "baustoff_stein": {"name": "Bausteine", "footprint": [1, 1], "variants": ["leer", "3 Blöcke", "6 Blöcke", "9 Blöcke", "12 Blöcke"], "seed": 75}
+ "baustoff_stein": {"name": "Bausteine", "footprint": [1, 1], "variants": ["leer", "3 Blöcke", "6 Blöcke", "9 Blöcke", "12 Blöcke"], "seed": 75},
+ "kornkammer": {"name": "Kornkammer", "footprint": [3, 3], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 200},
+ "kornkammer_innen": {"name": "Kornkammer (innen)", "footprint": [3, 3], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 200, "front": true, "cutaway": true, "shelves": [[-0.95, -0.62], [0.95, -0.62], [-0.95, 0.12], [0.95, 0.12], [-0.95, 0.86], [0.95, 0.86]]},
+ "muehle": {"name": "Windmühle", "footprint": [3, 3], "variants": ["Flügel 45°", "Flügel 60°", "Flügel 75°", "Flügel 90°", "Flügel 105°", "Flügel 120°"], "seed": 210},
+ "muehle_innen": {"name": "Windmühle (innen)", "footprint": [3, 3], "variants": ["Standard"], "seed": 210, "front": true, "cutaway": true},
+ "baeckerei": {"name": "Bäckerei", "footprint": [3, 2], "variants": ["Standard"], "seed": 220},
+ "baeckerei_innen": {"name": "Bäckerei (innen)", "footprint": [3, 2], "variants": ["Standard"], "seed": 220, "front": true, "cutaway": true},
+ "baustelle_kornkammer": {"name": "Baustelle Kornkammer", "footprint": [3, 3], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 201},
+ "baustelle_muehle": {"name": "Baustelle Windmühle", "footprint": [3, 3], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 211},
+ "baustelle_baeckerei": {"name": "Baustelle Bäckerei", "footprint": [3, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 221},
+ "geruest_kornkammer": {"name": "Gerüst Kornkammer", "footprint": [3, 3], "variants": ["Standard"], "seed": 202, "front": true, "shadow_fill": false},
+ "geruest_muehle": {"name": "Gerüst Windmühle", "footprint": [3, 3], "variants": ["Standard"], "seed": 212, "front": true, "shadow_fill": false},
+ "geruest_baeckerei": {"name": "Gerüst Bäckerei", "footprint": [3, 2], "variants": ["Standard"], "seed": 222, "front": true, "shadow_fill": false},
+ "stapel_getreide": {"name": "Stapel Getreide", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 230},
+ "stapel_mehl": {"name": "Stapel Mehl", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 231},
+ "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232}
 }

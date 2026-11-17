@@ -32,12 +32,14 @@ function draw(src: HTMLCanvasElement, sx: number, sy: number, bb: Box, size: num
 function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number, team = 0): HTMLCanvasElement | null {
   const bs = sheets.buildings;
   if (!bs) return null;
-  let sk = (BUILDINGS as Record<string, { sprite: string } | undefined>)[key]?.sprite ?? key;
+  const def = (BUILDINGS as Record<string, { sprite: string; storage?: unknown } | undefined>)[key];
+  let sk = def?.sprite ?? key;
   if (!bs.has(sk) && key === "tor") sk = "mauer";
   const sp = bs.get(sk);
   const c = bs.canvas(sk, team);
   if (!sp || !c) return null;
-  const f = Math.min(sp.frames - 1, frame ?? (key === "lager" ? sp.frames - 1 : 0));
+  // Lager (Lagerhaus, Kornkammer): volle Variante, damit man die Waren vor dem Tor sieht
+  const f = Math.min(sp.frames - 1, frame ?? (def?.storage ? sp.frames - 1 : 0));
   const bb = sp.bbox[0][f];
   if (!bb) return null;
   return draw(c, f * bs.cell[0], 0, bb, size);

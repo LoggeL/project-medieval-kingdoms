@@ -4,7 +4,10 @@
  * Zeiten in Sekunden, die Simulation rechnet sie in Ticks um (TICKS_PER_SECOND).
  */
 import type { VoiceKey } from "./audio";
+import type { Good, StoreKey } from "./goods";
+import type { ProductionDef } from "./recipes";
 import type { TechKey } from "./research";
+import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
 
 export * from "./research";
 
@@ -32,27 +35,9 @@ export const TERRAIN: Record<TerrainKey, TerrainDef> = {
   wasser: { name: "Wasser", walkable: false, buildable: false, cost: 99 },
 };
 
-// ---------------------------------------------------------------- Waren
-export type Good = "holz" | "stein" | "eisen" | "speer" | "schwert" | "bogen";
-
-export interface GoodDef {
-  name: string;
-  /** Sprite-Schlüssel des Stapels im Lager (Gebäudeblatt, Varianten = Füllstufen 0..4). */
-  stack: string;
-  /** Figur, die diese Ware trägt (Figurenblatt). */
-  carrier: string;
-  /** Baumaterial auf der Baustelle (Gebäudeblatt, Varianten = Menge 0..4); fehlt es, liegt der Lagerstapel dort. */
-  sitePile?: string;
-}
-
-export const GOODS: Record<Good, GoodDef> = {
-  holz: { name: "Holz", stack: "stapel_holz", carrier: "traeger", sitePile: "baustoff_holz" },
-  stein: { name: "Stein", stack: "stapel_stein", carrier: "traeger_stein", sitePile: "baustoff_stein" },
-  eisen: { name: "Eisen", stack: "stapel_eisen", carrier: "traeger_kiste" },
-  speer: { name: "Speere", stack: "stapel_speer", carrier: "traeger_speer" },
-  schwert: { name: "Schwerter", stack: "stapel_schwert", carrier: "traeger_schwert" },
-  bogen: { name: "Bögen", stack: "stapel_bogen", carrier: "traeger_bogen" },
-};
+// ---------------------------------------------------------------- Waren, Lagertypen, Rezepte (eigene Dateien)
+export * from "./goods";
+export * from "./recipes";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 
@@ -63,12 +48,18 @@ export type CycleStep =
   /** Arbeit am Ziel: anim sagt der Darstellung, was gezeigt wird; effect ändert die Welt. */
   | { do: "work"; anim: AnimKey; seconds: number; effect?: "fellTree" | "cutTree" | "mineRock"; produce?: Partial<Record<Good, number>>; carry?: boolean }
   /** Getragene Ware im eigenen Hof ablegen (output). Wartet, solange der Hof voll ist. */
-  | { do: "deposit"; into: "output" };
+  | { do: "deposit"; into: "output" }
+  /**
+   * Verarbeiten nach Rezept (BuildingDef.production, src/data/recipes.ts): zum Arbeitsplatz im Gebäude gehen, Eingänge
+   * aus dem Puffer nehmen, sichtbar arbeiten, Ausgänge auf den Ausgabestapel legen. Ein Zyklus aus nur diesem Schritt.
+   */
+  | { do: "process" };
 
 // ---------------------------------------------------------------- Gebäude
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
-  | "mauer" | "tor" | "treppe" | "turm";
+  | "mauer" | "tor" | "treppe" | "turm"
+  | VerarbeitungKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -117,7 +108,7 @@ export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
   desc: string;
-  category: "zentrum" | "wirtschaft" | "wohnen" | "militaer" | "befestigung";
+  category: "zentrum" | "wirtschaft" | "nahrung" | "wohnen" | "militaer" | "befestigung";
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
@@ -143,9 +134,20 @@ export interface BuildingDef {
   /**
    * Lager: Fächer mit eigenem Stapel. shelves = Mitte jedes Fachs in Tiles ab Grundrissmitte (Modellachsen), in der
    * Reihenfolge, in der leere Fächer belegt werden; dieselben Werte stehen in tools/blender/buildings/buildings.json
-   * (lagerhaus_innen). Träger gehen durch die Tür den Mittelgang entlang bis vor ihr Fach.
+   * (lagerhaus_innen). Träger gehen durch die Tür den Mittelgang entlang bis vor ihr Fach. kind = Lagertyp (STORES in
+   * goods.ts): Das Lager nimmt nur Waren dieses Typs auf, fehlt = Materiallager.
    */
-  storage?: { slots: number; perSlot: number; shelves: [number, number][] };
+  storage?: { kind?: StoreKey; slots: number; perSlot: number; shelves: [number, number][] };
+  /**
+   * Verarbeitung nach Rezept (src/data/recipes.ts, ADR 0011): Eingangspuffer, Ausgabestapel und Arbeitsplatz. Die
+   * Arbeiter kommen aus `workers` (Zyklus [{ do: "process" }]), die Rezepte nennen das Gebäude in RecipeDef.building.
+   */
+  production?: ProductionDef;
+  /**
+   * Arbeitsanimation des Gebäudes (nur Darstellung): Die Varianten des Sprites laufen mit fps, solange ein Arbeitsgang
+   * läuft (z. B. die Mühlenflügel), sonst bleibt das zuletzt gezeigte Bild stehen.
+   */
+  workAnim?: { fps: number };
   /**
    * Geschlossenes Gebäude mit Innenansicht (nur Darstellung): Schnittbild ohne Dach im Gebäudeblatt, eingeblendet beim
    * Überfahren und in der Auswahl. spots = Stellen für Figuren im Inneren (Tiles ab Grundrissmitte, Modellachsen),
@@ -256,6 +258,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     construction: { ground: "baustelle_kaserne", scaffold: "geruest_kaserne", foundation: 0.12, piles: [[-0.55, -0.8], [0.55, -0.8]] },
     trains: ["speer", "schwert", "bogen"], interior: { sprite: "kaserne_innen", spots: [[0.24, 0.51]] }, hp: 500,
   },
+  // Verarbeitung und Kornkammer (src/data/verarbeitung.ts)
+  ...VERARBEITUNG,
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
     category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],
@@ -288,10 +292,10 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 };
 
 // ---------------------------------------------------------------- Einheiten
-export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "speer" | "schwert" | "bogen";
+export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "speer" | "schwert" | "bogen";
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
-export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "angriff" | "schiessen" | "sterben" | "tot";
+export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "angriff" | "schiessen" | "sterben" | "tot";
 
 export type DamageType = "stich" | "hieb" | "pfeil";
 
@@ -324,6 +328,8 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   tageloehner: { name: "Tagelöhner", sprite: "tageloehner", role: "arbeiter", hp: 30, speed: 1.6, armor: 0 },
   holzfaeller: { name: "Holzfäller", sprite: "holzfaeller", role: "arbeiter", hp: 35, speed: 1.5, armor: 0 },
   steinmetz: { name: "Steinmetz", sprite: "steinmetz", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
+  mueller: { name: "Müller", sprite: "mueller", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
+  baecker: { name: "Bäcker", sprite: "baecker", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
   speer: {
     name: "Speerträger", sprite: "speer", role: "nahkampf", hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
     range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
@@ -353,9 +359,12 @@ export const START = {
    * Startaufstellung: fertige Gebäude, linke obere Ecke relativ zum Siedlungsanker der Karte (MapResult.lager,
    * Eingang zur Straße) und Ausrichtung. Weitere Startgebäude kommen als Einträge hinzu.
    */
-  buildings: [{ key: "lager", at: [0, 0], o: 0 }, { key: "bergfried", at: [-4, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
-  /** Startbestand in den Lagern der Startaufstellung. */
-  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
+  buildings: [{ key: "lager", at: [0, 0], o: 0 }, { key: "bergfried", at: [-4, 0], o: 0 }, { key: "kornkammer", at: [-8, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
+  /**
+   * Startbestand in den Lagern der Startaufstellung (jede Ware in ein Lager ihres Typs). Getreide liegt in der
+   * Kornkammer, bis es einen Bauernhof gibt, damit die Kette Mühle → Bäckerei spielbar ist.
+   */
+  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4, getreide: 40 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
   raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
 };

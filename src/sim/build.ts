@@ -11,6 +11,7 @@ import { abortJobsAt } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
+import { newProc, returnProcGoods } from "./production";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
 
@@ -284,6 +285,7 @@ export function completeBuilding(w: World, b: SBuilding): void {
   b.ai.enroute = {}; b.ai.picked = {}; b.ai.builder = 0;
   if (def.storage && !b.slots.length) b.slots = Array.from({ length: def.storage.slots }, () => ({ good: null, amount: 0, reserved: 0, incoming: 0 }));
   if (def.output && !b.output) b.output = { good: def.output.good, amount: 0, reserved: 0 };
+  if (def.production && !b.proc) b.proc = newProc(b.key);
   updateWallMasks(w);
   w.nav.rebuild();
   evictUnits(w);
@@ -306,6 +308,7 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
   for (const u of w.s.units) if (u.order.t === "station" && u.order.building === b.id) u.order = { t: "idle" };
   if (why === "abriss") {
     for (const s of b.slots) if (s.good && s.amount > 0) storeDirect(w, s.good, s.amount); // Bestand umlagern, soweit Platz ist
+    returnProcGoods(w, b); // Puffer und Ausgabestapel einer Verarbeitung ebenso
     if (b.built < 1 && b.mat !== undefined) {
       // Baustelle: was nie geliefert wurde, kostete nichts; liegendes Material kommt ganz zurück, verbautes zur Hälfte
       w.s.gold += Math.floor((def.cost.gold ?? 0) / 2);

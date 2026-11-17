@@ -431,5 +431,116 @@
     0
    ]
   }
+ },
+ "mueller": {
+  "name": "Müller",
+  "torso": "worker",
+  "tunic": "gambeson",
+  "legs": "hose2",
+  "skirt": 0.3,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "apron"
+  ],
+  "action": {
+   "anim": "mahlen",
+   "motion": "mahlen"
+  },
+  "action_gear": [
+   "meal_sack"
+  ]
+ },
+ "baecker": {
+  "name": "Bäcker",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "apron"
+  ],
+  "action": {
+   "anim": "backen",
+   "motion": "backen"
+  },
+  "action_gear": [
+   "peel"
+  ]
+ },
+ "traeger_sack": {
+  "name": "Tagelöhner mit Getreidesack",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "grain_sack"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -176,
+    0,
+    4
+   ]
+  }
+ },
+ "traeger_mehl": {
+  "name": "Tagelöhner mit Mehlsack",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "flour_sack"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -176,
+    0,
+    4
+   ]
+  }
+ },
+ "traeger_brot": {
+  "name": "Tagelöhner mit Brotkorb",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "bread_basket"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "swing": 0.0,
+  "pose": {
+   "armR": [
+    -55,
+    0,
+    -12
+   ],
+   "armL": [
+    -55,
+    0,
+    12
+   ]
+  }
  }
 }

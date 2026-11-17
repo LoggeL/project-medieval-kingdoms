@@ -67,6 +67,9 @@ const PILE: Record<Good, [string, string]> = {
   speer: ["#6b4a2a", "#c9c9c0"],
   schwert: ["#5a4a3a", "#d6d8dc"],
   bogen: ["#6b4320", "#b08850"],
+  getreide: ["#9a7a3a", "#d9b866"],
+  mehl: ["#a89c86", "#ece4d2"],
+  brot: ["#7a4a1e", "#c88a4a"],
 };
 
 /** Ersatz für einen Warenstapel, Füllstufe 1..4. Pivot (16, 22). */

@@ -3,7 +3,7 @@
  *
  * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
  * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
- * → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
+ * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
 import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
 import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
@@ -12,6 +12,7 @@ import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation
 import { footprintTiles } from "./geom";
 import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
+import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
 import { emptyMap, generateMap } from "./mapgen";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
@@ -132,6 +133,7 @@ export function step(w: World): void {
     updateActivity(w, u);
   }
   updateRecruits(w);
+  updateProduction(w);
   updateGates(w);
   separate(w);
   updateProjectiles(w);
@@ -164,8 +166,8 @@ function updateTutorial(w: World): void {
 
 function act(w: World, u: SUnit): void {
   if (u.team === 1) { raiderAct(w, u); return; }
-  // nach dem Warentausch im Lagerhaus erst wieder hinaus
-  if (u.inside && (!u.ai.visit || u.ai.visit.done) && walkOut(w, u)) return;
+  // nach dem Warentausch im Lagerhaus erst wieder hinaus (Arbeiter einer Verarbeitung bleiben an ihrem Platz)
+  if (u.inside && !worksInside(u) && (!u.ai.visit || u.ai.visit.done) && walkOut(w, u)) return;
   if (isSoldier(u.key)) { soldierAct(w, u); return; }
   if (u.ai.job) { runJob(w, u); return; }
   if (u.key !== "tageloehner") { toPeasant(w, u); return; }
@@ -205,6 +207,8 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "forschen": return startResearch(w, c.tech);
     case "forschung_abbrechen": return cancelResearch(w, (u, back) => { if (back) { u.ai.job = null; carryBack(w, u); } else releaseJob(w, u); });
     case "ausbauen": return startUpgrade(w, c.building);
+    case "rezept": return setRecipe(w, c.building, c.recipe);
+    case "produktion": return setPaused(w, c.building, c.an);
   }
   return { ok: false, reason: "Unbekannter Befehl" };
 }

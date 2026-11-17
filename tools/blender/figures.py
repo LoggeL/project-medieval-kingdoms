@@ -451,6 +451,32 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         box("crate", (H * 0.27, H * 0.22, H * 0.22), (0, 0, 0), "crate", cr)
         for k in (-1, 1):
             box("band", (H * 0.28, H * 0.23, th(limb * 0.3)), (0, 0, k * H * 0.07), "wood", cr)
+    elif g in ("grain_sack", "flour_sack"):
+        # full sack over the right shoulder like the stone block, the raised right hand holds the tied neck;
+        # grain in burlap, flour in white linen
+        c = "bow" if g == "grain_sack" else "feather"
+        sk = empty("sackpv", (-sw * 0.3, depth * 0.15, torso * 0.98 + limb * 1.3), hip)
+        sk.rotation_euler = (math.radians(12), math.radians(-18), math.radians(15))
+        ball("sack", (H * 0.13, H * 0.17, H * 0.1), (0, 0, 0), c, sk, seg=8, rings=6)
+        ball("sackneck", (H * 0.05, H * 0.05, H * 0.06), (0, H * 0.17, H * 0.02), c, sk, seg=6, rings=4)
+        box("sacktie", (H * 0.06, th(limb * 0.3), H * 0.06), (0, H * 0.14, H * 0.02), "belt", sk)
+    elif g == "bread_basket":
+        # wicker basket with loaves carried in front of the chest with both arms
+        bk = empty("basketpv", (0, -depth * 0.5 - H * 0.13, torso * 0.4), hip)
+        cyl("basket", H * 0.13, H * 0.12, (0, 0, 0), "bow", bk, verts=10)
+        cyl("rim", H * 0.135, th(limb * 0.35), (0, 0, H * 0.06), "wood_hi", bk, verts=10)
+        for k, (dx, dy) in enumerate(((-H * 0.05, -H * 0.03), (H * 0.05, -H * 0.02), (0.0, H * 0.05))):
+            ball("loaf%d" % k, (H * 0.055, H * 0.05, H * 0.035), (dx, dy, H * 0.075), "leather", bk, seg=6, rings=4)
+    elif g == "meal_sack":
+        # sack held in both hands (miller pouring grain into the hopper; shown in the action frames only)
+        ms = empty("mealpv", (sw * 0.48, -limb * 0.6, -limb * 0.4), hr)
+        ball("mealsack", (H * 0.11, H * 0.08, H * 0.13), (0, 0, 0), "bow", ms, seg=8, rings=6)
+        ball("mealmouth", (H * 0.06, H * 0.06, H * 0.03), (0, 0, -H * 0.12), "gambeson", ms, seg=6, rings=4)
+    elif g == "peel":
+        # baker's peel: long pole with a flat blade, held like a spear (action frames only)
+        cyl("peelshaft", th(limb * 0.4) / 2, H * 1.0, (0, 0, H * 0.3), "wood_hi", hr)
+        box("peelblade", (H * 0.16, th(limb * 0.2), H * 0.18), (0, 0, H * 0.86), "wood_hi", hr)
+        ball("peelloaf", (H * 0.05, H * 0.045, H * 0.03), (0, -limb * 0.25, H * 0.86), "leather", hr, seg=6, rings=4)
 
 
 # ---------------------------------------------------------------- camera
@@ -517,6 +543,20 @@ ACTIONS = {
         {"armL": (-75, 0, 4), "armR": (-70, 0, -18), "gripL": 0, "lean": 0, "arrow": "nocked"},
         {"armL": (-90, 0, 0), "armR": (95, 0, 15), "elbowR": (0, -150, 0), "gripL": 0, "lean": -3, "string": "drawn", "arrow": "drawn"},
         {"armL": (-90, 0, 0), "armR": (100, 0, 35), "elbowR": (0, -60, 0), "gripL": 0, "lean": -5},
+    ],
+    # miller: lift a sack of grain from the floor and tip it into the hopper above the millstones
+    "mahlen": [
+        {"armR": (-35, 0, -12), "armL": (-35, 0, 12), "lean": 22, "legs": (-14, 8)},
+        {"armR": (-85, 0, -10), "armL": (-85, 0, 10), "lean": 8, "legs": (-8, 4)},
+        {"armR": (-135, 0, -8), "armL": (-135, 0, 8), "lean": -2},
+        {"armR": (-160, 0, -6), "armL": (-160, 0, 6), "lean": 6},
+    ],
+    # baker: push the peel into the oven and pull it back out (both hands on the pole)
+    "backen": [
+        {"armR": (-18, 0, -6), "armL": (-40, 0, 14), "gripR": 86, "lean": -4, "legs": (-6, 4)},
+        {"armR": (-42, 0, -6), "armL": (-62, 0, 14), "gripR": 88, "lean": 6, "legs": (-14, 8)},
+        {"armR": (-72, 0, -6), "armL": (-88, 0, 14), "gripR": 90, "lean": 15, "legs": (-24, 12)},
+        {"armR": (-48, 0, -6), "armL": (-66, 0, 14), "gripR": 89, "lean": 7, "legs": (-12, 8)},
     ],
     # building: one-handed hammer blows low in front (beam, peg, plank), the left hand steadies the work piece
     "bauen": [

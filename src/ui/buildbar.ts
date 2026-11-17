@@ -23,6 +23,7 @@ const TABS: { cat: Cat; label: string }[] = [
   { cat: "wohnen", label: "Wohnen" },
   { cat: "befestigung", label: "Befestigung" },
   { cat: "militaer", label: "Militär" },
+  { cat: "nahrung", label: "Nahrung" },
 ];
 
 export interface BuildBar { el: HTMLElement; update(s: SimState): void; updateTool(): void }

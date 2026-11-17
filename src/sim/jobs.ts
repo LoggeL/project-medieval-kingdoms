@@ -3,12 +3,13 @@
  * Tragen (Hof → Lager, Lager → Baustelle, Waffe → Kaserne), Bauen und Anstellen.
  * Jede Ware wechselt nur dann den Ort, wenn die Figur am Ziel steht; unterwegs trägt sie sie sichtbar (carry).
  */
-import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
+import { BUILDINGS, STORES, TUNING, UNITS, storeOf, type CycleStep, type Good } from "../data";
 import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, storeWalk } from "./geom";
 import { buildCap, canWork, completeBuilding, refreshAfterPlace, useMaterial } from "./build";
 import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
-import { reservePut, tidy } from "./storage";
+import { fullMessage, hasStoreOf, reservePut, tidy } from "./storage";
+import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
 
@@ -68,6 +69,7 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       return;
     }
     case "work": return runWork(w, u, j, step, home, next, restart);
+    case "process": return runProcess(w, u, j, home);
     case "deposit": {
       if (!u.carry) { next(); return; }
       const out = home.output, cap = def.output?.capacity ?? 0;
@@ -212,11 +214,11 @@ function runEmploy(w: World, u: SUnit, j: Extract<Job, { k: "employ" }>): void {
 function runHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void {
   if (j.ph === 0) {
     const src = w.buildings.get(j.from);
-    if (!src || !src.output) { releaseJob(w, u); return; }
+    if (!src || (!src.output && !src.proc)) { releaseJob(w, u); return; }
     const r = travel(w, u, goalEntrance(w, src));
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
-    src.output.amount--; src.output.reserved--;
+    if (!takeOutput(src, j.good)) { releaseJob(w, u); return; }
     u.carry = j.good; j.ph = 1;
     return;
   }
@@ -238,16 +240,19 @@ function retargetHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void 
   if ((w.s.tick + u.id) % TPS !== 0) return;
   const ref = reservePut(w, j.good, u.x, u.y);
   if (ref) { j.to = ref.b.id; j.slot = ref.k; }
-  else if (!w.s.buildings.some((b) => b.team === 0 && BUILDINGS[b.key].storage)) {
-    // Kein Lagerhaus mehr, auch keines im Bau: Die Last bleibt liegen, der Träger ist wieder frei
+  else if (!hasStoreOf(w, storeOf(j.good))) {
+    // Kein Lager dieses Typs mehr, auch keines im Bau: Die Last bleibt liegen, der Träger ist wieder frei
     u.carry = null; u.ai.job = null; u.order = { t: "idle" };
-    w.msg("Kein Lagerhaus mehr: Getragene Waren bleiben liegen.", "warnung", "keinlager", 60);
-  } else w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
+    w.msg(STORES[storeOf(j.good)].none, "warnung", `keinlager-${storeOf(j.good)}`, 60);
+  } else fullMessage(w, j.good);
 }
+
+/** Lieferbuchhaltung eines Versorgungsauftrags: Verarbeitung (pk), Forschung (rk) oder Baustelle bzw. Ausbau. */
+const recOf = (w: World, site: SBuilding | undefined, j: Extract<Job, { k: "supply" }>) => (j.pk ? procDelivery(site) : deliveryOf(w, site, j.rk));
 
 function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   const site = w.buildings.get(j.site);
-  const rec = deliveryOf(w, site, j.rk);
+  const rec = recOf(w, site, j);
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!site || !st || !st.slots[j.slot] || !rec) { releaseJob(w, u); return; }
@@ -261,13 +266,15 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
     return;
   }
   if (!site || !rec) { carryBack(w, u); return; }
-  // Forschung: in den Bergfried durch die Tür; Baustelle und Ausbau: irgendwo an den Grundriss
-  const r = travel(w, u, j.rk ? goalEntrance(w, site) : goalAround(site));
+  // Forschung: in den Bergfried durch die Tür; Verarbeitung: vor die Tür in den Eingangspuffer; Baustelle und Ausbau:
+  // irgendwo an den Grundriss
+  const r = travel(w, u, j.rk || j.pk ? goalEntrance(w, site) : goalAround(site));
   if (r === "unreachable") { releaseJob(w, u, true); carryBack(w, u); return; }
   if (r !== "arrived") return;
   dec(rec.needs, j.good); dec(rec.enroute, j.good); dec(rec.picked, j.good);
   const cur = j.rk ? w.s.research.cur : null;
-  if (cur) cur.got[j.good] = (cur.got[j.good] ?? 0) + 1;
+  if (j.pk) deliverInput(site, j.good);
+  else if (cur) cur.got[j.good] = (cur.got[j.good] ?? 0) + 1;
   else site.site[j.good] = (site.site[j.good] ?? 0) + 1;
   u.carry = null; u.ai.job = null; u.order = { t: "idle" };
 }
@@ -467,7 +474,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
       case "employ": { const b = w.buildings.get(j.b); if (b) b.workers = b.workers.filter((id) => id !== u.id); break; }
       case "haul": {
         const src = w.buildings.get(j.from);
-        if (j.ph === 0 && src?.output) src.output.reserved--;
+        if (j.ph === 0 && src) unreserveOutput(src, j.good);
         const s = w.buildings.get(j.to)?.slots[j.slot];
         if (s) { s.incoming--; tidy(s); }
         break;
@@ -475,7 +482,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
       case "supply": {
         const s = w.buildings.get(j.from)?.slots[j.slot];
         if (j.ph === 0 && s) { s.reserved--; tidy(s); }
-        const rec = deliveryOf(w, w.buildings.get(j.site), j.rk);
+        const rec = recOf(w, w.buildings.get(j.site), j);
         if (rec) { dec(rec.enroute, j.good); if (j.ph === 1) dec(rec.picked, j.good); }
         break;
       }
