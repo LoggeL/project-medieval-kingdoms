@@ -15,6 +15,7 @@
  *   {"wheel": [x, y, deltaY]}
  * Konsolenfehler und Ausnahmen der Seite werden mitprotokolliert (Datei log.txt im Ausgabeordner).
  *
+ * Ton ist immer stumm (--mute-audio): Audio wird nur über Zustand und Elemente geprüft, nie hörbar.
  * Chrome: CHROME=/pfad/zu/chrome, sonst der Chrome for Testing aus dem Playwright-Cache oder Google Chrome.
  */
 import { spawn } from "node:child_process";
@@ -52,7 +53,7 @@ function findChrome() {
 const profile = mkdtempSync(join(tmpdir(), "mk-chrome-"));
 const port = 9300 + Math.floor(Math.random() * 500);
 const chrome = spawn(findChrome(), [
-  "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
+  "--headless=new", "--mute-audio", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
   `--window-size=${W},${H}`, "--no-first-run", "--no-default-browser-check", "--hide-scrollbars",
   "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--disable-background-timer-throttling",
   "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "about:blank",
