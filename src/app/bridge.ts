@@ -57,5 +57,14 @@ export function createBridge(ctx: BridgeContext): UiBridge {
     },
     on: (ev, fn) => store.on(ev, fn),
     notify: (text, kind = "info") => ctx.notifier.show(text, kind),
+    // Vorläufig (Vertrag erweitert, Umsetzung folgt): Kamera für die Übersichtskarte, Audio, Hinweis-Abo
+    camera() {
+      const r = ctx.renderer();
+      return r ? { x: r.camera.x, y: r.camera.y, corners: [] } : { x: 0, y: 0, corners: [] };
+    },
+    lookAt(x, y) { ctx.renderer()?.camera.lookAt(x, y); store.emit("view"); },
+    audio: () => ({ music: 0.6, voice: 0.9, muted: false }),
+    setAudio() { store.emit("audio"); },
+    onNotify: () => () => undefined,
   };
 }

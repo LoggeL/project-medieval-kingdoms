@@ -35,16 +35,26 @@ export interface UiBridge {
    * Kleines Pixel-Icon aus den echten Sprites (Gebäude-Ansicht, Figur, Warenstapel), als Canvas.
    * Liefert null, solange die Sprites noch laden.
    */
-  icon(kind: IconKind, key: BuildingKey | UnitKey | Good | string, size: number): HTMLCanvasElement | null;
+  icon(kind: IconKind, key: BuildingKey | UnitKey | Good | string, size: number, team?: 0 | 1): HTMLCanvasElement | null;
+  /**
+   * Kamera für die Übersichtskarte: Bildmitte in Welt-Tiles (x, y) und die vier Ecken des sichtbaren Bereichs
+   * in Welt-Tiles (Boden, z = 0), im Uhrzeigersinn ab oben links am Bildschirm.
+   */
+  camera(): { x: number; y: number; corners: [number, number][] };
+  /** Kamera auf einen Welt-Punkt (Tiles) setzen, z. B. Klick in die Übersichtskarte. */
+  lookAt(x: number, y: number): void;
+  /** Lautstärken 0..1 und Stummschaltung (Musik, Sprecher). Wird im Browser gespeichert. */
+  audio(): { music: number; voice: number; muted: boolean };
+  setAudio(a: Partial<{ music: number; voice: number; muted: boolean }>): void;
   /** Meldung oder Wechsel (Auswahl, Werkzeug, Tick) abonnieren. Gibt eine Abmeldefunktion zurück. */
-  on(ev: "tick" | "selection" | "tool" | "view" | "assets", fn: () => void): () => void;
+  on(ev: "tick" | "selection" | "tool" | "view" | "assets" | "audio", fn: () => void): () => void;
   /** Kurzer Hinweis am Mauszeiger oder in der Meldungsleiste (z. B. Grund, warum nicht gebaut werden kann). */
   notify(text: string, kind?: "info" | "warnung"): void;
   /**
    * Optional: Hinweise aus notify abonnieren (die Oberfläche zeigt sie am Mauszeiger). Bietet die Brücke das nicht an,
    * leitet die Oberfläche bridge.notify beim Einhängen selbst auf ihre Anzeige um (Originalfunktion wird weiter aufgerufen).
    */
-  onNotify?(fn: (text: string, kind?: "info" | "warnung") => void): () => void;
+  onNotify(fn: (text: string, kind?: "info" | "warnung") => void): () => void;
 }
 
 /** Wird von src/ui exportiert. */

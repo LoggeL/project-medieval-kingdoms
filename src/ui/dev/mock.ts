@@ -9,7 +9,7 @@ import { createDemoGame } from "../../sim/demo";
 import type { Command, CommandResult, Game, Message } from "../../sim/types";
 import { cropToAlpha, fitIcon, loadSprites, type Sprites } from "./sprites";
 
-type Ev = "tick" | "selection" | "tool" | "view" | "assets";
+type Ev = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
 
 /** Gebäude ohne eigenes Sprite im Blatt (kommt vom Grafik-Agenten) → nächstes vorhandenes. */
 const BUILDING_FALLBACK: Record<string, string> = { tor: "mauer" };
@@ -167,6 +167,7 @@ export function createMockBridge(): MockBridge {
     return c;
   }
 
+  const audio = { music: 0.6, voice: 0.9, muted: false };
   const bridge: UiBridge = {
     state: () => s,
     dispatch(cmd) {
@@ -196,7 +197,11 @@ export function createMockBridge(): MockBridge {
       return () => subs.get(ev)!.delete(fn);
     },
     notify(text, kind) { notifySubs.forEach((f) => f(text, kind)); },
-    onNotify(fn) { notifySubs.add(fn); return () => notifySubs.delete(fn); },
+    onNotify(fn) { notifySubs.add(fn); return () => { notifySubs.delete(fn); }; },
+    camera: () => ({ x: s.w / 2, y: s.h / 2, corners: [] }),
+    lookAt() { emit("view"); },
+    audio: () => ({ ...audio }),
+    setAudio(a) { Object.assign(audio, a); emit("audio"); },
   };
 
   return { bridge, game, log, onLog: (fn) => logSubs.add(fn), message: (t, k) => { message(t, k); emit("tick"); }, sprites: () => sprites };

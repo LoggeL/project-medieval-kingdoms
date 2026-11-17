@@ -4,6 +4,7 @@
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
 import type { AnimKey, BuildingKey, Good, TerrainKey, UnitKey } from "../data";
+import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
 
@@ -65,6 +66,8 @@ export interface Building {
   /** Ausbildung in der Kaserne. */
   training: { unit: UnitKey; recruit: number; t: number; dur: number } | null;
   queue: UnitKey[];
+  /** Rekruten auf dem Weg: holen die Waffe im Lager bzw. tragen sie zur Kaserne (für die Anzeige). */
+  recruits?: { unit: UnitKey; stage: "waffe" | "weg" }[];
 }
 
 export type UnitOrder =
@@ -100,7 +103,13 @@ export interface Unit {
   home: number;
   /** Tot: bleibt kurz liegen (anim "tot"), dann entfernt. */
   dead: boolean;
+  /** Was die Figur gerade tut (für Auswahl-Panel und Darstellung); von der Simulation gepflegt. */
+  activity?: UnitActivity;
 }
+
+export type UnitActivity =
+  | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
+  | "kaempft" | "wache" | "haelt" | "zieht_zu";
 
 export interface Projectile {
   id: number;
@@ -112,7 +121,8 @@ export interface Projectile {
   t: number;
 }
 
-export interface Message { tick: number; text: string; kind: "info" | "warnung" | "kampf" }
+/** voice: optionale Sprecheransage (Schlüssel aus VOICE in src/data/audio.ts). */
+export interface Message { tick: number; text: string; kind: "info" | "warnung" | "kampf"; voice?: VoiceKey }
 
 export interface SimState {
   tick: number;
@@ -149,7 +159,8 @@ export type Command =
   | { t: "halten"; units: number[] }
   | { t: "ueberfall" };
 
-export interface CommandResult { ok: boolean; reason?: string; ids?: number[] }
+/** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
+export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }
 
 export interface PlacementCheck {
   ok: boolean;

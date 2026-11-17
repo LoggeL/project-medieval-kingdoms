@@ -5,7 +5,7 @@
 import type { SimState } from "../sim/types";
 import type { Selection, Tool } from "./contract";
 
-export type AppEvent = "tick" | "selection" | "tool" | "view" | "assets";
+export type AppEvent = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
 
 export class AppStore {
   selection: Selection = { units: [], building: null };

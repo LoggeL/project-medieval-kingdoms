@@ -171,7 +171,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "speer" | "schwert" | "bogen";
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
-export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "angriff" | "schiessen" | "sterben" | "tot";
+export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "angriff" | "schiessen" | "sterben" | "tot";
 
 export type DamageType = "stich" | "hieb" | "pfeil";
 
