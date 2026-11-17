@@ -8,11 +8,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY tsconfig.json vite.config.ts index.html ./
-COPY deploy/konzeptseite.ts ./deploy/
+COPY deploy/konzeptseite.ts deploy/nginx.conf ./deploy/
 COPY docs/konzept-seite.html ./docs/
 COPY src ./src
 COPY tests ./tests
 COPY assets ./assets
+# Tests vergleichen die Spieldaten mit den Blender-Modellen (Fächer, Posten) und prüfen die nginx-Regeln
+COPY tools/blender/buildings/buildings.json ./tools/blender/buildings/
 # Zeitgrenzen der Lasttests (tests/sim/perf.test.ts) hängen vom Build-Server ab und sind hier aus;
 # die Funktionsprüfungen derselben Tests laufen weiter.
 ENV MK_ZEITGRENZEN=aus

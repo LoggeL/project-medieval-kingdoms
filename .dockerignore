@@ -11,6 +11,7 @@
 !src/
 !tests/
 !assets/
+!tools/blender/buildings/buildings.json
 # Nur Spieldaten in den Build-Kontext: andere Stilrichtungen und Rohbilder lädt das Spiel nie (der Vite-Build dünnt zusätzlich aus).
 assets/*/chronik/
 assets/*/holzschnitt/
