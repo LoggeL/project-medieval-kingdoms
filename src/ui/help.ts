@@ -1,20 +1,9 @@
 /** Hilfe-Overlay mit der Steuerung (F1 oder ?-Knopf, Esc schließt). */
+import { STEUERUNG } from "../data/tips";
 import { h } from "./dom";
 
-const KEYS: [string, string][] = [
-  ["Linksklick", "Auswählen, Bauen, Abreißen"],
-  ["Ziehen mit links", "Auswahlrahmen, beim Mauerbau die Mauerlinie"],
-  ["Rechtsklick", "Bewegen, Angreifen; auf einen Wehrgang: hinaufsteigen"],
-  ["Q / E", "Ansicht um 90° drehen: Q gegen, E im Uhrzeigersinn (wie die Knöpfe ⟲ ⟳)"],
-  ["R", "Gebäude beim Bauen drehen"],
-  ["Mausrad", "Zoomen; über der Bauleiste: blättern"],
-  ["W A S D / Pfeiltasten", "Kamera bewegen"],
-  ["T", "Ausgewählte Soldaten auf Mauern und Türmen stationieren"],
-  ["H", "Halten: stehen bleiben"],
-  ["Esc", "Werkzeug oder Auswahl aufheben"],
-  ["Leertaste", "Pause / Weiter"],
-  ["F1", "Diese Hilfe"],
-];
+/** Dieselbe Tastenliste wie auf dem Titelbildschirm (eine Quelle, src/data/tips.ts). */
+const KEYS = STEUERUNG;
 
 const TIPS = [
   "Holzfäller und Steinmetze legen ihre Ware auf den Hof, Tagelöhner tragen sie zum Lagerplatz.",

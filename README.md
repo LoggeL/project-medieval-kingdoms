@@ -6,7 +6,7 @@ Idee und Anforderungen: Sebastian (Auftraggeber). Das vollständige Briefing ste
 
 ## Stand
 
-Erster spielbarer Prototyp nach Briefing §14 (Browser, TypeScript + PixiJS). Aktueller Stand: [docs/STATUS.md](docs/STATUS.md).
+Erster spielbarer Prototyp nach Briefing §14 (Browser, TypeScript + PixiJS). Aktueller Stand: [docs/STATUS.md](docs/STATUS.md). Das Spiel startet mit Lade- und Titelbildschirm; `?direkt=1` überspringt ihn im Entwicklungsmodus.
 
 ```bash
 npm install

@@ -1,0 +1,18 @@
+Wide landscape key art for the title screen of an original isometric medieval city-building and strategy game set in the High Middle Ages. Landscape format, 16:9 or wider, at least 1536 pixels wide.
+
+View: classic 2:1 isometric pixel-art projection (dimetric, about 30 degrees elevation, 45 degree rotation), seen from slightly above, strictly no vanishing-point perspective, all building edges follow the isometric grid.
+
+Scene: a growing medieval settlement in a green river valley at golden hour.
+- In the middle ground a sturdy curtain wall of warm sandstone blocks with crenellations runs diagonally across the picture; a square gatehouse with a dark wooden gate and a tall square tower with merlons stand in the wall. Small blue banners with a gold emblem shape (no letters) fly from the tower.
+- Guards with spears and crossbows stand on the wall walk behind the battlements; a wooden stair leads up the inner side of the wall.
+- Inside the wall: timber-framed houses with thatched and shingled roofs, chimneys with thin drifting smoke, a fenced open-air storage yard with clearly visible stacks of logs, cut stone blocks, crates, barrels and racks of spears.
+- Small busy figures: porters carrying logs on their shoulders and stone blocks on their backs walking along a dirt road toward the storage yard, a woodcutter at the forest edge next to a felled tree, a stonemason at a grey rock outcrop quarry.
+- A calm blue river with gentle ripples winds through the lower part of the valley, a small wooden bridge, reeds on the banks.
+- Dense mixed forest of round deciduous trees and dark firs on the left side and in the background, rolling green hills, distant soft mountains.
+- Warm low evening sunlight from the upper left, long soft shadows to the lower right, glowing windows, a sky with a few warm clouds at the very top so the upper third stays calm and slightly darker for a title overlay.
+
+Style: high-detail hand-crafted pixel art, crisp pixel edges, no anti-aliased blur, rich but harmonious earthy palette (moss and grass green, ochre, clay brown, sandstone beige, slate grey, muted river blue) with saturated heraldic accents in banners; lively "Wimmelbild" density but clearly readable silhouettes; dark subtle outlines on objects, light in 3 to 4 hard steps. Looks like a lovingly painted living medieval world, not sterile, not minimal, not 3D-rendered, not photorealistic.
+
+Composition: the main gate and tower slightly right of centre, the left third and the upper third quieter (forest and sky) so a title and a menu can sit on top. Keep important details away from the extreme edges because the image will be cropped to different aspect ratios.
+
+Strictly no text, no letters, no numbers, no runes, no signature, no watermark, no logo, no user interface, no frame, no border. Original design, not resembling any existing game.

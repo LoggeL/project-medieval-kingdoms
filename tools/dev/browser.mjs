@@ -16,6 +16,10 @@
  * Konsolenfehler und Ausnahmen der Seite werden mitprotokolliert (Datei log.txt im Ausgabeordner).
  *
  * Ton ist immer stumm (--mute-audio): Audio wird nur über Zustand und Elemente geprüft, nie hörbar.
+ *
+ * Das Spiel startet mit Lade- und Titelbildschirm; window.mk gibt es erst nach „Neues Spiel“. Für Spieltests die URL
+ * mit ?direkt=1 aufrufen (überspringt den Titel, nur im Entwicklungsmodus). Weitere Schalter: ?halten=1 hält den
+ * Ladebildschirm nach 100 %, ?fehlertest=<schritt> erzwingt die Fehlermeldung; window.mkStart steuert den Start.
  * Chrome: CHROME=/pfad/zu/chrome, sonst der Chrome for Testing aus dem Playwright-Cache oder Google Chrome.
  */
 import { spawn } from "node:child_process";
