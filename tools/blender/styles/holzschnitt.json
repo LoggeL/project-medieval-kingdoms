@@ -1,0 +1,91 @@
+{
+ "label": "Holzschnitt",
+ "desc": "Grafisch: dicke schwarze Kontur, zwei Lichtstufen, Schatten als diagonale Schraffur wie im Holzschnitt. Wenige Farben pro Material.",
+ "height_px": 32,
+ "cell_px": 59,
+ "supersample": 4,
+ "walk_frames": 8,
+ "eyes": true,
+ "min_px": 1.8,
+ "proportions": {
+  "head": 0.2,
+  "head_w": 0.18,
+  "legs": 0.42,
+  "torso": 0.34,
+  "shoulder": 0.28,
+  "hip": 0.22,
+  "limb": 0.085,
+  "depth": 0.15,
+  "arm": 0.9
+ },
+ "pixel": {
+  "outline": "dark",
+  "outline_color": "#120e0c",
+  "priority": [
+   "eye",
+   "skin",
+   "steel_hi",
+   "gold",
+   "string"
+  ],
+  "priority_cover": 0.25,
+  "despeckle": true,
+  "hatch": {
+   "every": 3,
+   "factor": 0.62
+  },
+  "hatch_skip": [
+   "stone",
+   "stone2",
+   "mortar",
+   "rock",
+   "rock_dk"
+  ],
+  "light": {
+   "thresholds": [
+    0.72
+   ],
+   "levels": [
+    0.78,
+    1.0
+   ],
+   "hue_shift": 0.08,
+   "shadow_tint": "#3a2a20",
+   "light_tint": "#f2e6c4"
+  }
+ },
+ "colors": {
+  "team": "#2b4f9e",
+  "gold": "#d8a030",
+  "skin": "#e8b48c",
+  "hair": "#4a2c18",
+  "eye": "#120e0c",
+  "hose": "#6e5236",
+  "hose2": "#6e5a44",
+  "boots": "#2e2018",
+  "belt": "#3e2616",
+  "brown": "#8e6438",
+  "cloth": "#e2d2a6",
+  "cap": "#7a4a2a",
+  "hood": "#5a7a3a",
+  "gambeson": "#d8c08a",
+  "leather": "#9a6232",
+  "mail": "#9aa0a6",
+  "plate": "#9fb0c0",
+  "plate_hi": "#d4dee6",
+  "steel": "#a8aeb4",
+  "steel_hi": "#eef0f2",
+  "dark": "#2a201a",
+  "slash1": "#b8302a",
+  "slash2": "#efe2b8",
+  "feather": "#f6f2e8",
+  "wood": "#7a5026",
+  "log": "#6a4424",
+  "wood_hi": "#a87440",
+  "string": "#efe6cc",
+  "bow": "#c99a5a"
+ },
+ "knee_bend": 40,
+ "leg_swing": 30,
+ "foot_margin_px": 7
+}

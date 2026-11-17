@@ -1,0 +1,84 @@
+{
+ "label": "Miniatur",
+ "height_px": 40,
+ "cell_px": 74,
+ "supersample": 4,
+ "walk_frames": 8,
+ "proportions": {
+  "head": 0.17,
+  "head_w": 0.155,
+  "legs": 0.48,
+  "torso": 0.32,
+  "shoulder": 0.24,
+  "hip": 0.19,
+  "limb": 0.072,
+  "depth": 0.12,
+  "arm": 0.97
+ },
+ "eyes": true,
+ "pixel": {
+  "outline": "selective",
+  "outline_dark": 0.5,
+  "outline_dark_lit": 0.8,
+  "outline_mix": 0.6,
+  "priority": [
+   "eye",
+   "skin",
+   "steel_hi",
+   "gold",
+   "string"
+  ],
+  "priority_cover": 0.25,
+  "despeckle": true,
+  "light": {
+   "thresholds": [
+    0.5,
+    0.8,
+    0.95
+   ],
+   "levels": [
+    0.56,
+    0.78,
+    1.0,
+    1.1
+   ],
+   "hue_shift": 0.16
+  }
+ },
+ "colors": {
+  "team": "#2f5fb5",
+  "gold": "#d9a43a",
+  "skin": "#e0a77c",
+  "hair": "#5a3a22",
+  "eye": "#1d1a1a",
+  "hose": "#5e4a38",
+  "hose2": "#6e5a44",
+  "boots": "#3a2a1f",
+  "belt": "#4a3020",
+  "brown": "#8a6a42",
+  "cloth": "#b9a27a",
+  "cap": "#8a4a2a",
+  "hood": "#4f6b3a",
+  "gambeson": "#cdbb8e",
+  "leather": "#8c5a32",
+  "mail": "#8d949c",
+  "plate": "#a9b2bb",
+  "plate_hi": "#cfd6dc",
+  "steel": "#9aa3ab",
+  "steel_hi": "#d6dde3",
+  "dark": "#20242a",
+  "slash1": "#b8322a",
+  "slash2": "#e8d9a8",
+  "feather": "#f1ede2",
+  "wood": "#7a5530",
+  "log": "#6b4a2b",
+  "wood_hi": "#a07440",
+  "string": "#e9e2c8",
+  "bow": "#c99a5a"
+ },
+ "desc": "Größere Figuren mit 40 px, schlank, feine farbige Kontur, vier Lichtstufen. Zeigt, was mehr Pixel bringen, braucht aber mehr Platz pro Kachel (offene Frage 3).",
+ "min_px": 1.4,
+ "knee_bend": 40,
+ "leg_swing": 30,
+ "foot_margin_px": 7
+}

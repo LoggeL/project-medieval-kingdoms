@@ -1,0 +1,10 @@
+/* ---------- Gebäudetests ---------- */
+.bauten { display: grid; gap: 1.1rem; scroll-margin-top: 1rem; max-width: var(--wide); }
+.bauten h4 { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; }
+.bau-wrap canvas { cursor: default; }
+.bau-vars:empty { display: none; }
+.bau-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.bau-views figure { margin: 0; display: grid; gap: 0.3rem; justify-items: center; background: var(--sunk); border-radius: 6px; padding: 0.5rem; overflow: hidden; }
+.bau-views canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
+.bau-views figcaption { font-family: var(--f-display); font-size: 0.75rem; color: var(--muted); }
+@media (min-width: 62rem) { .bau-views { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

@@ -1,0 +1,118 @@
+{
+ "label": "Vorgerendert",
+ "desc": "Im Geist der Burgenbau-Klassiker um 2000: sechs feine Lichtstufen mit Dithering, dunkler Innenrand, Schlagschatten, warmes Sonnenlicht auf Sand. Wirkt wie vorgerenderte 3D-Figuren.",
+ "height_px": 32,
+ "cell_px": 67,
+ "supersample": 4,
+ "walk_frames": 8,
+ "eyes": false,
+ "min_px": 1.6,
+ "leg_swing": 30,
+ "knee_bend": 40,
+ "proportions": {
+  "head": 0.155,
+  "head_w": 0.145,
+  "legs": 0.47,
+  "torso": 0.335,
+  "shoulder": 0.25,
+  "hip": 0.19,
+  "limb": 0.078,
+  "depth": 0.14,
+  "arm": 0.95
+ },
+ "ground": [
+  "#c9a56b",
+  "#c09b5f"
+ ],
+ "pixel": {
+  "outline": "rim",
+  "rim": 0.78,
+  "priority": [
+   "skin",
+   "steel_hi",
+   "gold",
+   "string"
+  ],
+  "priority_cover": 0.25,
+  "despeckle": false,
+  "shadow": {
+   "dx": 0.62,
+   "dy": 0.1,
+   "alpha": 105,
+   "color": "#3a2410",
+   "solid": true,
+   "fringe_alpha": 55,
+   "contact": {
+    "rx": 3.5,
+    "ry": 1.5,
+    "alpha": 80
+   }
+  },
+  "light": {
+   "thresholds": [
+    0.4,
+    0.56,
+    0.7,
+    0.81,
+    0.93
+   ],
+   "levels": [
+    0.5,
+    0.64,
+    0.78,
+    0.9,
+    1.0,
+    1.08
+   ],
+   "hue_shift": 0.12,
+   "dither": 0.06,
+   "shadow_tint": "#3b3550",
+   "light_tint": "#fff1cc"
+  },
+  "rim_sides": "shade",
+  "metal": [
+   "mail",
+   "plate",
+   "plate_hi",
+   "steel",
+   "steel_hi"
+  ],
+  "metal_gain": 1.35
+ },
+ "colors": {
+  "team": "#2a50ae",
+  "gold": "#e0aa38",
+  "skin": "#c98a5e",
+  "hair": "#4a2c18",
+  "eye": "#1d1a1a",
+  "hose": "#5a4330",
+  "hose2": "#6a5640",
+  "boots": "#33241a",
+  "belt": "#4a2e1c",
+  "brown": "#7e5a36",
+  "cloth": "#e4dcc4",
+  "cap": "#8a4428",
+  "hood": "#4f6b3a",
+  "gambeson": "#ebe4d0",
+  "leather": "#8a5530",
+  "mail": "#8f969c",
+  "plate": "#a7b0b8",
+  "plate_hi": "#d2d8dd",
+  "steel": "#9aa2a9",
+  "steel_hi": "#dde3e7",
+  "dark": "#20242a",
+  "slash1": "#b8322a",
+  "slash2": "#e8d9a8",
+  "feather": "#f1ede2",
+  "wood": "#6e4a28",
+  "log": "#6a4826",
+  "wood_hi": "#9c7040",
+  "string": "#e9e2c8",
+  "bow": "#b88a50"
+ },
+ "foot_margin_px": 7,
+ "smooth": true,
+ "cavity": 1.0,
+ "quantize_hip": true,
+ "back_hair": true
+}

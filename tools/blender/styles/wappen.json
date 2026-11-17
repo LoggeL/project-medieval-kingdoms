@@ -1,0 +1,84 @@
+{
+ "label": "Wappen",
+ "desc": "Kräftig und heroisch: etwas größerer Kopf, breite Schultern, satte Wappenfarben, schwarze Kontur, drei Lichtstufen. Liest sich auch im Gewühl.",
+ "height_px": 30,
+ "cell_px": 57,
+ "supersample": 4,
+ "walk_frames": 8,
+ "eyes": true,
+ "min_px": 1.8,
+ "leg_swing": 30,
+ "arm_swing": 26,
+ "bob": 0.035,
+ "proportions": {
+  "head": 0.2,
+  "head_w": 0.19,
+  "legs": 0.4,
+  "torso": 0.35,
+  "shoulder": 0.3,
+  "hip": 0.25,
+  "limb": 0.085,
+  "depth": 0.17,
+  "arm": 0.9
+ },
+ "pixel": {
+  "outline": "dark",
+  "outline_color": "#1a1420",
+  "light": {
+   "thresholds": [
+    0.6,
+    0.9
+   ],
+   "levels": [
+    0.62,
+    0.92,
+    1.1
+   ],
+   "hue_shift": 0.28,
+   "shadow_tint": "#3a1f5c",
+   "light_tint": "#fff2b0"
+  },
+  "priority": [
+   "eye",
+   "skin",
+   "steel_hi",
+   "gold",
+   "string"
+  ],
+  "priority_cover": 0.25,
+  "despeckle": true
+ },
+ "colors": {
+  "team": "#2456d6",
+  "gold": "#f2b630",
+  "skin": "#f0b088",
+  "hair": "#6b3a1e",
+  "eye": "#1a1420",
+  "hose": "#6a4a32",
+  "hose2": "#6a5a4a",
+  "boots": "#3b2416",
+  "belt": "#5a3418",
+  "brown": "#9a6a34",
+  "cloth": "#d2b77e",
+  "cap": "#8a4a2a",
+  "hood": "#3f8a3a",
+  "gambeson": "#e6cf8c",
+  "leather": "#a8622c",
+  "mail": "#93a0ad",
+  "plate": "#b5c3cf",
+  "plate_hi": "#e3ecf2",
+  "steel": "#a6b3bd",
+  "steel_hi": "#eef4f8",
+  "dark": "#2a2432",
+  "slash1": "#d8322a",
+  "slash2": "#f4e3a0",
+  "feather": "#ffffff",
+  "wood": "#8a5a2b",
+  "log": "#7a4f28",
+  "wood_hi": "#b88444",
+  "string": "#f4ecd0",
+  "bow": "#d8a85a"
+ },
+ "knee_bend": 42,
+ "foot_margin_px": 7
+}

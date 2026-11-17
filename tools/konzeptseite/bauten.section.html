@@ -1,0 +1,35 @@
+  <div class="bauten" id="bauten">
+    <h3>Gebäude aus Blender</h3>
+    <p class="read">Zweiter Test der Pipeline: zehn Bauten, ebenfalls vollständig per Skript in Blender gebaut, aus derselben Kamera wie die Figuren. Jedes Gebäude gibt es in vier Drehansichten, das Lager in fünf Füllstufen, Holzfäller und Steinbruch mit leerem, halbem und vollem Hof. Unten stehen sie zusammen in einer kleinen Siedlung. Die Drehung ist echt: Jedes Gebäude kennt seine Ausrichtung in der Welt, beim Drehen wechselt die Ansicht, und die Reihenfolge beim Zeichnen wird neu bestimmt.</p>
+    <div class="fig-stage">
+      <div class="fig-tabs" role="group" aria-label="Stilrichtung der Siedlung" id="bauTabs"></div>
+      <p class="fig-desc" id="bauStatus" aria-live="polite"></p>
+      <div class="fig-canvas-wrap bau-wrap"><canvas id="bauCanvas" role="img" aria-label="Kleine Siedlung mit Mauer, Türmen, Lager, Kaserne und Werkstätten"></canvas></div>
+      <div class="scene-bar">
+        <div class="ctrls">
+          <button class="btn" id="bauL" type="button" aria-label="Siedlung gegen den Uhrzeigersinn drehen">⟲</button>
+          <button class="btn" id="bauR" type="button" aria-label="Siedlung im Uhrzeigersinn drehen">⟳</button>
+          <span class="fig-dir" id="bauDir"></span>
+        </div>
+        <div class="ctrls">
+          <button class="btn" id="bauRun" type="button" aria-pressed="true">Arbeit läuft</button>
+          <button class="btn" id="bauPost" type="button">Schütze auf die Mauer</button>
+          <button class="btn" id="bauUnpost" type="button">Schütze abziehen</button>
+          <button class="btn" id="bauEmpty" type="button">Lager leeren</button>
+          <button class="btn" id="bauTeam" type="button" title="Teamfarbe wechseln">Team Blau</button>
+        </div>
+      </div>
+      <p class="scene-cap">Der Holzfäller fällt am Waldrand, bringt die Stämme auf seinen Hof, ein Tagelöhner trägt sie ins Lager. Mit jeder Lieferung wächst der Bestand sichtbar, bei vollem Lager wartet der Träger. Schützen verteilen sich automatisch auf freie Posten, erst auf dem Wehrgang, dann auf den Türmen. Die vordere Brüstung ist ein eigenes Bild und wird nach den Figuren gezeichnet, deshalb verdeckt sie deren Beine. Die Abläufe sind hier nur nachgestellt, die echte Simulation entsteht im Spielcode.</p>
+    </div>
+
+    <h4>Alle Bauten in vier Ansichten</h4>
+    <div class="ctrls" role="group" aria-label="Gebäude für die Ansichten" id="bauUnits"></div>
+    <div class="ctrls bau-vars" role="group" aria-label="Variante" id="bauVars"></div>
+    <div class="bau-views" id="bauViews"></div>
+
+    <div class="grid g3">
+      <div class="panel"><h4>So entsteht ein Gebäude</h4><p>Das Skript setzt jedes Gebäude aus wenigen Bausteinen zusammen: Mauerwerk aus versetzten Steinen, Fachwerk, Dächer aus Stroh, Schindeln oder Ziegeln, Zinnen, Zäune, Stapel. Blender rendert je Ansicht vier Bilder: flache Farben, Licht, Höhe über dem Boden und bei Mauern die vordere Brüstung. Aus der Höhe berechnet das Pixelskript den Schlagschatten und die Schatten auf Böden und Plattformen.</p></div>
+      <div class="panel"><h4>Was der Test zeigt</h4><p>Gebäude und Figuren passen im Maßstab zusammen, eine Tür ist so hoch wie ein Mensch. Raster, Höhenstufen und Posten stimmen mit dem Konzept überein. Der volle Satz aus zehn Bauten in fünf Stilen braucht etwa anderthalb Minuten. Neue Gebäude sind ein Eintrag in einer Datendatei und eine kurze Bauanleitung aus vorhandenen Bausteinen.</p></div>
+      <div class="panel"><h4>Was noch fehlt</h4><p>Bauphasen, Schadensstufen und Animationen wie Rauch oder Fahnen fehlen noch. Mauern gibt es nur als gerades Stück, Ecken, Enden und Tore folgen mit dem Autotiling. Große Gebäude werden hier noch im Ganzen sortiert statt in Streifen. Die Lagerstufen füllen alle Plätze gleichzeitig, im Spiel bekommt jeder Platz seinen eigenen Stapel.</p></div>
+    </div>
+  </div>

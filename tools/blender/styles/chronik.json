@@ -1,0 +1,83 @@
+{
+ "label": "Chronik",
+ "height_px": 32,
+ "cell_px": 59,
+ "supersample": 4,
+ "walk_frames": 8,
+ "proportions": {
+  "head": 0.19,
+  "head_w": 0.17,
+  "legs": 0.46,
+  "torso": 0.33,
+  "shoulder": 0.25,
+  "hip": 0.2,
+  "limb": 0.07,
+  "depth": 0.13,
+  "arm": 0.95
+ },
+ "eyes": true,
+ "pixel": {
+  "outline": "selective",
+  "outline_dark": 0.4,
+  "outline_dark_lit": 0.75,
+  "outline_mix": 0.6,
+  "priority": [
+   "eye",
+   "skin",
+   "steel_hi",
+   "gold",
+   "string"
+  ],
+  "priority_cover": 0.25,
+  "despeckle": true,
+  "light": {
+   "thresholds": [
+    0.55,
+    0.85,
+    0.97
+   ],
+   "levels": [
+    0.58,
+    0.8,
+    1.0,
+    1.12
+   ],
+   "hue_shift": 0.18
+  }
+ },
+ "colors": {
+  "team": "#2f5fb5",
+  "gold": "#d9a43a",
+  "skin": "#e0a77c",
+  "hair": "#5a3a22",
+  "eye": "#1d1a1a",
+  "hose": "#5e4a38",
+  "hose2": "#6e5a44",
+  "boots": "#3a2a1f",
+  "belt": "#4a3020",
+  "brown": "#8a6a42",
+  "cloth": "#b9a27a",
+  "cap": "#8a4a2a",
+  "hood": "#4f6b3a",
+  "gambeson": "#cdbb8e",
+  "leather": "#8c5a32",
+  "mail": "#8d949c",
+  "plate": "#a9b2bb",
+  "plate_hi": "#cfd6dc",
+  "steel": "#9aa3ab",
+  "steel_hi": "#d6dde3",
+  "dark": "#20242a",
+  "slash1": "#b8322a",
+  "slash2": "#e8d9a8",
+  "feather": "#f1ede2",
+  "wood": "#7a5530",
+  "log": "#6b4a2b",
+  "wood_hi": "#a07440",
+  "string": "#e9e2c8",
+  "bow": "#c99a5a"
+ },
+ "desc": "Natürliche Proportionen, erdige Palette, farbige Kontur, vier Lichtstufen. Historisch ernst, aber zurückhaltend im Kontrast.",
+ "leg_swing": 30,
+ "knee_bend": 40,
+ "foot_margin_px": 7
+}

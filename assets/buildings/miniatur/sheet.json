@@ -1,0 +1,311 @@
+{
+ "style": "Miniatur",
+ "cell": [
+  320,
+  256
+ ],
+ "frames": 5,
+ "dirs": [
+  "0",
+  "90",
+  "180",
+  "270"
+ ],
+ "anchor": [
+  144,
+  184
+ ],
+ "tile": [
+  64,
+  32
+ ],
+ "step_px": 16,
+ "axes": {
+  "u": "+x",
+  "v": "-y",
+  "views": "view d = model turned d x 90 deg counter-clockwise; posts and footprint in model axes"
+ },
+ "units": [
+  {
+   "key": "haus",
+   "name": "Wohnhaus",
+   "frames": 1,
+   "variants": [
+    "bewohnt"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "holzfaeller",
+   "name": "Holzfällerhütte",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "steinbruch",
+   "name": "Steinbruch",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "lager",
+   "name": "Lagerplatz",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "kaserne",
+   "name": "Kaserne",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "turm",
+   "name": "Mauerturm",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [
+    [
+     -0.65,
+     -0.65,
+     5
+    ],
+    [
+     0.65,
+     -0.65,
+     5
+    ],
+    [
+     -0.65,
+     0.65,
+     5
+    ],
+    [
+     0.65,
+     0.65,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer",
+   "name": "Mauerstück",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0.15,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "treppe",
+   "name": "Mauertreppe",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baum",
+   "name": "Laubbaum",
+   "frames": 2,
+   "variants": [
+    "Eiche",
+    "Buche"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "tanne",
+   "name": "Tanne",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  }
+ ],
+ "team_swap": {
+  "rot": [
+   [
+    26,
+    48,
+    92,
+    87,
+    23,
+    25
+   ],
+   [
+    36,
+    70,
+    135,
+    129,
+    32,
+    32
+   ],
+   [
+    47,
+    95,
+    181,
+    176,
+    42,
+    38
+   ],
+   [
+    99,
+    131,
+    186,
+    196,
+    92,
+    78
+   ],
+   [
+    23,
+    25,
+    35,
+    35,
+    20,
+    22
+   ],
+   [
+    26,
+    31,
+    46,
+    46,
+    23,
+    25
+   ]
+  ],
+  "gruen": [
+   [
+    26,
+    48,
+    92,
+    18,
+    70,
+    72
+   ],
+   [
+    36,
+    70,
+    135,
+    25,
+    105,
+    104
+   ],
+   [
+    47,
+    95,
+    181,
+    31,
+    143,
+    138
+   ],
+   [
+    99,
+    131,
+    186,
+    87,
+    167,
+    154
+   ],
+   [
+    23,
+    25,
+    35,
+    22,
+    30,
+    31
+   ],
+   [
+    26,
+    31,
+    46,
+    24,
+    38,
+    40
+   ]
+  ]
+ },
+ "colours": 155,
+ "shadow": false,
+ "ground": null
+}

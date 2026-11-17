@@ -1,0 +1,488 @@
+"""Procedural low-poly medieval figures, rendered from a fixed 2:1 iso camera.
+
+Run (from project root):
+  blender -b --factory-startup -P tools/blender/figures.py -- \
+      --style tools/blender/styles/klassisch.json --out .local/blender/klassisch [--units speer,bogen] [--quick]
+
+Writes RGBA renders  <out>/<unit>/d<dir>_f<frame>.png  (frame 0 = idle, 1..N = walk cycle)
+and <out>/render.json with camera/cell metadata. Pixelization happens in pixelize.py.
+
+Direction index d (screen): 0 S, 1 SE, 2 E, 3 NE, 4 N, 5 NW, 6 W, 7 SW.
+Light is the Workbench studio light, which is camera-relative (concept: light relative to camera).
+"""
+import bpy
+from mathutils import Euler
+import json
+import math
+import os
+import sys
+
+ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+
+
+def arg(name, default=None):
+    if name in ARGS:
+        i = ARGS.index(name)
+        return ARGS[i + 1] if i + 1 < len(ARGS) and not ARGS[i + 1].startswith("--") else True
+    return default
+
+
+STYLE = json.load(open(arg("--style")))
+OUT = arg("--out")
+ONLY = arg("--units")
+QUICK = bool(arg("--quick", False))
+os.makedirs(OUT, exist_ok=True)
+
+DIR_NAMES = ["S", "SE", "E", "NE", "N", "NW", "W", "SW"]
+
+
+# ---------------------------------------------------------------- colors
+def lin(c):
+    c = c / 255.0
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def col(hexstr):
+    h = hexstr.lstrip("#")
+    return (lin(int(h[0:2], 16)), lin(int(h[2:4], 16)), lin(int(h[4:6], 16)), 1.0)
+
+
+PAL = STYLE["colors"]
+
+
+def C(key):
+    if key.startswith("#"):
+        return col(key)
+    if key not in PAL:
+        raise KeyError("colour '%s' missing in style %s" % (key, STYLE.get("label")))
+    return col(PAL[key])
+
+
+# ---------------------------------------------------------------- scene
+def reset():
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    sc = bpy.context.scene
+    sc.render.engine = "BLENDER_WORKBENCH"
+    sh = sc.display.shading
+    sh.light = "STUDIO"
+    sh.color_type = "OBJECT"
+    sh.show_cavity = False
+    sh.show_object_outline = False
+    sh.show_specular_highlight = False
+    sh.show_shadows = bool(STYLE.get("shadows", False))
+    if sh.show_shadows:
+        sh.shadow_intensity = STYLE.get("shadow_intensity", 0.35)
+    sc.display.render_aa = "OFF"
+    sc.render.film_transparent = True
+    sc.view_settings.view_transform = "Standard"
+    sc.view_settings.look = "None"
+    sc.render.image_settings.file_format = "PNG"
+    sc.render.image_settings.color_mode = "RGBA"
+    return sc
+
+
+def empty(name, loc=(0, 0, 0), parent=None):
+    o = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(o)
+    o.location = loc
+    if parent:
+        o.parent = parent
+    return o
+
+
+def _finish(o, name, color, parent, loc, rot, scale):
+    o.name = name
+    o.color = C(color)
+    if parent:
+        o.parent = parent
+    o.location = loc
+    o.rotation_euler = rot
+    o.scale = scale
+    return o
+
+
+# style option "smooth": rounded, smooth-shaded primitives for a continuous pre-rendered tone
+SMOOTH = bool(STYLE.get("smooth", False))
+
+
+def _smooth(o, bevel=False):
+    if not SMOOTH:
+        return
+    if bevel:
+        m = o.modifiers.new("bevel", "BEVEL")
+        m.width = 0.15  # cube of size 1, scaled afterwards: rounds every edge by ~15 % of its side
+        m.segments = 2
+    bpy.ops.object.shade_smooth()
+
+
+def box(name, size, loc, color, parent=None, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    o = bpy.context.active_object
+    _smooth(o, bevel=True)
+    return _finish(o, name, color, parent, loc, rot, size)
+
+
+def cyl(name, r, depth, loc, color, parent=None, rot=(0, 0, 0), verts=8, sx=1.0, sy=1.0):
+    bpy.ops.mesh.primitive_cylinder_add(vertices=max(verts, 16) if SMOOTH else verts, radius=1, depth=1)
+    o = bpy.context.active_object
+    _smooth(o)
+    return _finish(o, name, color, parent, loc, rot, (r * sx, r * sy, depth))
+
+
+def cone(name, r1, r2, depth, loc, color, parent=None, rot=(0, 0, 0), verts=8):
+    bpy.ops.mesh.primitive_cone_add(vertices=max(verts, 16) if SMOOTH else verts, radius1=r1, radius2=r2, depth=depth)
+    o = bpy.context.active_object
+    _smooth(o)
+    return _finish(o, name, color, parent, loc, rot, (1, 1, 1))
+
+
+def ball(name, size, loc, color, parent=None, rot=(0, 0, 0), seg=8, rings=6):
+    if SMOOTH:
+        seg, rings = max(seg, 16), max(rings, 10)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=rings, radius=1)
+    o = bpy.context.active_object
+    if SMOOTH:
+        bpy.ops.object.shade_smooth()
+    else:
+        bpy.ops.object.shade_flat()
+    return _finish(o, name, color, parent, loc, rot, size)
+
+
+# ---------------------------------------------------------------- figure
+UNITS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "units.json")))
+
+
+PXM = 1.8 / STYLE["height_px"]  # one target pixel in metres
+
+
+def th(x):
+    """Minimum thickness so thin gear survives the downscale (style min_px, default 1.6 px)."""
+    return max(x, STYLE.get("min_px", 1.6) * 1.8 / STYLE["height_px"])
+
+
+def build(unit):
+    P = STYLE["proportions"]
+    H = 1.8
+    head = P["head"] * H
+    legs = P["legs"] * H
+    torso = P["torso"] * H
+    neck = max(0.0, H - head - legs - torso)
+    sw = P["shoulder"] * H
+    hw = P["hip"] * H
+    limb = P["limb"] * H
+    depth = P["depth"] * H
+    headw = P["head_w"] * H
+    arm_len = P.get("arm", 0.9) * torso
+    team = unit.get("team", "team")
+
+    root = empty("root")
+    hip = empty("hip", (0, 0, legs), root)
+
+    # legs
+    legs_col = unit.get("legs", "hose")
+    legs_col2 = unit.get("legs2", legs_col)
+    pivots = {}
+    for side, sx in (("L", 1), ("R", -1)):
+        pv = empty("leg" + side, (sx * hw * 0.27, 0, 0), hip)
+        pivots["leg" + side] = pv
+        c = legs_col if side == "L" else legs_col2
+        box("thigh" + side, (limb * 1.05, limb * 1.1, legs * 0.55), (0, 0, -legs * 0.27), c, pv)
+        kn = empty("knee" + side, (0, 0, -legs * 0.5), pv)
+        pivots["knee" + side] = kn
+        box("shin" + side, (limb * 0.95, limb, legs * 0.5), (0, 0, -legs * 0.2), unit.get("shins", c), kn)
+        an = empty("ankle" + side, (0, 0, -legs * 0.4), kn)
+        pivots["ankle" + side] = an
+        box("boot" + side, (limb * 1.1, limb * 1.55, legs * 0.16), (0, -limb * 0.25, -legs * 0.03), "boots", an)
+
+    # torso
+    tk = unit["torso"]
+    SA, SB = unit.get("slash_a", "slash1"), unit.get("slash_b", "slash2")
+    tcol = {"tunic": unit.get("tunic", team), "gambeson": "gambeson", "leather": "leather",
+            "mail_tabard": team, "plate": "plate", "slashed": SA, "worker": unit.get("tunic", "brown")}[tk]
+    body = empty("body", (0, 0, 0), hip)
+    if tk == "slashed":
+        box("torsoL", (sw * 0.5, depth, torso), (sw * 0.25, 0, torso / 2), SA, body)
+        box("torsoR", (sw * 0.5, depth, torso), (-sw * 0.25, 0, torso / 2), SB, body)
+    else:
+        box("torso", (sw * 0.92, depth, torso * 0.62), (0, 0, torso * 0.69), tcol, body)
+        box("waist", (hw * 1.05, depth * 0.95, torso * 0.42), (0, 0, torso * 0.21), tcol, body)
+    if tk == "plate" and not unit.get("tabard"):
+        box("breast", (sw * 0.8, depth * 0.4, torso * 0.5), (0, -depth * 0.4, torso * 0.62), "plate_hi", body)
+    if tk == "mail_tabard":
+        for sx in (1, -1):
+            box("spaulder", (limb * 1.5, depth * 1.05, torso * 0.2), (sx * sw * 0.42, 0, torso * 0.9), "mail", body)
+    # skirt
+    skirt = {"tunic": tcol, "gambeson": "gambeson", "leather": "leather", "mail_tabard": team, "plate": "plate",
+             "slashed": SB, "worker": tcol}[tk]
+    sl = unit.get("skirt", 0.3)
+    if sl > 0:
+        box("skirt", (hw * 1.25, depth * 1.12, legs * sl), (0, 0, -legs * sl / 2 + torso * 0.02), skirt, body)
+    box("belt", (hw * 1.12, depth * 1.06, torso * 0.07), (0, 0, torso * 0.04), "belt", body)
+    if unit.get("tabard"):
+        box("tabard", (sw * 0.96, depth * 1.18, torso * 0.6), (0, 0, torso * 0.6), unit["tabard"], body)
+        box("tabard_skirt", (hw * 1.2, depth * 1.22, legs * 0.3), (0, 0, -legs * 0.13), unit["tabard"], body)
+    if unit.get("tabard_trim"):
+        box("trim", (sw * 0.18, depth * 1.08, torso * 0.6), (0, 0, torso * 0.6), unit["tabard_trim"], body)
+
+    # arms
+    acol = {"tunic": tcol, "gambeson": "gambeson", "leather": unit.get("sleeve", "cloth"), "mail_tabard": "mail",
+            "plate": "plate", "slashed": None, "worker": tcol}[tk]
+    for side, sx in (("L", 1), ("R", -1)):
+        pv = empty("arm" + side, (sx * (sw * 0.46 + limb * 0.5), 0, torso * 0.9), hip)
+        pivots["arm" + side] = pv
+        c = acol or (SB if side == "L" else SA)
+        if tk == "slashed":
+            ball("puff" + side, (limb * 0.9, limb * 0.9, arm_len * 0.3), (0, 0, -arm_len * 0.22), c, pv)
+        box("upper" + side, (limb * 0.9, limb * 0.9, arm_len * 0.55), (0, 0, -arm_len * 0.27), c, pv)
+        box("fore" + side, (limb * 0.85, limb * 0.85, arm_len * 0.45), (0, 0, -arm_len * 0.72), c, pv)
+        box("hand" + side, (limb * 1.1, limb * 1.1, limb * 1.0), (0, 0, -arm_len * 0.98), unit.get("hands", "skin"), pv)
+        hand = empty("handpt" + side, (0, 0, -arm_len * 0.98), pv)
+        pivots["hand" + side] = hand
+
+    # neck + head
+    hz = torso + neck + head * 0.5
+    if neck > 0:
+        box("neck", (limb * 0.8, limb * 0.8, neck + head * 0.2), (0, 0, torso + neck / 2), "skin", hip)
+    headp = empty("head", (0, 0, hz), hip)
+    ball("skull", (headw * 0.5, headw * 0.52, head * 0.5), (0, 0, 0), "skin", headp)
+    if STYLE.get("eyes"):
+        for sx in (1, -1):
+            box("eye", (PXM, headw * 0.08, PXM), (sx * max(headw * 0.17, PXM), -headw * 0.49, head * 0.0), "eye", headp)
+    helmet(unit.get("helmet", "hair"), headp, head, headw, team, unit)
+
+    # gear
+    for g in unit.get("gear", []):
+        gear(g, pivots, hip, body, H, torso, limb, depth, sw, team, unit)
+
+    # pose offsets (stance)
+    for k, v in unit.get("pose", {}).items():
+        pivots[k].rotation_euler = [math.radians(a) for a in v]
+        if k.startswith("arm"):
+            # held gear stays upright: the hand counter-rotates the arm pose
+            g = unit.get("grip", {}).get(k, [0, 0, 0])
+            inv = Euler([math.radians(a) for a in v], "XYZ").to_matrix().inverted()
+            pivots["hand" + k[3:]].rotation_euler = (inv @ Euler([math.radians(b) for b in g], "XYZ").to_matrix()).to_euler("XYZ")
+    return root, hip, pivots, legs
+
+
+def helmet(kind, hp, head, hw, team, unit):
+    steel = "steel"
+    if kind == "hair":
+        ball("hair", (hw * 0.53, hw * 0.55, head * 0.32), (0, hw * 0.06, head * 0.18), "hair", hp)
+    elif kind == "hood":
+        ball("hood", (hw * 0.58, hw * 0.6, head * 0.56), (0, hw * 0.1, head * 0.06), unit.get("hood", "hood"), hp)
+        box("cape", (hw * 1.1, hw * 0.7, head * 0.3), (0, hw * 0.18, -head * 0.42), unit.get("hood", "hood"), hp)
+    elif kind == "cap":
+        ball("cap", (hw * 0.55, hw * 0.57, head * 0.3), (0, 0.0, head * 0.22), unit.get("capc", "cap"), hp)
+        if STYLE.get("back_hair"):
+            # hair down to the nape, so the back of the head reads differently from the face
+            ball("hair", (hw * 0.5, hw * 0.5, head * 0.42), (0, hw * 0.12, 0), "hair", hp)
+    elif kind == "kettle":
+        cyl("brim", hw * 0.66, head * 0.06, (0, 0, head * 0.24), steel, hp, verts=10)
+        ball("dome", (hw * 0.5, hw * 0.5, head * 0.36), (0, 0, head * 0.26), steel, hp)
+    elif kind == "nasal":
+        cone("cone", hw * 0.56, 0.0, head * 0.62, (0, 0, head * 0.36), steel, hp, verts=8)
+        box("nasal", (hw * 0.08, hw * 0.08, head * 0.38), (0, -hw * 0.52, head * 0.0), steel, hp)
+        ball("coif", (hw * 0.6, hw * 0.62, head * 0.45), (0, hw * 0.05, -head * 0.15), "mail", hp)
+    elif kind == "sallet":
+        ball("sallet", (hw * 0.6, hw * 0.75, head * 0.48), (0, hw * 0.12, head * 0.08), steel, hp)
+        box("visor", (hw * 0.75, hw * 0.12, th(head * 0.08) * 0.75), (0, -hw * 0.56, head * 0.05), "eye", hp)
+        box("bevor", (hw * 0.7, hw * 0.5, head * 0.35), (0, -hw * 0.2, -head * 0.4), steel, hp)
+    elif kind == "beret":
+        cyl("beret", hw * 0.85, head * 0.12, (hw * 0.06, 0, head * 0.36), unit.get("beretc", "dark"), hp,
+            rot=(math.radians(-8), math.radians(14), 0), verts=10)
+        ball("plume", (hw * 0.18, hw * 0.55, head * 0.16), (-hw * 0.42, hw * 0.25, head * 0.62), unit.get("plume", "feather"), hp,
+             rot=(math.radians(25), math.radians(-30), 0))
+        ball("hair", (hw * 0.53, hw * 0.55, head * 0.3), (0, hw * 0.08, head * 0.12), "hair", hp)
+
+
+def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
+    hr, hl = pv["handR"], pv["handL"]
+    if g == "spear":
+        cyl("shaft", th(limb * 0.44) / 2, H * 1.25, (0, 0, H * 0.33), "wood", hr)
+        cone("tip", limb * 0.45, 0, H * 0.12, (0, 0, H * 1.0), "steel", hr)
+    elif g == "pike":
+        cyl("shaft", th(limb * 0.4) / 2, H * 1.9, (0, 0, H * 0.6), "wood", hr)
+        cone("tip", limb * 0.4, 0, H * 0.1, (0, 0, H * 1.6), "steel", hr)
+    elif g == "halberd":
+        cyl("shaft", th(limb * 0.44) / 2, H * 1.35, (0, 0, H * 0.38), "wood", hr)
+        box("blade", (th(limb * 0.2), limb * 1.8, H * 0.14), (0, -limb * 0.9, H * 0.95), "steel", hr)
+        box("hook", (limb * 0.2, limb * 0.9, H * 0.05), (0, limb * 0.5, H * 0.97), "steel", hr)
+        cone("spike", limb * 0.3, 0, H * 0.14, (0, 0, H * 1.12), "steel", hr)
+    elif g == "sword":
+        box("grip", (limb * 0.25, limb * 0.25, H * 0.07), (0, 0, 0.0), "leather", hr)
+        box("guard", (limb * 1.1, limb * 0.25, limb * 0.25), (0, 0, H * 0.04), "steel", hr)
+        box("blade", (th(limb * 0.38), th(limb * 0.12), H * 0.38), (0, 0, H * 0.24), "steel_hi", hr)
+    elif g == "mace":
+        cyl("haft", th(limb * 0.4) / 2, H * 0.42, (0, 0, H * 0.14), "wood", hr)
+        ball("head", (th(limb * 0.85), th(limb * 0.85), th(limb * 0.95)), (0, 0, H * 0.36), "steel_hi", hr, seg=6, rings=4)
+    elif g == "axe":
+        cyl("haft", th(limb * 0.44) / 2, H * 0.5, (0, 0, H * 0.18), "wood", hr)
+        box("blade", (th(limb * 0.18), limb * 1.6, limb * 1.6), (0, -limb * 0.7, H * 0.4), "steel", hr)
+    elif g == "zweihander":
+        b = empty("zh", (0, 0, 0), hr)
+        b.rotation_euler = (math.radians(unit.get("zh_tilt", -25)), 0, 0)
+        box("grip", (th(limb * 0.3), th(limb * 0.3), H * 0.18), (0, 0, 0), "leather", b)
+        box("guard", (limb * 2.2, limb * 0.3, limb * 0.3), (0, 0, H * 0.1), "steel", b)
+        box("blade", (th(limb * 0.5), th(limb * 0.14), H * 0.75), (0, 0, H * 0.48), "steel_hi", b)
+    elif g in ("shield_round", "shield_kite", "shield_heater"):
+        s = empty("shield", (limb * 0.55, -limb * 0.35, 0), pv["armL"])
+        s.location = (limb * 0.7, -limb * 0.2, -torso * 0.55)
+        s.rotation_euler = (0, 0, math.radians(-35))
+        if g == "shield_round":
+            cyl("face", H * 0.17, limb * 0.25, (0, 0, 0), team, s, rot=(math.radians(90), 0, 0), verts=10)
+            cyl("boss", H * 0.045, limb * 0.4, (0, -limb * 0.1, 0), "steel", s, rot=(math.radians(90), 0, 0), verts=6)
+        elif g == "shield_kite":
+            box("face", (H * 0.24, limb * 0.25, H * 0.36), (0, 0, -H * 0.04), team, s)
+            box("stripe", (H * 0.06, limb * 0.3, H * 0.34), (0, -limb * 0.02, -H * 0.04), "gold", s)
+            cone("point", H * 0.12, 0, H * 0.16, (0, 0, -H * 0.3), team, s, rot=(math.radians(180), 0, 0), verts=4)
+        else:
+            box("face", (H * 0.22, limb * 0.25, H * 0.22), (0, 0, 0), team, s)
+            cone("point", H * 0.155, 0, H * 0.12, (0, 0, -H * 0.17), team, s, rot=(math.radians(180), 0, math.radians(45)), verts=4)
+            box("charge", (H * 0.08, limb * 0.3, H * 0.08), (0, -limb * 0.03, 0), "gold", s)
+    elif g == "bow":
+        b = empty("bow", (0, -limb * 0.2, 0), hl)
+        for i, (z, rx) in enumerate([(H * 0.2, -18), (0, 0), (-H * 0.2, 18)]):
+            box("limb%d" % i, (th(limb * 0.2), th(limb * 0.24), H * 0.26), (0, 0 if i == 1 else math.sin(math.radians(18)) * H * 0.13, z * 1.15),
+                "bow", b, rot=(math.radians(rx), 0, 0))
+        box("string", (th(0) * 0.7, th(0) * 0.7, H * 0.74), (0, limb * 0.55, 0), "string", b)
+    elif g == "crossbow":
+        c = empty("xbow", (0, 0, 0), hip)
+        c.location = (0, -depth * 1.1, torso * 0.55)
+        box("stock", (th(limb * 0.5), H * 0.42, th(limb * 0.5)), (0, 0, 0), "wood_hi", c)
+        box("prod", (H * 0.44, th(limb * 0.3), th(limb * 0.3)), (0, -H * 0.18, limb * 0.1), "steel_hi", c)
+        box("xstring", (H * 0.4, th(0) * 0.7, th(0) * 0.7), (0, -H * 0.1, limb * 0.1), "string", c)
+    elif g == "pavise":
+        # large shield carried on the back, team colour, historically typical for crossbowmen
+        pv_ = empty("pavise", (0, depth * 0.78, torso * 0.42), hip)
+        pv_.rotation_euler = (math.radians(-8), 0, 0)
+        box("face", (sw * 0.95, th(limb * 0.35), torso * 1.05), (0, 0, 0), team, pv_)
+        box("rib", (th(limb * 0.5), th(limb * 0.45), torso * 1.0), (0, limb * 0.18, 0), "gold", pv_)
+    elif g == "quiver":
+        q = empty("quiver", (sw * 0.15, depth * 0.62, torso * 0.55), hip)
+        q.rotation_euler = (math.radians(-15), math.radians(20), 0)
+        cyl("tube", limb * 0.55, torso * 0.65, (0, 0, 0), "leather", q, verts=6)
+        box("fletch", (limb * 1.1, limb * 1.1, torso * 0.14), (0, 0, torso * 0.38), "cloth", q)
+    elif g == "log":
+        # log along the walking direction on the right shoulder, front end up, held by the right hand
+        lg = empty("logpv", (-sw * 0.36, -H * 0.02, torso * 0.98 + limb * 0.55), hip)
+        lg.rotation_euler = (math.radians(58), 0, 0)
+        cyl("log", limb * 0.85, H * 0.62, (0, 0, 0), "log", lg, verts=8)
+        cyl("logend", limb * 0.78, limb * 0.12, (0, 0, H * 0.31), "wood_hi", lg, verts=8)
+
+
+# ---------------------------------------------------------------- camera
+def camera(cell, ppm):
+    cam_data = bpy.data.cameras.new("cam")
+    cam_data.type = "ORTHO"
+    cam_data.ortho_scale = cell / ppm
+    cam = bpy.data.objects.new("cam", cam_data)
+    bpy.context.scene.collection.objects.link(cam)
+    bpy.context.scene.camera = cam
+    margin = STYLE.get("foot_margin_px", 4)
+    zc = (cell / 2 - margin) / (ppm * math.cos(math.radians(30)))
+    # forward vector for rotation (60, 0, 45): (-0.612, 0.612, -0.5)
+    f = (-0.6124, 0.6124, -0.5)
+    d = 20.0
+    cam.location = (0 - f[0] * d, 0 - f[1] * d, zc - f[2] * d)
+    cam.rotation_euler = (math.radians(60), 0, math.radians(45))
+    return cam
+
+
+# ---------------------------------------------------------------- main
+def main():
+    sc = reset()
+    target = STYLE["height_px"]
+    ss = STYLE.get("supersample", 4)
+    cell = STYLE.get("cell_px", int(round(target * 1.75)))
+    H = 1.8
+    ppm = target / H
+    sc.render.resolution_x = cell * ss
+    sc.render.resolution_y = cell * ss
+    sc.render.resolution_percentage = 100
+    frames = STYLE.get("walk_frames", 6)
+    dirs = [0] if QUICK else list(range(8))
+    names = [u for u in UNITS if not ONLY or u in ONLY.split(",")]
+    meta = {"cell": cell, "ss": ss, "frames": frames + 1, "dirs": [DIR_NAMES[d] for d in dirs], "units": [], "body_dy": []}
+    la = math.radians(STYLE.get("leg_swing", 26))
+    legs_m = STYLE["proportions"]["legs"] * H
+    for f in range(frames + 1):
+        s_ = 0.0 if f == 0 else math.sin(2 * math.pi * (f - 1) / frames)
+        # how far the body sinks on screen in this frame (target pixels), used to anchor dither/hatch patterns
+        meta["body_dy"].append(round((legs_m - legs_m * math.cos(la * abs(s_))) * ppm * math.cos(math.radians(30)), 3))
+    for key in names:
+        unit = UNITS[key]
+        # clear previous figure
+        for o in list(bpy.data.objects):
+            bpy.data.objects.remove(o, do_unlink=True)
+        camera(cell, ppm)
+        root, hip, pv, legs = build(unit)
+        base = {k: tuple(v.rotation_euler) for k, v in pv.items()}
+        hold = set(unit.get("hold", []))
+        la = math.radians(STYLE.get("leg_swing", 26))
+        aa = math.radians(STYLE.get("arm_swing", 22))
+        kb = math.radians(STYLE.get("knee_bend", 40))
+        os.makedirs(os.path.join(OUT, key), exist_ok=True)
+        for d in dirs:
+            root.rotation_euler = (0, 0, math.radians(45 + d * 45))
+            for f in range(frames + 1):
+                if f == 0:
+                    s, c = 0.0, 0.0
+                else:
+                    ph = (f - 1) / frames
+                    s = math.sin(2 * math.pi * ph)
+                    c = math.cos(2 * math.pi * ph)
+                # positive leg angle = leg swings back. L moves forward while ds/dt < 0 (c < 0): bend that knee.
+                kL, kR = kb * max(0.0, -c), kb * max(0.0, c)
+                pv["legL"].rotation_euler = (base["legL"][0] + s * la, base["legL"][1], base["legL"][2])
+                pv["legR"].rotation_euler = (base["legR"][0] - s * la, base["legR"][1], base["legR"][2])
+                pv["kneeL"].rotation_euler = (kL, 0, 0)
+                pv["kneeR"].rotation_euler = (kR, 0, 0)
+                # ankles keep the feet level with the ground
+                pv["ankleL"].rotation_euler = (-(s * la + kL), 0, 0)
+                pv["ankleR"].rotation_euler = (-(-s * la + kR), 0, 0)
+                # keep the straight (stance) leg's foot on the ground
+                hip.location.z = legs * math.cos(la * abs(s))
+                if STYLE.get("quantize_hip"):
+                    # body bob in whole target pixels, so dither patterns stay locked to the body
+                    hip.location.z = legs - round((legs - hip.location.z) / PXM) * PXM
+                for side, sgn in (("armL", -1), ("armR", 1)):
+                    amp = aa * (STYLE.get("held_swing", 0.45) if side in hold else 1.0)
+                    pv[side].rotation_euler = (base[side][0] + sgn * s * amp, base[side][1], base[side][2])
+                base_path = os.path.join(OUT, key, "d%d_f%d" % (d, f))
+                sh = sc.display.shading
+                sh.light = "FLAT"
+                sc.render.filepath = base_path + ".png"
+                bpy.ops.render.render(write_still=True)
+                cols = {o.name: tuple(o.color) for o in bpy.data.objects if o.type == "MESH"}
+                for o in bpy.data.objects:
+                    if o.type == "MESH":
+                        o.color = (0.8, 0.8, 0.8, 1)
+                sh.light = "STUDIO"
+                cav = STYLE.get("cavity")
+                if cav:
+                    # contact darkening in folds and gaps, light pass only (the colour pass must stay flat)
+                    sh.show_cavity = True
+                    sh.cavity_type = "WORLD"
+                    sh.cavity_valley_factor = cav
+                    sh.cavity_ridge_factor = 0.0
+                sc.render.filepath = base_path + "_l.png"
+                bpy.ops.render.render(write_still=True)
+                sh.show_cavity = False
+                for o in bpy.data.objects:
+                    if o.type == "MESH":
+                        o.color = cols[o.name]
+        meta["units"].append({"key": key, "name": unit["name"], "showcase": unit.get("showcase", True)})
+        print("rendered", key, flush=True)
+    rj = os.path.join(OUT, "render.json")
+    if ONLY and os.path.exists(rj):
+        # partial render: keep the other units listed, in units.json order
+        old = json.load(open(rj))
+        keys = {u["key"] for u in old.get("units", [])} | {u["key"] for u in meta["units"]}
+        meta["units"] = [{"key": k, "name": UNITS[k]["name"], "showcase": UNITS[k].get("showcase", True)} for k in UNITS if k in keys]
+        if QUICK:
+            meta["dirs"] = old.get("dirs", meta["dirs"])
+    json.dump(meta, open(rj, "w"), indent=1)
+
+
+main()

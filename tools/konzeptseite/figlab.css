@@ -1,0 +1,16 @@
+/* ---------- Figurentests ---------- */
+.figlab { display: grid; gap: 1.1rem; scroll-margin-top: 1rem; max-width: var(--wide); }
+.figlab h4 { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; }
+.fig-stage { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.fig-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.8rem 0.9rem 0; }
+.fig-desc { padding: 0.5rem 0.9rem 0.7rem; color: var(--muted); font-size: 0.95rem; min-height: 3.2em; }
+.fig-desc b { color: var(--ink); font-family: var(--f-display); font-weight: 600; }
+.fig-canvas-wrap { background: #5f8440; display: grid; place-items: center; overflow-x: auto; }
+.fig-canvas-wrap canvas { display: block; image-rendering: pixelated; max-width: none; }
+.fig-dir { font-family: var(--f-display); font-size: 0.9rem; color: var(--muted); min-width: 11ch; }
+.fig-compare { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.fig-steps { margin: 0; display: grid; gap: 0.5rem; }
+.fig-steps .scroll { overflow-x: auto; background: var(--sunk); border-radius: 6px; padding: 0.6rem; }
+.fig-steps img { display: block; image-rendering: pixelated; width: auto; max-width: none; height: auto; }
+.fig-steps figcaption { color: var(--muted); font-size: 0.95rem; }
+@media (max-width: 40rem) { .fig-compare { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

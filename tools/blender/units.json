@@ -1,0 +1,247 @@
+{
+ "holzfaeller": {
+  "name": "Holzfäller",
+  "torso": "worker",
+  "tunic": "brown",
+  "legs": "hose",
+  "skirt": 0.32,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "axe"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -45,
+    0,
+    0
+   ]
+  }
+ },
+ "traeger": {
+  "name": "Tagelöhner mit Stamm",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "gear": [
+   "log"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -110,
+    0,
+    -5
+   ]
+  },
+  "capc": "team"
+ },
+ "tageloehner": {
+  "name": "Tagelöhner",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "showcase": false
+ },
+ "speer": {
+  "name": "Speerträger",
+  "torso": "gambeson",
+  "legs": "hose",
+  "skirt": 0.35,
+  "helmet": "kettle",
+  "gear": [
+   "spear",
+   "shield_round"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -35,
+    0,
+    0
+   ],
+   "armL": [
+    -40,
+    0,
+    15
+   ]
+  },
+  "tabard": "team"
+ },
+ "schwert": {
+  "name": "Schwertkämpfer",
+  "torso": "mail_tabard",
+  "legs": "mail",
+  "shins": "mail",
+  "skirt": 0.4,
+  "helmet": "nasal",
+  "tabard_trim": "gold",
+  "gear": [
+   "sword",
+   "shield_kite"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ],
+   "armL": [
+    -40,
+    0,
+    15
+   ]
+  },
+  "grip": {
+   "armR": [
+    -35,
+    0,
+    0
+   ]
+  }
+ },
+ "bogen": {
+  "name": "Bogenschütze",
+  "torso": "leather",
+  "sleeve": "cloth",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "hood",
+  "hood": "team",
+  "gear": [
+   "bow",
+   "quiver"
+  ],
+  "hold": [
+   "armL"
+  ],
+  "pose": {
+   "armL": [
+    -45,
+    0,
+    25
+   ]
+  },
+  "tabard": "team"
+ },
+ "armbrust": {
+  "name": "Armbrustschütze",
+  "torso": "gambeson",
+  "legs": "hose2",
+  "skirt": 0.35,
+  "helmet": "kettle",
+  "gear": [
+   "crossbow",
+   "pavise"
+  ],
+  "hold": [
+   "armL",
+   "armR"
+  ],
+  "pose": {
+   "armL": [
+    -60,
+    0,
+    -25
+   ],
+   "armR": [
+    -60,
+    0,
+    25
+   ]
+  },
+  "grip": {
+   "armR": [
+    60,
+    0,
+    -20
+   ]
+  },
+  "tabard": "team"
+ },
+ "ritter": {
+  "name": "Gepanzerter Fußsoldat",
+  "torso": "plate",
+  "legs": "plate",
+  "shins": "plate",
+  "skirt": 0.22,
+  "hands": "steel",
+  "helmet": "sallet",
+  "gear": [
+   "mace",
+   "shield_heater"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -45,
+    0,
+    0
+   ],
+   "armL": [
+    -40,
+    0,
+    15
+   ]
+  },
+  "tabard": "team"
+ },
+ "landsknecht": {
+  "name": "Landsknecht",
+  "torso": "slashed",
+  "legs": "team",
+  "legs2": "slash2",
+  "skirt": 0.0,
+  "helmet": "beret",
+  "beretc": "dark",
+  "gear": [
+   "zweihander"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -30,
+    0,
+    -10
+   ],
+   "armL": [
+    -30,
+    0,
+    25
+   ]
+  },
+  "slash_a": "team",
+  "plume": "feather",
+  "zh_tilt": -40
+ }
+}

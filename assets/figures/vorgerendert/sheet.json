@@ -1,0 +1,272 @@
+{
+ "style": "Vorgerendert",
+ "cell": 67,
+ "frames": 9,
+ "dirs": [
+  "S",
+  "SE",
+  "E",
+  "NE",
+  "N",
+  "NW",
+  "W",
+  "SW"
+ ],
+ "anchor": [
+  33,
+  60
+ ],
+ "tile": null,
+ "step_px": null,
+ "units": [
+  {
+   "key": "holzfaeller",
+   "name": "Holzfäller",
+   "showcase": true
+  },
+  {
+   "key": "traeger",
+   "name": "Tagelöhner mit Stamm",
+   "showcase": true
+  },
+  {
+   "key": "tageloehner",
+   "name": "Tagelöhner",
+   "showcase": false
+  },
+  {
+   "key": "speer",
+   "name": "Speerträger",
+   "showcase": true
+  },
+  {
+   "key": "schwert",
+   "name": "Schwertkämpfer",
+   "showcase": true
+  },
+  {
+   "key": "bogen",
+   "name": "Bogenschütze",
+   "showcase": true
+  },
+  {
+   "key": "armbrust",
+   "name": "Armbrustschütze",
+   "showcase": true
+  },
+  {
+   "key": "ritter",
+   "name": "Gepanzerter Fußsoldat",
+   "showcase": true
+  },
+  {
+   "key": "landsknecht",
+   "name": "Landsknecht",
+   "showcase": true
+  }
+ ],
+ "team_swap": {
+  "rot": [
+   [
+    22,
+    38,
+    81,
+    81,
+    22,
+    22
+   ],
+   [
+    28,
+    50,
+    108,
+    108,
+    27,
+    26
+   ],
+   [
+    33,
+    62,
+    136,
+    137,
+    33,
+    30
+   ],
+   [
+    38,
+    72,
+    157,
+    158,
+    38,
+    34
+   ],
+   [
+    42,
+    80,
+    174,
+    176,
+    42,
+    38
+   ],
+   [
+    85,
+    112,
+    180,
+    192,
+    82,
+    71
+   ],
+   [
+    17,
+    30,
+    63,
+    63,
+    17,
+    17
+   ],
+   [
+    22,
+    39,
+    84,
+    84,
+    21,
+    20
+   ],
+   [
+    26,
+    48,
+    106,
+    107,
+    26,
+    23
+   ],
+   [
+    30,
+    56,
+    122,
+    123,
+    30,
+    27
+   ],
+   [
+    33,
+    62,
+    136,
+    137,
+    33,
+    30
+   ],
+   [
+    66,
+    87,
+    140,
+    150,
+    64,
+    55
+   ]
+  ],
+  "gruen": [
+   [
+    22,
+    38,
+    81,
+    17,
+    66,
+    66
+   ],
+   [
+    28,
+    50,
+    108,
+    21,
+    88,
+    86
+   ],
+   [
+    33,
+    62,
+    136,
+    24,
+    112,
+    108
+   ],
+   [
+    38,
+    72,
+    157,
+    28,
+    129,
+    124
+   ],
+   [
+    42,
+    80,
+    174,
+    31,
+    143,
+    138
+   ],
+   [
+    85,
+    112,
+    180,
+    76,
+    163,
+    151
+   ],
+   [
+    17,
+    30,
+    63,
+    13,
+    51,
+    51
+   ],
+   [
+    22,
+    39,
+    84,
+    16,
+    69,
+    67
+   ],
+   [
+    26,
+    48,
+    106,
+    19,
+    87,
+    84
+   ],
+   [
+    30,
+    56,
+    122,
+    22,
+    101,
+    97
+   ],
+   [
+    33,
+    62,
+    136,
+    24,
+    112,
+    108
+   ],
+   [
+    66,
+    87,
+    140,
+    59,
+    127,
+    118
+   ]
+  ]
+ },
+ "colours": 257,
+ "shadow": true,
+ "ground": [
+  "#c9a56b",
+  "#c09b5f"
+ ]
+}

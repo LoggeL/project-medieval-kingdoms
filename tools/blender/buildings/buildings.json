@@ -1,0 +1,14 @@
+{
+ "haus": {"name": "Wohnhaus", "footprint": [2, 2], "variants": ["bewohnt"], "seed": 11},
+ "holzfaeller": {"name": "Holzfällerhütte", "footprint": [2, 2], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 12},
+ "steinbruch": {"name": "Steinbruch", "footprint": [3, 3], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 13},
+ "lager": {"name": "Lagerplatz", "footprint": [3, 3], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 14},
+ "kaserne": {"name": "Kaserne", "footprint": [4, 3], "variants": ["Standard"], "seed": 15},
+ "turm": {"name": "Mauerturm", "footprint": [2, 2], "variants": ["Standard"], "seed": 16, "front": true,
+          "posts": [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]]},
+ "mauer": {"name": "Mauerstück", "footprint": [1, 1], "variants": ["Standard"], "seed": 17, "front": true,
+           "posts": [[0, 0.15, 3]]},
+ "treppe": {"name": "Mauertreppe", "footprint": [1, 2], "variants": ["Standard"], "seed": 18},
+ "baum": {"name": "Laubbaum", "footprint": [1, 1], "variants": ["Eiche", "Buche"], "seed": 19},
+ "tanne": {"name": "Tanne", "footprint": [1, 1], "variants": ["Standard"], "seed": 20}
+}

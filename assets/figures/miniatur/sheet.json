@@ -1,0 +1,173 @@
+{
+ "style": "Miniatur",
+ "cell": 74,
+ "frames": 9,
+ "dirs": [
+  "S",
+  "SE",
+  "E",
+  "NE",
+  "N",
+  "NW",
+  "W",
+  "SW"
+ ],
+ "anchor": [
+  37,
+  67
+ ],
+ "tile": null,
+ "step_px": null,
+ "units": [
+  {
+   "key": "holzfaeller",
+   "name": "Holzfäller",
+   "showcase": true
+  },
+  {
+   "key": "traeger",
+   "name": "Tagelöhner mit Stamm",
+   "showcase": true
+  },
+  {
+   "key": "tageloehner",
+   "name": "Tagelöhner",
+   "showcase": false
+  },
+  {
+   "key": "speer",
+   "name": "Speerträger",
+   "showcase": true
+  },
+  {
+   "key": "schwert",
+   "name": "Schwertkämpfer",
+   "showcase": true
+  },
+  {
+   "key": "bogen",
+   "name": "Bogenschütze",
+   "showcase": true
+  },
+  {
+   "key": "armbrust",
+   "name": "Armbrustschütze",
+   "showcase": true
+  },
+  {
+   "key": "ritter",
+   "name": "Gepanzerter Fußsoldat",
+   "showcase": true
+  },
+  {
+   "key": "landsknecht",
+   "name": "Landsknecht",
+   "showcase": true
+  }
+ ],
+ "team_swap": {
+  "rot": [
+   [
+    26,
+    48,
+    92,
+    87,
+    23,
+    25
+   ],
+   [
+    36,
+    70,
+    135,
+    129,
+    32,
+    32
+   ],
+   [
+    47,
+    95,
+    181,
+    176,
+    42,
+    38
+   ],
+   [
+    99,
+    131,
+    186,
+    196,
+    92,
+    78
+   ],
+   [
+    23,
+    25,
+    35,
+    35,
+    20,
+    22
+   ],
+   [
+    26,
+    31,
+    46,
+    46,
+    23,
+    25
+   ]
+  ],
+  "gruen": [
+   [
+    26,
+    48,
+    92,
+    18,
+    70,
+    72
+   ],
+   [
+    36,
+    70,
+    135,
+    25,
+    105,
+    104
+   ],
+   [
+    47,
+    95,
+    181,
+    31,
+    143,
+    138
+   ],
+   [
+    99,
+    131,
+    186,
+    87,
+    167,
+    154
+   ],
+   [
+    23,
+    25,
+    35,
+    22,
+    30,
+    31
+   ],
+   [
+    26,
+    31,
+    46,
+    24,
+    38,
+    40
+   ]
+  ]
+ },
+ "colours": 144,
+ "shadow": false,
+ "ground": null
+}

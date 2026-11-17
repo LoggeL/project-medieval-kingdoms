@@ -1,0 +1,40 @@
+  <div class="figlab" id="figuren">
+    <h3>Figurentests aus Blender</h3>
+    <p class="read">Erster echter Test der Pipeline. Acht Figuren sind vollständig per Python-Skript in Blender entstanden: ein gemeinsamer Körper, austauschbare Ausrüstung, eine feste Iso-Kamera. Ein zweites Skript macht daraus Pixelart. Jede Figur gibt es in acht Richtungen, stehend und mit acht Laufbildern. Fünf Stilrichtungen nutzen denselben Bauplan. Sie unterscheiden sich in Größe, Proportionen, Palette, Kontur, Licht und Schatten.</p>
+    <div class="fig-stage">
+      <div class="fig-tabs" role="group" aria-label="Stilrichtung" id="figTabs"></div>
+      <p class="fig-desc" id="figDesc"></p>
+      <div class="fig-canvas-wrap"><canvas id="figCanvas" role="img" aria-label="Acht Testfiguren auf Iso-Kacheln"></canvas></div>
+      <div class="scene-bar">
+        <div class="ctrls">
+          <button class="btn" id="figL" type="button" aria-label="Figuren gegen den Uhrzeigersinn drehen">⟲</button>
+          <button class="btn" id="figR" type="button" aria-label="Figuren im Uhrzeigersinn drehen">⟳</button>
+          <span class="fig-dir" id="figDir" aria-live="polite"></span>
+        </div>
+        <div class="ctrls">
+          <button class="btn" id="figWalk" type="button" aria-pressed="true">Gehen</button>
+          <button class="btn" id="figTour" type="button" aria-pressed="true">Rundgang</button>
+          <button class="btn" id="figTeam" type="button" title="Teamfarbe wechseln">Team Blau</button>
+          <button class="btn" id="figReal" type="button" aria-pressed="false">Echte Größe</button>
+        </div>
+      </div>
+      <p class="scene-cap">Von links: Holzfäller, Tagelöhner mit Stamm, Speerträger, Schwertkämpfer, Bogenschütze, Armbrustschütze, gepanzerter Fußsoldat, Landsknecht. Die Kacheln haben die geplanten 64 × 32 px, der Boden wechselt mit dem Stil. „Echte Größe“ zeigt die Figuren so groß wie im Spiel bei Zoom 1×. Die Teamfarbe wechselt per Palettentausch: Jede Stufe des Teamblaus hat eine feste Entsprechung in Rot und Grün, Ein Sprite reicht für alle Spieler.</p>
+    </div>
+
+    <h4>Eine Figur, fünf Stile</h4>
+    <div class="ctrls" role="group" aria-label="Figur für den Vergleich" id="figUnits"></div>
+    <div class="views fig-compare" id="figCompare"></div>
+    <p class="read"><b>Einschätzung.</b> Zwei Prüfrunden mit je drei unabhängigen Blickwinkeln (Pixelhandwerk, Lesbarkeit im Gewühl, Passung zum Briefing) sehen <b>Wappen</b> vorn: Die schwarze Kontur und satte Farben trennen die Figuren am klarsten, 30 px treffen die Mitte des Zielbereichs von 28 bis 32 px. <b>Vorgerendert</b> ist danach dazugekommen und trifft das Gefühl der Burgenbau-Klassiker am ehesten. <b>Chronik</b> wirkt am ernstesten, verschwimmt aber leichter mit dem Boden. <b>Miniatur</b> zeigt, was größere Figuren bringen (offene Frage 3), und passt eher zu Reitern. <b>Holzschnitt</b> ist die eigenständigste Richtung, flimmert bei 1× aber am stärksten. Kombinationen sind möglich, etwa Vorgerendert mit der Kontur von Wappen.</p>
+
+    <h4>Vom Modell zum Sprite</h4>
+    <figure class="fig-steps">
+      <div class="scroll" tabindex="0" role="region" aria-label="Fünf Schritte vom Blender-Render zum Sprite"><img id="figSteps" alt="Speerträger in fünf Schritten: Blender-Render mit flachen Farben, Lichtdurchgang, auf Pixel verkleinert, Licht in harten Stufen, mit Kontur"></div>
+      <figcaption>Speerträger im Stil Chronik. ① Blender rendert flache Farben in vierfacher Auflösung. ② Ein zweiter Durchgang liefert nur das Licht, immer relativ zur Kamera. ③ Jeder 4 × 4-Block übernimmt sein häufigstes Material, ohne Glättung. Augen, Haut, Klingen, Gold und Sehnen haben Vorrang, damit sie nicht verschwinden. ④ Das Licht wird in harte Stufen gesetzt, Schatten kippen leicht ins Violette. Jedes Material bekommt so eine feste Farbrampe. ⑤ Kontur, auf der Lichtseite heller.</figcaption>
+    </figure>
+
+    <div class="grid g3">
+      <div class="panel"><h4>So schnell geht es</h4><p><b id="figCount">2.880</b> Einzelbilder (8 Figuren × 8 Richtungen × 9 Bilder × 5 Stile) in knapp zwei Minuten auf einem Laptop. Eine neue Einheit ist ein Eintrag in einer Datendatei, ein neuer Stil eine weitere Datei mit Farben und Proportionen.</p></div>
+      <div class="panel"><h4>Was der Test zeigt</h4><p>Die acht Richtungen und der Laufzyklus fallen ohne Handarbeit ab. Waffe, Helm und Teamfarbe bleiben auch bei 30 bis 32 px erkennbar, wenn dünne Teile eine Mindestdicke bekommen. Licht und Kontur prägen das Aussehen stärker als das 3D-Modell. Feste Farbrampen machen den Palettentausch exakt.</p></div>
+      <div class="panel"><h4>Was noch fehlt</h4><p>Knie und Knöchel sind beweglich, Ellbogen noch nicht. Die Arme schwingen deshalb steif, Griffe und Haltungen sind grob, der Oberkörper dreht nicht mit. Angriff, Arbeit und Sterben fehlen, ebenso Nacharbeit von Hand und Kleinteile wie Beutel oder Schwertscheide. Für die echten Figuren braucht es ein richtiges Skelett mit Animationen, gebaut in Blender oder übernommen aus einem frei lizenzierten Rig. Die Stile nutzen noch 73 bis 256 Farben. Geplant ist eine gemeinsame Palette von etwa 64.</p></div>
+    </div>
+  </div>

@@ -1,0 +1,4 @@
+*
+!Dockerfile
+!deploy/nginx.conf
+!docs/konzept-seite.html

@@ -1,0 +1,410 @@
+{
+ "style": "Vorgerendert",
+ "cell": [
+  320,
+  256
+ ],
+ "frames": 5,
+ "dirs": [
+  "0",
+  "90",
+  "180",
+  "270"
+ ],
+ "anchor": [
+  144,
+  184
+ ],
+ "tile": [
+  64,
+  32
+ ],
+ "step_px": 16,
+ "axes": {
+  "u": "+x",
+  "v": "-y",
+  "views": "view d = model turned d x 90 deg counter-clockwise; posts and footprint in model axes"
+ },
+ "units": [
+  {
+   "key": "haus",
+   "name": "Wohnhaus",
+   "frames": 1,
+   "variants": [
+    "bewohnt"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "holzfaeller",
+   "name": "Holzfällerhütte",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "steinbruch",
+   "name": "Steinbruch",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "lager",
+   "name": "Lagerplatz",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "kaserne",
+   "name": "Kaserne",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "turm",
+   "name": "Mauerturm",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [
+    [
+     -0.65,
+     -0.65,
+     5
+    ],
+    [
+     0.65,
+     -0.65,
+     5
+    ],
+    [
+     -0.65,
+     0.65,
+     5
+    ],
+    [
+     0.65,
+     0.65,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer",
+   "name": "Mauerstück",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0.15,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "treppe",
+   "name": "Mauertreppe",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baum",
+   "name": "Laubbaum",
+   "frames": 2,
+   "variants": [
+    "Eiche",
+    "Buche"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "tanne",
+   "name": "Tanne",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  }
+ ],
+ "team_swap": {
+  "rot": [
+   [
+    22,
+    38,
+    81,
+    81,
+    22,
+    22
+   ],
+   [
+    28,
+    50,
+    108,
+    108,
+    27,
+    26
+   ],
+   [
+    33,
+    62,
+    136,
+    137,
+    33,
+    30
+   ],
+   [
+    38,
+    72,
+    157,
+    158,
+    38,
+    34
+   ],
+   [
+    42,
+    80,
+    174,
+    176,
+    42,
+    38
+   ],
+   [
+    85,
+    112,
+    180,
+    192,
+    82,
+    71
+   ],
+   [
+    17,
+    30,
+    63,
+    63,
+    17,
+    17
+   ],
+   [
+    22,
+    39,
+    84,
+    84,
+    21,
+    20
+   ],
+   [
+    26,
+    48,
+    106,
+    107,
+    26,
+    23
+   ],
+   [
+    30,
+    56,
+    122,
+    123,
+    30,
+    27
+   ],
+   [
+    33,
+    62,
+    136,
+    137,
+    33,
+    30
+   ],
+   [
+    66,
+    87,
+    140,
+    150,
+    64,
+    55
+   ]
+  ],
+  "gruen": [
+   [
+    22,
+    38,
+    81,
+    17,
+    66,
+    66
+   ],
+   [
+    28,
+    50,
+    108,
+    21,
+    88,
+    86
+   ],
+   [
+    33,
+    62,
+    136,
+    24,
+    112,
+    108
+   ],
+   [
+    38,
+    72,
+    157,
+    28,
+    129,
+    124
+   ],
+   [
+    42,
+    80,
+    174,
+    31,
+    143,
+    138
+   ],
+   [
+    85,
+    112,
+    180,
+    76,
+    163,
+    151
+   ],
+   [
+    17,
+    30,
+    63,
+    13,
+    51,
+    51
+   ],
+   [
+    22,
+    39,
+    84,
+    16,
+    69,
+    67
+   ],
+   [
+    26,
+    48,
+    106,
+    19,
+    87,
+    84
+   ],
+   [
+    30,
+    56,
+    122,
+    22,
+    101,
+    97
+   ],
+   [
+    33,
+    62,
+    136,
+    24,
+    112,
+    108
+   ],
+   [
+    66,
+    87,
+    140,
+    59,
+    127,
+    118
+   ]
+  ]
+ },
+ "colours": 278,
+ "shadow": true,
+ "ground": [
+  "#c9a56b",
+  "#c09b5f"
+ ]
+}
