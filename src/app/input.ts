@@ -27,6 +27,8 @@ const DRAG_PX = 5;
 const EDGE_PX = 6;
 const PAN_SPEED = 900; // Bildschirmpixel je Sekunde
 const DBL_MS = 320;
+/** Umkreis (Felder) um die Maus, in dem gültige Bauplätze enger Baubänder markiert werden. */
+const ANCHOR_R = 6;
 
 export interface InputContext {
   canvas: HTMLCanvasElement;
@@ -60,6 +62,8 @@ export class Input {
   private checks = new Map<string, { tick: number; res: PlacementCheck }>();
   /** Tatsächlich gezeigte Ausrichtung der Bauvorschau (kann von tool.o abweichen, s. orient). */
   private shownO: { key: BuildingKey; o: number } | null = null;
+  /** Gültige Mausfelder um die Maus für enge Baubänder (Schlüssel: Gebäude, Ausrichtung, Mausfeld, Tick-Abschnitt). */
+  private anchorCache: { id: string; list: { x: number; y: number }[] } | null = null;
   private time = 0;
   private cursor = "";
   /** Zwischenspeicher der Mausauswertung (Treffer, Vorschau) und ihr Schlüssel. */
@@ -254,8 +258,32 @@ export class Input {
   /** Linke obere Ecke so, dass der Grundriss um den Maus-Tile liegt. */
   private buildOrigin(key: BuildingKey, o: number, x: number, y: number): [number, number] {
     const tile = this.r.tileAt(x, y);
-    const [w, h] = footprint(key, o);
-    return [tile.x - Math.floor((w - 1) / 2), tile.y - Math.floor((h - 1) / 2)];
+    return originAt(key, o, tile.x, tile.y);
+  }
+
+  /**
+   * Enges Bauband (Gebäude muss an ein Gelände grenzen, z. B. Steinbruch am Fels): Mausfelder im Umkreis, an denen die
+   * Vorschau in irgendeiner Ausrichtung gültig wäre (wie orient, über die Platzierungsprüfung der Simulation).
+   */
+  private anchors(key: BuildingKey, o0: number, mx: number, my: number): { x: number; y: number }[] | undefined {
+    if (!BUILDINGS[key].placement?.adjacentTerrain) return undefined;
+    const tile = this.r.tileAt(mx, my);
+    const id = `${key}:${o0}:${tile.x}:${tile.y}:${Math.floor(this.ctx.game.state.tick / 20)}`;
+    if (this.anchorCache?.id === id) return this.anchorCache.list;
+    const { w, h } = this.ctx.game.state;
+    const list: { x: number; y: number }[] = [];
+    for (let dy = -ANCHOR_R; dy <= ANCHOR_R; dy++) for (let dx = -ANCHOR_R; dx <= ANCHOR_R; dx++) {
+      if (dx * dx + dy * dy > ANCHOR_R * ANCHOR_R) continue;
+      const x = tile.x + dx, y = tile.y + dy;
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      for (let k = 0; k < 4; k++) {
+        const o = (o0 + k) % 4;
+        const [bx, by] = originAt(key, o, x, y);
+        if (this.ctx.game.canPlace(key, bx, by, o).ok) { list.push({ x, y }); break; }
+      }
+    }
+    this.anchorCache = { id, list };
+    return list;
   }
 
   private placement(key: BuildingKey, bx: number, by: number, o: number): PlacementCheck {
@@ -440,7 +468,7 @@ export class Input {
     } else if (t.t === "bauen" && inside) {
       const { bx, by, o, check, turnHelps } = this.orient(t.key, t.o, this.mx, this.my);
       this.shownO = { key: t.key, o };
-      preview = { kind: "bauen", key: t.key, x: bx, y: by, o, check };
+      preview = { kind: "bauen", key: t.key, x: bx, y: by, o, check, anchors: this.anchors(t.key, t.o, this.mx, this.my) };
       if (!check.ok) reason = (check.reason ?? "Hier kann nicht gebaut werden.") + (turnHelps ? " – R dreht" : "");
       this.setCursor("crosshair");
     } else if (t.t === "abriss" && inside) {
@@ -470,6 +498,12 @@ export class Input {
     const b = this.ctx.game.state.buildings.find((q) => q.id === id);
     return !!b && b.built >= 1 && !!BUILDINGS[b.key].walkway;
   }
+}
+
+/** Linke obere Ecke des Grundrisses, wenn die Maus auf Feld (tx, ty) steht. */
+function originAt(key: BuildingKey, o: number, tx: number, ty: number): [number, number] {
+  const [w, h] = footprint(key, o);
+  return [tx - Math.floor((w - 1) / 2), ty - Math.floor((h - 1) / 2)];
 }
 
 /** Tastendruck gehört einem Texteingabefeld? (Regler, Häkchen und Knöpfe zählen nicht: dort gilt die Leertaste als Pause.) */

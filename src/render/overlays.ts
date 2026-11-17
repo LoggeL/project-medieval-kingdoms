@@ -12,7 +12,11 @@ import { viewToScreen } from "./iso";
 import { gateOrientation, type Ghost, type UnitOnScreen } from "./scene";
 
 export type Preview =
-  | { kind: "bauen"; key: BuildingKey; x: number; y: number; o: number; check: PlacementCheck }
+  | {
+    kind: "bauen"; key: BuildingKey; x: number; y: number; o: number; check: PlacementCheck;
+    /** Mausfelder in der Nähe, an denen die Platzierung gültig wäre (enge Baubänder, z. B. Steinbruch am Fels). */
+    anchors?: readonly { x: number; y: number }[];
+  }
   | { kind: "mauer"; check: PlacementCheck }
   | { kind: "kachel"; x: number; y: number; z: number; color: number };
 
@@ -48,6 +52,13 @@ export class Overlays {
     const pts = [this.scr(x, y, z), this.scr(x + 1, y, z), this.scr(x + 1, y + 1, z), this.scr(x, y + 1, z)].flat();
     g.poly(pts).fill({ color, alpha });
     if (line) g.poly(pts).stroke({ width: 1, color: line, alpha: 0.9, alignment: 0.5 });
+  }
+
+  /** Dezente Marke für ein gültiges Mausfeld (kleinere Raute mit zartem Rand). */
+  private anchorMark(g: Graphics, x: number, y: number): void {
+    const m = 0.22;
+    const pts = [this.scr(x + m, y + m), this.scr(x + 1 - m, y + m), this.scr(x + 1 - m, y + 1 - m), this.scr(x + m, y + 1 - m)].flat();
+    g.poly(pts).fill({ color: OK_FILL, alpha: 0.2 }).stroke({ width: 1, color: OK_LINE, alpha: 0.45, alignment: 0.5 });
   }
 
   /** Umriss eines Rechtecks von Tiles (Auswahl eines Gebäudes). */
@@ -127,10 +138,13 @@ export class Overlays {
     // Vorschau (Rauten; die Sprites zeichnet die Objektebene)
     const p = o.preview;
     if (p?.kind === "bauen" || p?.kind === "mauer") {
+      if (p.kind === "bauen" && p.anchors) for (const a of p.anchors) this.anchorMark(g, a.x, a.y);
       const rule = !p.check.ok && p.check.tiles.every((q) => q.ok);
       for (const tl of p.check.tiles) {
         const [fill, line] = rule ? [RULE_FILL, RULE_LINE] : tl.ok ? [OK_FILL, OK_LINE] : [BAD_FILL, BAD_LINE];
-        this.diamond(g, tl.x, tl.y, 0, fill, 0.38, line);
+        // Rote Felder liegen auf einem Hindernis (z. B. dem Boden eines Lagers): über den Objekten zeichnen, sonst
+        // verschwinden sie darunter. Grüne und orange bleiben am Boden unter der Vorschau.
+        this.diamond(!rule && !tl.ok ? t : g, tl.x, tl.y, 0, fill, 0.38, line);
       }
     } else if (p?.kind === "kachel") {
       // Ziel auf dem Wehrgang: über den Objekten, sonst verdeckt es die Mauer
