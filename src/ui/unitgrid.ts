@@ -1,7 +1,8 @@
 /**
  * Einheitenraster (BRIEF §8.3): jede Einheit mit eigenem Icon, Kosten (Gold + Ausrüstung) und Voraussetzungen.
  * Gesperrte Einheiten stehen ausgegraut mit Schloss im Raster. Ein Klick öffnet die Detailkarte.
- * Gruppen nach Ausbildungsstätte, die Leiste scrollt waagrecht, so bleibt das Raster auch bei vielen Einheiten übersichtlich.
+ * Gruppen nach Ausbildungsstätte, je Gruppe zweizeilig; die Leiste blättert waagrecht (Mausrad, Pfeilknöpfe),
+ * so bleibt das Raster auch bei vielen Einheiten übersichtlich und vollständig erreichbar.
  */
 import { BUILDINGS, GOODS, UNITS, WALL_BONUS, type Good, type UnitKey } from "../data";
 import type { Building, SimState } from "../sim/types";
@@ -34,6 +35,7 @@ export function unitIcon(ctx: UiCtx, e: RosterEntry, size: number): HTMLElement 
 export function recruit(ctx: UiCtx, building: number, unit: UnitKey): void {
   const r = ctx.bridge.dispatch({ t: "rekrutieren", building, unit });
   if (!r.ok) ctx.toast(r.reason ?? `${UNITS[unit].name} kann nicht ausgebildet werden.`, "warnung");
+  else if (r.reason) ctx.toast(r.reason, "info");
 }
 
 export function createUnitGrid(ctx: UiCtx): UnitGrid {
@@ -49,13 +51,13 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         live.push({ e, el: null as unknown as HTMLElement, cost, need });
         costEl = cost.el;
       } else {
-        costEl = h("span.mk-lock-note", null, h("span.mk-lock", { "aria-hidden": "true" }), "Forschung nötig");
+        costEl = h("span.mk-lock-note", null, h("span.mk-lock", { "aria-hidden": "true" }), "gesperrt");
       }
       const el = h("button.mk-ucard", {
         type: "button", "data-unit": e.key, "aria-label": `${e.name}${isLocked ? " (gesperrt)" : ""}`,
         title: isLocked ? `${e.name}\n${e.role}\nVoraussetzung: ${e.needs?.join(", ")}` : `${e.name} – Details`,
         onclick: () => openDetail(e, el),
-      }, h("span.mk-ucard-icon", null, unitIcon(ctx, e, 52)), h("span.mk-ucard-name", { text: e.name }), costEl, need);
+      }, h("span.mk-ucard-icon", null, unitIcon(ctx, e, 44)), h("span.mk-ucard-name", { text: e.name, lang: "de" }), costEl, need);
       if (isLocked) el.classList.add("mk-locked");
       const l = live.find((x) => x.e === e);
       if (l) l.el = el;

@@ -5,14 +5,14 @@ const KEYS: [string, string][] = [
   ["Linksklick", "Auswählen, Bauen, Abreißen"],
   ["Ziehen mit links", "Auswahlrahmen, beim Mauerbau die Mauerlinie"],
   ["Rechtsklick", "Bewegen, Angreifen; auf einen Wehrgang: hinaufsteigen"],
-  ["Q / E", "Ansicht um 90° drehen"],
+  ["Q / E", "Ansicht um 90° drehen: Q gegen, E im Uhrzeigersinn (wie die Knöpfe ⟲ ⟳)"],
   ["R", "Gebäude beim Bauen drehen"],
-  ["Mausrad", "Zoomen"],
+  ["Mausrad", "Zoomen; über der Bauleiste: blättern"],
   ["W A S D / Pfeiltasten", "Kamera bewegen"],
   ["T", "Ausgewählte Soldaten auf Mauern und Türmen stationieren"],
   ["H", "Halten: stehen bleiben"],
   ["Esc", "Werkzeug oder Auswahl aufheben"],
-  ["Leertaste", "Pause"],
+  ["Leertaste", "Pause / Weiter"],
   ["F1", "Diese Hilfe"],
 ];
 
@@ -21,6 +21,9 @@ const TIPS = [
   "Der Lagerplatz zeigt jede Ware auf ihrem Stapel. Ist er voll, ruht die Arbeit.",
   "Soldaten kosten Gold und eine Waffe aus dem Lager. Ein Tagelöhner holt sie und tritt in die Kaserne ein.",
   "Mauern sind begehbar: Treppe anbauen, Soldaten stationieren. Schützen auf der Mauer schießen weiter und nehmen weniger Schaden.",
+  "Übersichtskarte: Klicken oder Ziehen setzt die Kamera dorthin, der helle Rahmen zeigt den Sichtbereich.",
+  "Der Kompass oben zeigt mit seiner Nadel, wohin Norden gerade im Bild zeigt.",
+  "Klang: Der Lautsprecher-Knopf oben rechts öffnet die Regler für Musik und Sprecher (0–100 %) und schaltet den Ton stumm.",
 ];
 
 export interface Help { el: HTMLElement; toggle(on?: boolean): void; isOpen(): boolean }

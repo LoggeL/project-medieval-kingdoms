@@ -4,7 +4,7 @@
  * und Bauleiste, Hilfe-Overlay und Hinweise. Die Leisten fangen Mausereignisse nur dort ab, wo sie liegen.
  * Aktualisiert wird über bridge.on(...), gebündelt auf höchstens ~10 Mal pro Sekunde und nur bei Änderungen.
  */
-import type { MountUi, UiBridge } from "../app/contract";
+import type { MountUi } from "../app/contract";
 import { createBuildBar } from "./buildbar";
 import { h } from "./dom";
 import { createHelp } from "./help";
@@ -21,13 +21,19 @@ const FRAME_MS = 100;
 export const mountUi: MountUi = (root, bridge) => {
   root.textContent = "";
   root.classList.add("mk-root");
-  const base = import.meta.env.BASE_URL;
-  for (const t of ["stein", "holz", "pergament"]) root.style.setProperty(`--mk-tex-${t}`, `url("${base}ui/${t}_kachel.png")`);
+  // Absolute Adressen: Eine url() in einer CSS-Variable wird sonst relativ zum Stylesheet aufgelöst, das var() benutzt
+  // (im Build /assets/index-*.css), und die Kacheln landen bei /assets/ui/… (404).
+  const base = new URL(import.meta.env.BASE_URL, document.baseURI);
+  for (const t of ["stein", "holz", "pergament"]) {
+    root.style.setProperty(`--mk-tex-${t}`, `url("${new URL(`ui/${t}_kachel.png`, base).href}")`);
+  }
 
   const toastLayer = h("div.mk-toasts");
-  const toast = createToaster(toastLayer);
+  const rectOf = (el: HTMLElement) => (el.isConnected && !el.hidden ? el.getBoundingClientRect() : null);
+  const toast = createToaster(toastLayer, () => ({ bottom: rectOf(bottom), side: rectOf(side.el) }));
   const ctx: UiCtx = { bridge, icons: new Icons(bridge), toast };
-  hookNotify(bridge, toast);
+  // Ein einziges Hinweis-System: Hinweise der App (bridge.notify) kommen über onNotify hier an.
+  bridge.onNotify(toast);
 
   const help = createHelp();
   const top = createTopBar(ctx, () => help.toggle());
@@ -39,6 +45,18 @@ export const mountUi: MountUi = (root, bridge) => {
 
   root.append(top.el, chron.el, side.el, bottom, help.el, toastLayer);
   if (window.innerWidth < 1024) build.el.classList.add("mk-collapsed");
+
+  // Knöpfe geben nach einem Mausklick den Fokus ab, damit Leertaste und Enter sie nicht erneut auslösen
+  // (Leertaste = Pause fängt die App ab). Mit der Tastatur ausgelöste Klicks (detail 0) behalten den Fokus.
+  root.addEventListener("click", (e) => {
+    if (e.detail === 0) return;
+    const b = (e.target as Element | null)?.closest?.("button");
+    if (b instanceof HTMLButtonElement) b.blur();
+  });
+  root.addEventListener("pointerup", (e) => {
+    const t = e.target as Element | null;
+    if (t instanceof HTMLInputElement && t.type === "range") window.setTimeout(() => t.blur(), 0);
+  });
 
   // ------------------------------------------------------------ Aktualisierung
   let pending = false, lastFrame = 0, lastTick = 0;
@@ -63,6 +81,7 @@ export const mountUi: MountUi = (root, bridge) => {
   bridge.on("selection", () => { side.update(bridge.state()); schedule(); });
   bridge.on("tool", () => build.updateTool());
   bridge.on("view", () => { top.updateView(); mini.update(bridge.state(), true); });
+  bridge.on("audio", () => top.updateAudio());
   // Geschwindigkeit hat kein eigenes Ereignis; in der Pause kommen keine Ticks, Befehle ändern den Zustand aber trotzdem.
   window.setInterval(() => {
     top.updateSpeed();
@@ -75,10 +94,3 @@ export const mountUi: MountUi = (root, bridge) => {
   frame();
   mini.update(bridge.state(), true);
 };
-
-/** Hinweise der Brücke anzeigen: über onNotify, falls die Brücke es anbietet, sonst notify umleiten. */
-function hookNotify(bridge: UiBridge, toast: (text: string, kind?: "info" | "warnung") => void): void {
-  if (bridge.onNotify) { bridge.onNotify(toast); return; }
-  const orig = bridge.notify.bind(bridge);
-  bridge.notify = (text, kind) => { orig(text, kind); toast(text, kind); };
-}

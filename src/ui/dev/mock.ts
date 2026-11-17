@@ -1,12 +1,14 @@
 /**
  * Prüfstand: Mock-Brücke über createDemoGame(). Liefert den Zustand der Platzhalter-Welt, protokolliert Befehle
- * und spielt ein paar davon grob nach (Rekrutieren mit Warteschlange, Abreißen, Stationieren, Halten), damit sich
- * die Oberfläche bedienen lässt. Keine echte Spiellogik. Icons kommen aus den echten Blättern (sprites.ts).
+ * und spielt ein paar davon grob nach (Rekrutieren mit Rekruten auf dem Weg und Warteschlange, Abreißen, Stationieren,
+ * Halten), damit sich die Oberfläche bedienen lässt. Keine echte Spiellogik. Icons kommen aus den echten Blättern (sprites.ts).
+ * Ausbildungszeiten in Sekunden wie in der Simulation; Kamera, Sichtbereich, Audio und Hinweise wie im Vertrag.
  */
 import type { IconKind, Selection, Tool, UiBridge } from "../../app/contract";
 import { BUILDINGS, TICKS_PER_SECOND, UNITS, type BuildingKey, type Good, type UnitKey } from "../../data";
+import type { MusicKey } from "../../data/audio";
 import { createDemoGame } from "../../sim/demo";
-import type { Command, CommandResult, Game, Message } from "../../sim/types";
+import type { Building, Command, CommandResult, Game, Message, Unit, UnitActivity } from "../../sim/types";
 import { cropToAlpha, fitIcon, loadSprites, type Sprites } from "./sprites";
 
 type Ev = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
@@ -17,7 +19,12 @@ const BUILDING_FALLBACK: Record<string, string> = { tor: "mauer" };
 const GOOD_FALLBACK: Partial<Record<Good, string>> = { holz: "traeger" };
 const GOOD_TINT: Record<Good, string> = { holz: "#8a5a2b", stein: "#9a958c", eisen: "#5c6670", speer: "#b08a50", schwert: "#c9ccd2", bogen: "#7a4a22" };
 
-export interface MockBridge { bridge: UiBridge; game: Game; log: (Command & { result: CommandResult })[]; onLog(fn: () => void): void; message(text: string, kind: Message["kind"]): void; sprites(): Sprites | null }
+export interface MockBridge {
+  bridge: UiBridge; game: Game; log: (Command & { result: CommandResult })[]; onLog(fn: () => void): void;
+  message(text: string, kind: Message["kind"]): void; sprites(): Sprites | null;
+  /** Prüfstand-Szene liefert die Ecken des sichtbaren Bereichs (Welt-Tiles). */
+  setCorners(fn: () => [number, number][]): void;
+}
 
 export function createMockBridge(): MockBridge {
   const game = createDemoGame();
@@ -50,8 +57,8 @@ export function createMockBridge(): MockBridge {
         if ((s.stock[t.equipment] ?? 0) < 1) return { ok: false, reason: "Keine passende Waffe im Lager." };
         s.gold -= t.gold;
         s.stock[t.equipment]--;
-        if (b.training) b.queue.push(cmd.unit);
-        else b.training = { unit: cmd.unit, recruit: 0, t: 0, dur: t.seconds * TICKS_PER_SECOND };
+        // wie die Simulation: Auftrag in die Warteschlange, ein Tagelöhner holt die Waffe und tritt dann ein
+        b.queue.push(cmd.unit);
         return { ok: true };
       }
       case "abreissen": {
@@ -73,9 +80,9 @@ export function createMockBridge(): MockBridge {
           u.layer = BUILDINGS[b.key].walkway ?? 1;
           n++;
         }
-        if (!n) return { ok: false, reason: "Keine freien Posten." };
+        if (!n) return { ok: false, reason: "Keine freien Posten.", voice: "kein_posten" };
         message(`${n} Soldaten stationiert.`);
-        return { ok: true };
+        return n < cmd.units.length ? { ok: true, reason: "Nicht genug freie Posten für alle.", voice: "stationiert" } : { ok: true, voice: "stationiert" };
       }
       case "halten":
         for (const id of cmd.units) { const u = s.units.find((q) => q.id === id); if (u) u.order = { t: "hold" }; }
@@ -88,26 +95,59 @@ export function createMockBridge(): MockBridge {
     }
   }
 
-  function step(): void {
-    game.tick();
-    for (const b of s.buildings) {
-      const tr = b.training;
-      if (!tr) continue;
-      tr.t++;
+  // Rekrut auf dem Weg je Kaserne: 3 s Waffe holen, 3 s zur Kaserne tragen, dann Ausbildung (Sekunden)
+  const underway = new Map<number, { unit: UnitKey; t: number }>();
+  const dt = 1 / TICKS_PER_SECOND;
+  function stepBarracks(b: Building): void {
+    const tr = b.training;
+    if (tr) {
+      tr.t += dt;
       if (tr.t >= tr.dur) {
         message(`${UNITS[tr.unit].name} ist ausgebildet.`);
         const c = s.units.find((u) => u.key === "speer" && u.team === 0);
-        if (c) s.units.push({ ...c, id: 1000 + s.units.length, key: tr.unit, x: b.x + 1, y: b.y + 4, px: b.x + 1, py: b.y + 4, order: { t: "idle" } });
-        const next = b.queue.shift();
-        b.training = next ? { unit: next, recruit: 0, t: 0, dur: (UNITS[next].train?.seconds ?? 8) * TICKS_PER_SECOND } : null;
+        if (c) s.units.push({ ...c, id: 1000 + s.units.length, key: tr.unit, x: b.x + 1, y: b.y + 4, px: b.x + 1, py: b.y + 4, order: { t: "idle" }, activity: "wartet" });
+        b.training = null;
       }
     }
-    if (!s.raid.active && s.tick >= s.raid.next) {
+    let w = underway.get(b.id);
+    if (!w && b.queue.length) { w = { unit: b.queue[0], t: 0 }; underway.set(b.id, w); }
+    if (w) {
+      w.t += dt;
+      if (w.t >= 6 && !b.training) {
+        const i = b.queue.indexOf(w.unit);
+        if (i >= 0) b.queue.splice(i, 1);
+        b.training = { unit: w.unit, recruit: 0, t: 0, dur: UNITS[w.unit].train?.seconds ?? 8 };
+        underway.delete(b.id);
+        w = undefined;
+      }
+    }
+    b.recruits = w ? [{ unit: w.unit, stage: w.t < 3 ? "waffe" : "weg" }] : [];
+  }
+  /** Tätigkeit grob aus Befehl und Animation (in der echten Simulation pflegt sie die Simulation). */
+  function activity(u: Unit): UnitActivity {
+    if (u.order.t === "station") return "wache";
+    if (u.order.t === "hold") return "haelt";
+    if (u.order.t === "attack") return "kaempft";
+    if (u.carry) return "traegt";
+    if (u.key === "holzfaeller") return "faellt";
+    if (u.key === "steinmetz") return "baut_ab";
+    if (u.team === 1) return "unterwegs";
+    return u.anim === "gehen" ? "unterwegs" : "wartet";
+  }
+
+  let raidEnd = 0;
+  function step(): void {
+    game.tick();
+    for (const b of s.buildings) if (BUILDINGS[b.key].trains) stepBarracks(b);
+    for (const u of s.units) u.activity = activity(u);
+    // wie die Simulation: raid.next ist immer der Tick der nächsten Welle, auch während eine Welle läuft
+    if (s.tick >= s.raid.next) {
       s.raid.active = true; s.raid.wave++;
-      message(`Angreifer im Westen! Welle ${s.raid.wave}.`, "kampf");
-    } else if (s.raid.active && s.tick >= s.raid.next + 30 * TICKS_PER_SECOND) {
-      s.raid.active = false;
+      raidEnd = s.tick + 30 * TICKS_PER_SECOND;
       s.raid.next = s.tick + 240 * TICKS_PER_SECOND;
+      message(`Angreifer im Westen! Welle ${s.raid.wave}.`, "kampf");
+    } else if (s.raid.active && s.tick >= raidEnd) {
+      s.raid.active = false;
       message("Die Angreifer ziehen sich zurück.", "info");
     }
     if (s.tick % (45 * TICKS_PER_SECOND) === 0) message("Ein Tagelöhner ist zugezogen.");
@@ -151,6 +191,18 @@ export function createMockBridge(): MockBridge {
     return placeholder(key, size, GOOD_TINT[key as Good] ?? "#777");
   }
 
+  /** Prüfstand: Angreifer-Icon grob rot einfärben (im Spiel liefert die Darstellung die echte Teamfarbe). */
+  function tint(src: HTMLCanvasElement): HTMLCanvasElement {
+    const c = document.createElement("canvas");
+    c.width = src.width; c.height = src.height;
+    const g = c.getContext("2d")!;
+    g.drawImage(src, 0, 0);
+    g.globalCompositeOperation = "source-atop";
+    g.fillStyle = "rgba(200, 40, 30, 0.45)";
+    g.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+
   /** Ersatz für fehlende Sprites im Prüfstand: Farbfeld mit Anfangsbuchstabe (deutlich als Ersatz erkennbar). */
   function placeholder(key: string, size: number, color: string): HTMLCanvasElement {
     const c = document.createElement("canvas");
@@ -167,7 +219,9 @@ export function createMockBridge(): MockBridge {
     return c;
   }
 
-  const audio = { music: 0.6, voice: 0.9, muted: false };
+  const audio: { music: number; voice: number; muted: boolean; track: MusicKey | null } = { music: 0.6, voice: 0.9, muted: false, track: "aufbau_tal" };
+  const cam = { x: s.w / 2, y: s.h / 2 };
+  let corners: () => [number, number][] = () => [];
   const bridge: UiBridge = {
     state: () => s,
     dispatch(cmd) {
@@ -182,13 +236,17 @@ export function createMockBridge(): MockBridge {
     tool: () => tool,
     setTool(t) { tool = t; emit("tool"); },
     view: () => view,
-    rotate(dir) { view.r = (view.r + dir + 4) % 4; emit("view"); },
+    rotate(dir) { view.r = (((view.r + dir) % 4) + 4) % 4; emit("view"); },
     zoom(dir) { view.zoom = Math.max(0.5, Math.min(3, view.zoom + dir * 0.5)); emit("view"); },
     speed: () => speed,
     setSpeed(v) { speed = v; },
-    icon(kind, key, size) {
-      const k = `${kind}:${key}:${size}`;
-      if (!iconCache.has(k)) { const c = makeIcon(kind, String(key), size); if (!sprites) return null; iconCache.set(k, c); }
+    icon(kind, key, size, team = 0) {
+      const k = `${kind}:${key}:${size}:${team}`;
+      if (!iconCache.has(k)) {
+        const c = makeIcon(kind, String(key), size);
+        if (!sprites) return null;
+        iconCache.set(k, c && team === 1 ? tint(c) : c);
+      }
       return iconCache.get(k) ?? null;
     },
     on(ev, fn) {
@@ -198,11 +256,14 @@ export function createMockBridge(): MockBridge {
     },
     notify(text, kind) { notifySubs.forEach((f) => f(text, kind)); },
     onNotify(fn) { notifySubs.add(fn); return () => { notifySubs.delete(fn); }; },
-    camera: () => ({ x: s.w / 2, y: s.h / 2, corners: [] }),
-    lookAt() { emit("view"); },
+    camera: () => ({ x: cam.x, y: cam.y, corners: corners() }),
+    lookAt(x, y) { cam.x = x; cam.y = y; emit("view"); },
     audio: () => ({ ...audio }),
     setAudio(a) { Object.assign(audio, a); emit("audio"); },
   };
 
-  return { bridge, game, log, onLog: (fn) => logSubs.add(fn), message: (t, k) => { message(t, k); emit("tick"); }, sprites: () => sprites };
+  return {
+    bridge, game, log, onLog: (fn) => logSubs.add(fn), message: (t, k) => { message(t, k); emit("tick"); }, sprites: () => sprites,
+    setCorners: (fn) => { corners = fn; },
+  };
 }

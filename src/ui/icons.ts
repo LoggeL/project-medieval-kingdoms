@@ -5,7 +5,7 @@
  */
 import type { IconKind, UiBridge } from "../app/contract";
 
-interface Slot { c: HTMLCanvasElement; kind: IconKind; key: string; size: number; done: boolean }
+interface Slot { c: HTMLCanvasElement; kind: IconKind; key: string; size: number; team: 0 | 1; done: boolean }
 
 export class Icons {
   private slots = new Set<Slot>();
@@ -14,36 +14,36 @@ export class Icons {
     bridge.on("assets", () => this.refresh());
   }
 
-  /** Neues Icon-Canvas (size × size Pixel, CSS-Größe = display). */
-  make(kind: IconKind, key: string, size: number, display = size): HTMLCanvasElement {
+  /** Neues Icon-Canvas (size × size Pixel, CSS-Größe = display). team 1 = Angreifer (rote Teamfarbe). */
+  make(kind: IconKind, key: string, size: number, display = size, team: 0 | 1 = 0): HTMLCanvasElement {
     const c = document.createElement("canvas");
     c.width = size; c.height = size;
     c.className = "mk-icon";
     c.style.width = `${display}px`; c.style.height = `${display}px`;
-    const slot: Slot = { c, kind, key, size, done: false };
+    const slot: Slot = { c, kind, key, size, team, done: false };
     this.draw(slot);
     if (!slot.done) this.slots.add(slot);
     return c;
   }
 
   /** Bestehendes Icon auf eine andere Vorlage umstellen. */
-  change(c: HTMLCanvasElement, kind: IconKind, key: string): void {
-    if (c.dataset.key === `${kind}:${key}`) return;
+  change(c: HTMLCanvasElement, kind: IconKind, key: string, team: 0 | 1 = 0): void {
+    if (c.dataset.key === `${kind}:${key}:${team}`) return;
     for (const s of this.slots) if (s.c === c) this.slots.delete(s);
-    const slot: Slot = { c, kind, key, size: c.width, done: false };
+    const slot: Slot = { c, kind, key, size: c.width, team, done: false };
     this.draw(slot);
     if (!slot.done) this.slots.add(slot);
   }
 
   private draw(s: Slot): void {
-    s.c.dataset.key = `${s.kind}:${s.key}`;
+    s.c.dataset.key = `${s.kind}:${s.key}:${s.team}`;
     const g = s.c.getContext("2d");
     if (!g) return;
     g.clearRect(0, 0, s.size, s.size);
     // "leer" = freier Lagerplatz: bewusst kein Bild.
     if (s.key === "leer") { s.done = true; return; }
     let src: HTMLCanvasElement | null = null;
-    try { src = this.bridge.icon(s.kind, s.key, s.size); } catch { src = null; }
+    try { src = this.bridge.icon(s.kind, s.key, s.size, s.team); } catch { src = null; }
     if (!src || !src.width || !src.height) return;
     g.imageSmoothingEnabled = false;
     // Vorlage einpassen, Seitenverhältnis halten, unten bündig (Figuren stehen auf dem Boden).

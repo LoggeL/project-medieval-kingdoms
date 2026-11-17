@@ -11,6 +11,7 @@ const { bridge } = mock;
 const s = bridge.state();
 const canvas = document.getElementById("scene") as HTMLCanvasElement;
 const scene = createScene(canvas, bridge, mock.sprites);
+mock.setCorners(scene.corners);
 mountUi(document.getElementById("ui")!, bridge);
 
 // ------------------------------------------------------------ Maus: Auswahl in der Szene

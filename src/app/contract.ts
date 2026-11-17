@@ -3,6 +3,7 @@
  * src/app/main.ts erzeugt die Brücke und ruft mountUi(root, bridge) aus src/ui auf.
  */
 import type { BuildingKey, Good, UnitKey } from "../data";
+import type { MusicKey } from "../data/audio";
 import type { Command, CommandResult, SimState } from "../sim/types";
 
 /** Werkzeug der Maus. */
@@ -43,8 +44,12 @@ export interface UiBridge {
   camera(): { x: number; y: number; corners: [number, number][] };
   /** Kamera auf einen Welt-Punkt (Tiles) setzen, z. B. Klick in die Übersichtskarte. */
   lookAt(x: number, y: number): void;
-  /** Lautstärken 0..1 und Stummschaltung (Musik, Sprecher). Wird im Browser gespeichert. */
-  audio(): { music: number; voice: number; muted: boolean };
+  /**
+   * Lautstärken 0..1 und Stummschaltung (Musik, Sprecher). Wird im Browser gespeichert.
+   * track (optional): gerade laufendes Musikstück (Schlüssel aus MUSIC), null in der Pause zwischen zwei Stücken;
+   * fehlt das Feld, zeigt die Oberfläche kein Stück an. Wechsel des Stücks meldet die App über on("audio").
+   */
+  audio(): { music: number; voice: number; muted: boolean; track?: MusicKey | null };
   setAudio(a: Partial<{ music: number; voice: number; muted: boolean }>): void;
   /** Meldung oder Wechsel (Auswahl, Werkzeug, Tick) abonnieren. Gibt eine Abmeldefunktion zurück. */
   on(ev: "tick" | "selection" | "tool" | "view" | "assets" | "audio", fn: () => void): () => void;

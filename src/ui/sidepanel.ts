@@ -5,7 +5,7 @@
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
 import { BUILDINGS, GOODS, UNITS, type Good, type UnitKey } from "../data";
-import type { Building, SimState, Unit } from "../sim/types";
+import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { h, num, setBar, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { costRow, hpBar, type UiCtx } from "./shared";
@@ -27,6 +27,8 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
   el.hidden = true;
   let sig = "";
   let upd: Updater[] = [];
+  // Schriften laden nach: Titel danach noch einmal einpassen.
+  document.fonts?.ready.then(() => { if (!el.hidden) fitTitle(); }).catch(() => undefined);
 
   function build(s: SimState): void {
     body.textContent = "";
@@ -57,7 +59,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const def = BUILDINGS[b0.key];
     const id = b0.id;
     const get = (s: SimState) => s.buildings.find((q) => q.id === id);
-    body.append(head(ctx.icons.make("gebaeude", b0.key, 72, 72), def.name,
+    body.append(head(ctx.icons.make("gebaeude", b0.key, 72, 72, b0.team), def.name,
       b0.team === 0 ? CAT_NAME[def.category] : "Feindliches Gebäude", b0.team !== 0));
 
     if (b0.built < 1) {
@@ -68,7 +70,8 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       const site = h("div.mk-goods");
       body.append(section("Baustelle", h("span.mk-bar.mk-bar-build", null, fill, pct),
         h("p.mk-label", { text: "Fehlt noch" }), missing, h("p.mk-label", { text: "Liegt bereit" }), site));
-      let lastNeeds = "", lastSite = "";
+      // null: goodsSig liefert nie null, so wird beim ersten Durchlauf immer gefüllt (auch "Noch nichts angeliefert.").
+      let lastNeeds: string | null = null, lastSite: string | null = null;
       upd.push((s) => {
         const b = get(s); if (!b) return;
         setBar(fill, b.built);
@@ -137,7 +140,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     if ((def.walkway || def.stairs) && b0.built >= 1) {
       const posts = def.posts?.length ?? 0;
       const val = h("span.mk-num");
-      const info = def.stairs ? "Führt hinauf auf den Wehrgang." : def.gate ? "Tor für eigene Leute, oben läuft der Wehrgang weiter." : "Begehbarer Wehrgang.";
+      const info = def.stairs ? "Führt hinauf auf den Wehrgang."
+        : def.gate ? "Tor für eigene Leute, oben läuft der Wehrgang weiter."
+        : (def.walkway ?? 0) >= 2 ? "Turmplattform über dem Wehrgang: Schützen schießen von hier am weitesten."
+        : "Begehbarer Wehrgang mit Zinnen. Zugang über eine Treppe oder einen Turm.";
       body.append(section("Wehrbau", h("p.mk-sub", { text: info }), posts ? row("Besetzte Posten", null, val) : null));
       if (posts) upd.push((s) => {
         const n = s.units.filter((u) => !u.dead && u.order.t === "station" && u.order.building === id).length;
@@ -155,7 +161,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         if (!armed) { armed = true; setText(btn, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(btn, "Abreißen"); }, 2500); return; }
         const r = bridge.dispatch({ t: "abreissen", id });
         if (!r.ok) ctx.toast(r.reason ?? "Abriss nicht möglich.", "warnung");
-        else bridge.select({ units: [], building: null });
+        else { if (r.reason) ctx.toast(r.reason, "info"); bridge.select({ units: [], building: null }); }
       } });
       body.append(h("div.mk-actions", null, btn));
     }
@@ -174,9 +180,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const curName = h("span");
     const fill = h("span.mk-bar-fill");
     const cur = h("div.mk-training", null, curIcon, h("div.mk-training-col", null, curName, h("span.mk-bar.mk-bar-train", null, fill)));
+    const way = h("div.mk-recruits-way");
     const queue = h("div.mk-queue");
-    body.append(section("Ausbildung", h("div.mk-recruits", null, ...buttons.map((b) => b.el)), cur, queue));
-    let lastCur = "", lastQ = "";
+    body.append(section("Ausbildung", h("div.mk-recruits", null, ...buttons.map((b) => b.el)), cur, way, queue));
+    let lastCur = "", lastWay = "", lastQ = "";
     upd.push((s) => {
       const b = get(s); if (!b) return;
       for (const x of buttons) {
@@ -184,26 +191,47 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         const t = UNITS[x.u].train!;
         setClass(x.el, "mk-cant", s.gold < t.gold || (s.stock[t.equipment] ?? 0) < 1);
       }
+      // Rekruten auf dem Weg: aus Building.recruits; fehlt das Feld, gilt der Kopf der Warteschlange als unterwegs,
+      // solange nicht ausgebildet wird (die Simulation nimmt ihn erst beim Eintreten aus der Warteschlange).
+      const rest = [...b.queue];
+      const recruits: { unit: UnitKey; stage: "waffe" | "weg" }[] = b.recruits
+        ?? (!b.training && rest.length ? [{ unit: rest[0], stage: "waffe" }] : []);
+      for (const r of recruits) { const i = rest.indexOf(r.unit); if (i >= 0) rest.splice(i, 1); }
+
       const tr = b.training;
-      const ck = tr ? tr.unit : "";
+      const ck = tr ? `t:${tr.unit}` : recruits.length ? `w:${recruits[0].unit}` : "";
       if (ck !== lastCur) {
         lastCur = ck;
         curIcon.textContent = "";
-        if (tr) curIcon.append(ctx.icons.make("einheit", tr.unit, 32, 32));
-        setClass(cur, "mk-idle", !tr);
+        const shown = tr?.unit ?? recruits[0]?.unit;
+        if (shown) curIcon.append(ctx.icons.make("einheit", shown, 32, 32));
+        setClass(cur, "mk-idle", !tr && !recruits.length);
+        setClass(cur, "mk-waiting", !tr && !!recruits.length);
       }
+      // Sekunden (t und dur wie in der Simulation)
       if (tr) {
-        const waiting = tr.t <= 0;
-        setText(curName, waiting ? `${UNITS[tr.unit].name}: Tagelöhner holt die Ausrüstung` : `${UNITS[tr.unit].name}: ${Math.floor((tr.t / Math.max(1, tr.dur)) * 100)} %`);
+        setText(curName, `${UNITS[tr.unit].name}: wird ausgebildet, ${Math.floor((tr.t / Math.max(0.001, tr.dur)) * 100)} %`);
         setBar(fill, tr.dur ? tr.t / tr.dur : 0);
+      } else if (recruits.length) {
+        setText(curName, recruitText(recruits[0].unit, recruits[0].stage));
+        setBar(fill, 0);
       } else { setText(curName, "Keine Ausbildung"); setBar(fill, 0); }
-      const qk = b.queue.join(",");
+
+      // Weitere Rekruten unterwegs (der erste steht oben, solange nicht ausgebildet wird)
+      const more = tr ? recruits : recruits.slice(1);
+      const wk = more.map((r) => r.unit + r.stage).join(",");
+      if (wk !== lastWay) {
+        lastWay = wk;
+        way.textContent = "";
+        for (const r of more) way.append(h("div.mk-row.mk-way", null, ctx.icons.make("einheit", r.unit, 24, 24), h("span.mk-sub", { text: recruitText(r.unit, r.stage) })));
+      }
+      const qk = rest.join(",");
       if (qk !== lastQ) {
         lastQ = qk;
         queue.textContent = "";
-        if (b.queue.length) {
+        if (rest.length) {
           queue.append(h("span.mk-label", { text: "Warteschlange" }));
-          for (const u of b.queue) queue.append(h("span.mk-qitem", { title: UNITS[u].name }, ctx.icons.make("einheit", u, 24, 24)));
+          for (const u of rest) queue.append(h("span.mk-qitem", { title: UNITS[u].name }, ctx.icons.make("einheit", u, 24, 24)));
         }
       }
     });
@@ -213,7 +241,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
   function singleUnit(u0: Unit): void {
     const def = UNITS[u0.key];
     const id = u0.id;
-    body.append(head(ctx.icons.make("einheit", u0.key, 72, 72), def.name,
+    body.append(head(ctx.icons.make("einheit", u0.key, 72, 72, u0.team), def.name,
       `${ROLE_NAME[def.role]}${u0.team !== 0 ? " · Feind" : ""}`, u0.team !== 0));
     const hp = hpBar();
     const state = h("span");
@@ -253,7 +281,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       const chip = h("button.mk-chip", {
         type: "button", title: `Nur ${UNITS[u.key].name} auswählen`,
         onclick: () => bridge.select({ units: list.map((q) => q.id), building: null }),
-      }, ctx.icons.make("einheit", u.key, 36, 36), val);
+      }, ctx.icons.make("einheit", u.key, 36, 36, u.team), val);
       if (u.team !== 0) chip.classList.add("mk-enemy");
       chips.push({ key: k, val });
       grid.append(chip);
@@ -282,6 +310,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const send = (t: "stationieren" | "halten") => {
       const r = bridge.dispatch({ t, units: ids() });
       if (!r.ok) ctx.toast(r.reason ?? "Befehl nicht möglich.", "warnung");
+      else if (r.reason) ctx.toast(r.reason, "info");
     };
     const canStation = soldiers.some((u) => UNITS[u.key].canStation);
     body.append(section("Befehle",
@@ -293,11 +322,23 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       h("p.mk-sub", { text: "Angreifen: Rechtsklick auf einen Gegner. Bewegen: Rechtsklick auf den Boden oder einen Wehrgang." })));
   }
 
+  /** Titel auf eine Zeile verkleinern (bis 14 px), statt mitten im Wort umzubrechen; reicht das nicht, darf er umbrechen. */
+  function fitTitle(): void {
+    const t = body.querySelector<HTMLElement>(".mk-head .mk-title");
+    if (!t) return;
+    t.style.fontSize = "";
+    t.classList.add("mk-fit");
+    let size = parseFloat(getComputedStyle(t).fontSize) || 24;
+    while (t.scrollWidth > t.clientWidth + 1 && size > 14) { size -= 1; t.style.fontSize = `${size}px`; }
+    if (t.scrollWidth > t.clientWidth + 1) t.classList.remove("mk-fit");
+  }
+
   // ------------------------------------------------------------ Bausteine
   function head(icon: HTMLElement | null, title: string, sub: string, enemy: boolean): HTMLElement {
+    // Lange Namen (z. B. "Schwertkämpfer") passt fitTitle() nach dem Einhängen auf eine Zeile ein.
     return h(`div.mk-head${enemy ? ".mk-enemy" : ""}` as "div", null,
       icon ? h("span.mk-head-icon", null, icon) : null,
-      h("div.mk-head-text", null, h("h2.mk-title", { text: title }), h("p.mk-sub", { text: sub })));
+      h("div.mk-head-text", null, h("h2.mk-title", { text: title, lang: "de" }), h("p.mk-sub", { text: sub })));
   }
   function section(title: string, ...kids: (Node | null)[]): HTMLElement {
     return h("section.mk-sec", null, h("h3.mk-sec-title", { text: title }), ...kids);
@@ -319,7 +360,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       if (next !== sig) {
         sig = next;
         el.hidden = !next;
-        if (next) build(s);
+        if (next) { build(s); fitTitle(); }
       }
       if (next) for (const f of upd) f(s);
     },
@@ -333,18 +374,52 @@ function liveUnits(s: SimState, ids: number[]): Unit[] {
 
 const goodsSig = (g: Partial<Record<Good, number>>) => Object.entries(g).filter(([, v]) => v).map(([k, v]) => `${k}${v}`).join(",");
 
+/** Rekrut unterwegs: holt die Waffe im Lager oder trägt sie zur Kaserne. */
+function recruitText(unit: UnitKey, stage: "waffe" | "weg"): string {
+  return stage === "waffe" ? `${UNITS[unit].name}: Tagelöhner holt die Waffe aus dem Lager` : `${UNITS[unit].name}: Tagelöhner bringt die Waffe zur Kaserne`;
+}
+
+const ACTIVITY: Record<UnitActivity, string> = {
+  wartet: "Wartet",
+  unterwegs: "Unterwegs",
+  baut: "Baut an einer Baustelle",
+  traegt: "Trägt Ware",
+  faellt: "Fällt einen Baum",
+  zerlegt: "Zerlegt den Stamm",
+  baut_ab: "Bricht Stein",
+  holt_waffe: "Holt die Waffe für die Ausbildung",
+  flieht: "Flieht",
+  kaempft: "Kämpft",
+  wache: "Hält Wache",
+  haelt: "Hält die Stellung",
+  zieht_zu: "Zieht in die Siedlung",
+};
+
+/** Tätigkeit für das Panel: aus Unit.activity (Simulation), sonst grob aus dem Befehl. */
 function orderText(s: SimState, u: Unit): string {
   const where = LAYER_NAME[u.layer] ?? "";
+  const post = () => {
+    if (u.order.t !== "station") return null;
+    const id = u.order.building;
+    const b = s.buildings.find((q) => q.id === id);
+    return b?.key === "turm" ? "Auf Posten im Turm" : b?.key === "tor" ? "Auf Posten über dem Tor" : "Auf Posten an der Mauer";
+  };
+  if (u.activity) {
+    switch (u.activity) {
+      case "wache": return post() ?? `Hält Wache ${where}`;
+      case "haelt": return `Hält die Stellung ${where}`;
+      case "wartet": return u.layer > 0 ? `Wartet ${where}` : "Wartet";
+      case "traegt": return u.carry ? `Trägt ${GOODS[u.carry].name}` : ACTIVITY.traegt;
+      case "unterwegs": return u.order.t === "move" && u.order.layer > 0 ? "Steigt auf den Wehrgang" : post() ? "Zieht auf den Posten" : "Unterwegs";
+      default: return ACTIVITY[u.activity] ?? "Bei der Arbeit";
+    }
+  }
   switch (u.order.t) {
     case "move": return u.order.layer > 0 ? "Steigt auf den Wehrgang" : "Unterwegs";
     case "attack": return "Greift an";
-    case "station": {
-      const order = u.order;
-      const b = s.buildings.find((q) => q.id === order.building);
-      return b?.key === "turm" ? "Auf Posten im Turm" : "Auf Posten an der Mauer";
-    }
+    case "station": return post() ?? "Auf Posten";
     case "hold": return `Hält die Stellung ${where}`;
-    case "job": return u.anim === "hacken" ? "Fällt Holz" : u.anim === "abbauen" ? "Bricht Stein" : "Bei der Arbeit";
+    case "job": return u.carry ? `Trägt ${GOODS[u.carry].name}` : u.anim === "abbauen" ? "Bricht Stein" : u.anim === "bauen" ? "Baut an einer Baustelle" : "Bei der Arbeit";
     default: return u.layer > 0 ? `Wartet ${where}` : "Wartet";
   }
 }
