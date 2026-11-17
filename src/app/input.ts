@@ -72,7 +72,7 @@ export class Input {
   private down(e: PointerEvent): void {
     const [x, y] = this.pos(e);
     this.mx = x; this.my = y; this.over = true;
-    this.ctx.canvas.setPointerCapture?.(e.pointerId);
+    try { this.ctx.canvas.setPointerCapture(e.pointerId); } catch { /* Zeiger nicht aktiv (z. B. synthetisch) */ }
     if (e.button === 1 || e.button === 2) {
       this.pan = { sx: x, sy: y, moved: false, button: e.button };
       e.preventDefault();

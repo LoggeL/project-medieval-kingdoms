@@ -47,7 +47,8 @@ function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number)
 function figureIcon(sheets: Sheets, key: string, size: number): HTMLCanvasElement | null {
   const fs = sheets.figures;
   if (!fs) return null;
-  const cell = fs.canvasCell(key, 0, 0);
+  const k = fs.has(key) ? key : ["tageloehner", "traeger"].find((f) => fs.has(f));
+  const cell = k ? fs.canvasCell(k, 0, 0) : null;
   if (!cell) return null;
   const bb = bboxOf(cell.canvas, cell.x, cell.y, fs.cell, fs.cell);
   return bb ? draw(cell.canvas, cell.x, cell.y, bb, size) : null;
