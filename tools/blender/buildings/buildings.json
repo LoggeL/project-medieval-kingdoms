@@ -31,5 +31,12 @@
   "shelves": [[-0.95, -0.78], [0.95, -0.78], [-0.95, -0.18], [0.95, -0.18], [-0.95, 0.42], [0.95, 0.42], [-0.95, 1.02], [0.95, 1.02]]},
  "haus_innen": {"name": "Wohnhaus (innen)", "footprint": [2, 2], "variants": ["leer", "1 Bewohner", "2 Bewohner", "3 Bewohner", "4 Bewohner"], "seed": 11, "front": true, "cutaway": true},
  "holzfaeller_innen": {"name": "Holzfällerhütte (innen)", "footprint": [2, 2], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 12, "front": true, "cutaway": true},
- "kaserne_innen": {"name": "Kaserne (innen)", "footprint": [4, 3], "variants": ["Standard"], "seed": 15, "front": true, "cutaway": true, "dummy": [0.55, 0.62]}
+ "kaserne_innen": {"name": "Kaserne (innen)", "footprint": [4, 3], "variants": ["Standard"], "seed": 15, "front": true, "cutaway": true, "dummy": [0.55, 0.62]},
+ "bergfried_holz": {"name": "Hölzerner Bergfried", "footprint": [3, 3], "variants": ["Standard"], "seed": 60},
+ "bergfried_stein": {"name": "Steinerner Bergfried", "footprint": [3, 3], "variants": ["Standard"], "seed": 61, "front": true, "posts": [[-0.8, -0.8, 5], [0.8, -0.8, 5], [-0.8, 0.8, 5], [0.8, 0.8, 5]]},
+ "bergfried_burg": {"name": "Burgfried", "footprint": [3, 3], "variants": ["Standard"], "seed": 62, "front": true,
+  "posts": [[-0.8, -0.8, 6], [0.8, -0.8, 6], [-0.8, 0.8, 6], [0.8, 0.8, 6], [0, -0.85, 6], [0, 0.85, 6]]},
+ "bergfried_holz_innen": {"name": "Hölzerner Bergfried (innen)", "footprint": [3, 3], "variants": ["Burgherr", "Burgherr und Gelehrter"], "seed": 60, "front": true, "cutaway": true},
+ "bergfried_stein_innen": {"name": "Steinerner Bergfried (innen)", "footprint": [3, 3], "variants": ["Burgherr", "Burgherr und Gelehrter"], "seed": 61, "front": true, "cutaway": true},
+ "bergfried_burg_innen": {"name": "Burgfried (innen)", "footprint": [3, 3], "variants": ["Burgherr", "Burgherr und Gelehrter"], "seed": 62, "front": true, "cutaway": true}
 }

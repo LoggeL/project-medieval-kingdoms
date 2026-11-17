@@ -4,7 +4,8 @@
  * Gruppen nach Ausbildungsstätte, je Gruppe zweizeilig; die Leiste blättert waagrecht (Mausrad, Pfeilknöpfe),
  * so bleibt das Raster auch bei vielen Einheiten übersichtlich und vollständig erreichbar.
  */
-import { BUILDINGS, GOODS, UNITS, WALL_BONUS, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, TECHS, UNITS, WALL_BONUS, type Good, type UnitKey } from "../data";
+import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
 import { h, num, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
@@ -116,13 +117,14 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
       detailUpdate = (s) => {
         cost.update(s);
         const k = trainingSite(ctx, e.unit!);
-        setText(where, k ? "" : "Voraussetzung: eine fertige Kaserne.");
-        setClass(go, "mk-disabled", !k);
+        const need = lockedBy(s, def);
+        setText(where, need ? `Voraussetzung: Forschung „${TECHS[need].name}“.` : k ? "" : "Voraussetzung: eine fertige Kaserne.");
+        setClass(go, "mk-disabled", !k || !!need);
       };
     } else {
       body.append(h("div.mk-locked-box", null, h("span.mk-lock", { "aria-hidden": "true" }),
         h("div", null, h("strong", { text: "Gesperrt" }), h("ul", null, ...(e.needs ?? []).map((n) => h("li", { text: n }))))),
-      h("p.mk-sub", { text: "Forschung gibt es im Prototyp noch nicht." }));
+      h("p.mk-sub", { text: "Diese Forschung gibt es im Prototyp noch nicht. Was sich schon erforschen lässt, zeigt der Forschungsbaum (F)." }));
     }
     detail.append(h("button.mk-x", { type: "button", "aria-label": "Schließen", text: "×", onclick: close }), body);
     detail.hidden = false;
@@ -142,7 +144,9 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         l.cost.update(s);
         const def = UNITS[l.e.unit!];
         const site = s.buildings.some((b) => b.team === 0 && b.built >= 1 && BUILDINGS[b.key].trains?.includes(l.e.unit!));
-        const lack = !site ? "Kaserne nötig" : !hasPeasant ? "Kein Tagelöhner frei" : "";
+        const need = lockedBy(s, def);
+        const lack = need ? `Forschung: ${TECHS[need].name}` : !site ? "Kaserne nötig" : !hasPeasant ? "Kein Tagelöhner frei" : "";
+        setClass(l.el, "mk-locked", !!need);
         setText(l.need, lack);
         setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || (s.stock[def.train!.equipment] ?? 0) < 1);
       }

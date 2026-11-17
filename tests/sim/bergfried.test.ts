@@ -13,6 +13,8 @@ import { incomeOf, techMissing, techStatus, unlocksOf, upgradeMissing } from "..
 import type { Building } from "../../src/sim/types";
 import { TPS, type SBuilding, type SUnit, type World } from "../../src/sim/world";
 import { findSpot, lagerOf } from "./helpers";
+import BUILD_DEFS from "../../tools/blender/buildings/buildings.json";
+import SHEET from "../../assets/buildings/vorgerendert/sheet.json";
 
 const worldOf = (g: Simulation): World => (g as unknown as { world: World }).world;
 const seat = (g: Simulation) => g.state.buildings.find((b) => b.key === "bergfried") as SBuilding;
@@ -355,6 +357,23 @@ describe("Niederlage", () => {
       expect(g.state.tick - hit).toBeGreaterThan(120 * TPS);
       expect(g.state.messages.some((m) => m.text === "Bergfried wird angegriffen!")).toBe(true);
     }
+  });
+});
+
+describe("Bergfried-Grafik", () => {
+  it("jede Stufe hat ihr Sprite und ihre Innenansicht im Gebäudeblatt, Posten wie im Blender-Modell", () => {
+    const keys = new Set((SHEET as { units: { key: string }[] }).units.map((u) => u.key));
+    const defs = BUILD_DEFS as Record<string, { posts?: number[][]; front?: boolean; cutaway?: boolean; variants: string[] }>;
+    BUILDINGS.bergfried.levels!.forEach((_, i) => {
+      const lv = levelDef("bergfried", i + 1);
+      expect(keys.has(lv.sprite), lv.sprite).toBe(true);
+      expect(keys.has(lv.interior!.sprite), lv.interior!.sprite).toBe(true);
+      expect(defs[lv.sprite].posts ?? [], lv.sprite).toEqual(lv.posts ?? []);
+      if (lv.posts?.length) expect(defs[lv.sprite].front).toBe(true);
+      const inner = defs[lv.interior!.sprite];
+      expect(inner.cutaway).toBe(true);
+      expect(inner.variants).toHaveLength(2); // 0 Burgherr, 1 mit Gelehrtem (Forschung läuft)
+    });
   });
 });
 

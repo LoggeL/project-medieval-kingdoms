@@ -1,13 +1,16 @@
 /**
  * Auswahl-Panel rechts auf Pergament. Erscheint nur bei einer Auswahl.
  * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Hofstapel, Lagerplätze, Ausbildung, Abreißen.
+ * Bergfried: Stufe, Steuern, Ausbau (Kosten, fehlende Forschung, Fortschritt), laufende Forschung und der Forschungsbaum.
  * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
-import { BUILDINGS, GOODS, UNITS, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, TECHS, UNITS, levelDef, type Good, type UnitKey } from "../data";
+import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { h, num, setBar, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
+import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { recruit } from "./unitgrid";
 
@@ -47,7 +50,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const sel = bridge.selection();
     if (sel.building) {
       const b = s.buildings.find((q) => q.id === sel.building);
-      return b ? `b${b.id}:${b.key}:${b.built >= 1 ? 1 : 0}:${b.team}` : "";
+      return b ? `b${b.id}:${b.key}:${b.built >= 1 ? 1 : 0}:${b.team}:${levelOf(b)}:${b.upgrade ? 1 : 0}` : "";
     }
     const units = liveUnits(s, sel.units);
     if (units.length === 1) return `u${units[0].id}`;
@@ -57,9 +60,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
   // ------------------------------------------------------------ Gebäude
   function buildingView(b0: Building): void {
     const def = BUILDINGS[b0.key];
+    const ld = levelDef(b0.key, levelOf(b0));
     const id = b0.id;
     const get = (s: SimState) => s.buildings.find((q) => q.id === id);
-    body.append(head(ctx.icons.make("gebaeude", b0.key, 72, 72, b0.team), def.name,
+    body.append(head(ctx.icons.make("gebaeude", def.levels ? ld.sprite : b0.key, 72, 72, b0.team), ld.name,
       b0.team === 0 ? CAT_NAME[def.category] : "Feindliches Gebäude", b0.team !== 0));
 
     if (b0.built < 1) {
@@ -83,8 +87,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     } else {
       const hp = hpBar();
       body.append(section("Zustand", hp.el));
-      upd.push((s) => { const b = get(s); if (b) hp.update(b.hp, def.hp); });
+      upd.push((s) => { const b = get(s); if (b) hp.update(b.hp, ld.hp); });
     }
+
+    if (def.seat && b0.built >= 1 && b0.team === 0) seatView(b0);
 
     if (def.workers && b0.built >= 1) {
       const val = h("span.mk-num");
@@ -135,14 +141,15 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       });
     }
 
-    if (def.housing && b0.built >= 1) body.append(row("Wohnraum", null, h("span.mk-num", { text: `${def.housing} Bewohner` })));
+    if (ld.housing && b0.built >= 1) body.append(row("Wohnraum", null, h("span.mk-num", { text: `${ld.housing} Bewohner` })));
 
-    if ((def.walkway || def.stairs) && b0.built >= 1) {
-      const posts = def.posts?.length ?? 0;
+    if ((ld.walkway || def.stairs) && b0.built >= 1) {
+      const posts = ld.posts?.length ?? 0;
       const val = h("span.mk-num");
       const info = def.stairs ? "Führt hinauf auf den Wehrgang."
         : def.gate ? "Tor für eigene Leute, oben läuft der Wehrgang weiter."
-        : (def.walkway ?? 0) >= 2 ? "Turmplattform über dem Wehrgang: Schützen schießen von hier am weitesten."
+        : def.seat ? "Wehrplattform auf dem Bergfried: Schützen schießen von hier am weitesten. Hinauf geht es durch die Tür."
+        : (ld.walkway ?? 0) >= 2 ? "Turmplattform über dem Wehrgang: Schützen schießen von hier am weitesten."
         : "Begehbarer Wehrgang mit Zinnen. Zugang über eine Treppe oder einen Turm.";
       body.append(section("Wehrbau", h("p.mk-sub", { text: info }), posts ? row("Besetzte Posten", null, val) : null));
       if (posts) upd.push((s) => {
@@ -153,9 +160,9 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
 
     if (def.trains && b0.built >= 1 && b0.team === 0) trainingView(id, def.trains);
 
-    body.append(h("p.mk-desc", { text: def.desc }));
+    body.append(h("p.mk-desc", { text: def.levels?.[levelOf(b0) - 1]?.desc ?? def.desc }));
 
-    if (b0.team === 0) {
+    if (b0.team === 0 && !def.seat) {
       let armed = false;
       const btn = h("button.mk-btn.mk-btn-wide.mk-btn-danger", { type: "button", text: "Abreißen", onclick: () => {
         if (!armed) { armed = true; setText(btn, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(btn, "Abreißen"); }, 2500); return; }
@@ -165,6 +172,93 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       } });
       body.append(h("div.mk-actions", null, btn));
     }
+  }
+
+  // ------------------------------------------------------------ Bergfried: Stufe, Ausbau, Forschung
+  function seatView(b0: Building): void {
+    const def = BUILDINGS[b0.key];
+    const id = b0.id;
+    const get = (s: SimState) => s.buildings.find((q) => q.id === id);
+    const lv = levelOf(b0), max = def.levels?.length ?? 1;
+    const tax = h("span.mk-num");
+    body.append(section("Sitz des Burgherrn",
+      h("div.mk-level", null, h("span.mk-level-pips", null, ...Array.from({ length: max }, (_, i) => h(`span.mk-level-pip${i < lv ? ".mk-on" : ""}` as "span"))),
+        h("span", { text: `Stufe ${lv} von ${max}` })),
+      row("Steuern", null, tax),
+      h("p.mk-sub", { text: "Fällt der Bergfried, ist die Burg verloren." })));
+    upd.push((s) => setText(tax, `${String(Math.round(incomeOf(s) * 10) / 10).replace(".", ",")} Gold je Minute`));
+
+    const nx = nextLevel(b0);
+    if (b0.upgrade) {
+      // Ausbau läuft: Material wie auf einer Baustelle, dann baut ein Tagelöhner
+      const fill = h("span.mk-bar-fill");
+      const pct = h("span.mk-bar-label");
+      const missing = h("div.mk-goods");
+      const site = h("div.mk-goods");
+      body.append(section(`Ausbau: ${nx?.name ?? ""}`, h("span.mk-bar.mk-bar-build", null, fill, pct),
+        h("p.mk-label", { text: "Fehlt noch" }), missing, h("p.mk-label", { text: "Liegt bereit" }), site));
+      let lastNeeds: string | null = null, lastSite: string | null = null;
+      upd.push((s) => {
+        const b = get(s); if (!b?.upgrade) return;
+        setBar(fill, b.upgrade.t);
+        setText(pct, `${Math.floor(b.upgrade.t * 100)} %`);
+        const n = goodsSig(b.needs), t = goodsSig(b.site);
+        if (n !== lastNeeds) { lastNeeds = n; fillGoods(missing, b.needs, "Alles angeliefert, es wird gebaut."); }
+        if (t !== lastSite) { lastSite = t; fillGoods(site, b.site, "Noch nichts angeliefert."); }
+      });
+    } else if (nx?.upgrade) {
+      const up = nx.upgrade;
+      const cost = costRow(ctx, up.cost, 16);
+      const miss = h("ul");
+      const go = h("button.mk-btn.mk-btn-wide", { type: "button", text: "Ausbauen", onclick: () => {
+        const r = bridge.dispatch({ t: "ausbauen", building: id });
+        if (!r.ok) ctx.toast(r.reason ?? "Ausbau nicht möglich.", "warnung");
+        else if (r.reason) ctx.toast(r.reason, "info");
+      } });
+      const gain: string[] = [`${nx.hp} Leben`];
+      if (nx.housing) gain.push(`${nx.housing} Wohnraum`);
+      if (nx.income) gain.push(`${nx.income} Gold Steuern je Minute`);
+      if (nx.posts?.length) gain.push(`${nx.posts.length} Posten für Schützen`);
+      body.append(section("Ausbau",
+        h("div.mk-next", null, h("strong", { text: nx.name }), h("span", { text: nx.desc }), h("span.mk-sub", { text: `Danach: ${gain.join(", ")}.` }),
+          h("div.mk-row", null, h("span.mk-row-label", { text: `Kosten (${up.seconds} s Bauzeit)` }), cost.el), miss),
+        go));
+      let lastMiss = "";
+      upd.push((s) => {
+        const b = get(s); if (!b) return;
+        cost.update(s);
+        const m = upgradeMissing(s, b);
+        const sig = m.join("|");
+        if (sig !== lastMiss) { lastMiss = sig; miss.textContent = ""; for (const x of m) miss.append(h("li", { text: x })); }
+        go.disabled = m.length > 0;
+        go.title = m.length ? m.join(", ") : `Ausbau: ${nx.name}. Gold sofort, das Material tragen Tagelöhner herbei.`;
+      });
+    } else {
+      body.append(section("Ausbau", h("p.mk-sub", { text: "Der Bergfried hat seine höchste Stufe erreicht." })));
+    }
+
+    // Forschung: laufende Technik, Abbrechen, Forschungsbaum
+    const curIcon = h("span.mk-cur-icon");
+    const curText = h("span");
+    const fill = h("span.mk-bar-fill");
+    const cur = h("div.mk-training", null, curIcon, h("div.mk-training-col", null, curText, h("span.mk-bar.mk-bar-train", null, fill)));
+    const stop = h("button.mk-btn.mk-btn-wide", { type: "button", text: "Forschung abbrechen", onclick: () => cancelTech(ctx) });
+    const open = h("button.mk-btn.mk-btn-wide", { type: "button", onclick: () => ctx.research?.toggle(true) },
+      h("span", { text: "Forschungsbaum öffnen" }), h("kbd", { text: "F", style: "margin-left:8px" }));
+    const done = h("p.mk-sub");
+    body.append(section("Forschung", cur, done, open, stop));
+    let lastKey = "";
+    upd.push((s) => {
+      const rc = s.research.cur;
+      const k = rc?.key ?? "";
+      if (k !== lastKey) { lastKey = k; curIcon.textContent = ""; if (rc) curIcon.append(techIcon(rc.key, 32)); }
+      setClass(cur, "mk-idle", !rc);
+      setText(curText, researchText(s));
+      setBar(fill, rc && rc.dur ? rc.t / rc.dur : 0);
+      stop.hidden = !rc;
+      const n = s.research.done.length;
+      setText(done, n ? `Erforscht: ${s.research.done.map((t) => TECHS[t].name).join(", ")}` : "Noch nichts erforscht.");
+    });
   }
 
   function trainingView(id: number, trains: UnitKey[]): void {
@@ -189,7 +283,9 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       for (const x of buttons) {
         x.cost.update(s);
         const t = UNITS[x.u].train!;
-        setClass(x.el, "mk-cant", s.gold < t.gold || (s.stock[t.equipment] ?? 0) < 1);
+        const need = lockedBy(s, UNITS[x.u]);
+        x.el.title = need ? `${UNITS[x.u].name}: erst erforschen (${TECHS[need].name})` : `${UNITS[x.u].name} ausbilden (${t.seconds} s)`;
+        setClass(x.el, "mk-cant", !!need || s.gold < t.gold || (s.stock[t.equipment] ?? 0) < 1);
       }
       // Rekruten auf dem Weg: aus Building.recruits; fehlt das Feld, gilt der Kopf der Warteschlange als unterwegs,
       // solange nicht ausgebildet wird (die Simulation nimmt ihn erst beim Eintreten aus der Warteschlange).
@@ -402,7 +498,8 @@ function orderText(s: SimState, u: Unit): string {
     if (u.order.t !== "station") return null;
     const id = u.order.building;
     const b = s.buildings.find((q) => q.id === id);
-    return b?.key === "turm" ? "Auf Posten im Turm" : b?.key === "tor" ? "Auf Posten über dem Tor" : "Auf Posten an der Mauer";
+    return b?.key === "turm" ? "Auf Posten im Turm" : b?.key === "tor" ? "Auf Posten über dem Tor"
+      : b && BUILDINGS[b.key].seat ? "Auf Posten auf dem Bergfried" : "Auf Posten an der Mauer";
   };
   if (u.activity) {
     switch (u.activity) {

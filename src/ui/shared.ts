@@ -10,6 +10,8 @@ export interface UiCtx {
   icons: Icons;
   /** Hinweis als Toast (am Mauszeiger, falls bekannt). */
   toast(text: string, kind?: "info" | "warnung"): void;
+  /** Forschungsbaum öffnen oder schließen (gesetzt von index.ts, sobald er erzeugt ist). */
+  research?: { toggle(on?: boolean): void };
 }
 
 /** Kleines Goldmünzen-Glyph (CSS, kein Sprite: im Gebäudeblatt gibt es keine Münze). */

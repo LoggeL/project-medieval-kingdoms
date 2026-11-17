@@ -11,6 +11,8 @@ import { createHelp } from "./help";
 import { Icons } from "./icons";
 import { createChronicle, createToaster } from "./messages";
 import { createMinimap } from "./minimap";
+import { createDefeat } from "./defeat";
+import { createResearch } from "./research";
 import type { UiCtx } from "./shared";
 import { createSidePanel } from "./sidepanel";
 import { createTopBar } from "./topbar";
@@ -27,6 +29,7 @@ export const mountUi: MountUi = (root, bridge) => {
   for (const t of ["stein", "holz", "pergament"]) {
     root.style.setProperty(`--mk-tex-${t}`, `url("${new URL(`ui/${t}_kachel.png`, base).href}")`);
   }
+  root.style.setProperty("--mk-tex-forschung", `url("${new URL("ui/forschung.png", base).href}")`);
 
   const toastLayer = h("div.mk-toasts");
   const rectOf = (el: HTMLElement) => (el.isConnected && !el.hidden ? el.getBoundingClientRect() : null);
@@ -36,6 +39,9 @@ export const mountUi: MountUi = (root, bridge) => {
   bridge.onNotify(toast);
 
   const help = createHelp();
+  const research = createResearch(ctx);
+  ctx.research = research;
+  const defeat = createDefeat(ctx);
   const top = createTopBar(ctx, () => help.toggle());
   const chron = createChronicle();
   const side = createSidePanel(ctx);
@@ -43,7 +49,7 @@ export const mountUi: MountUi = (root, bridge) => {
   const mini = createMinimap(bridge);
   const bottom = h("footer.mk-bottom.mk-stone", null, h("div.mk-mini-frame", null, mini.el), build.el);
 
-  root.append(top.el, chron.el, side.el, bottom, help.el, toastLayer);
+  root.append(top.el, chron.el, side.el, bottom, help.el, research.el, defeat.el, toastLayer);
   if (window.innerWidth < 1024) build.el.classList.add("mk-collapsed");
 
   // Knöpfe geben nach einem Mausklick den Fokus ab, damit Leertaste und Enter sie nicht erneut auslösen
@@ -69,6 +75,8 @@ export const mountUi: MountUi = (root, bridge) => {
     side.update(s);
     build.update(s);
     mini.update(s);
+    research.update(s);
+    defeat.update(s);
   };
   const schedule = () => {
     if (pending) return;

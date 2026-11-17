@@ -1002,3 +1002,88 @@ kbd {
 .mk-range:focus-visible { outline: 2px solid var(--mk-gold-deep); outline-offset: 2px; }
 .mk-top { z-index: 2; }
 .mk-btn-rot { font-size: 20px; font-family: "Segoe UI Symbol", "Apple Symbols", system-ui, sans-serif; padding-bottom: 2px; }
+
+/* ------------------------------------------------------------------ Forschung */
+/* Ikonen: assets/ui/forschung.png, 8 Spalten zu 96 px (per Codex, art/prompts/forschung_ikonen.txt) */
+.mk-ticon {
+  display: inline-block;
+  flex: none;
+  width: var(--mk-ts, 48px);
+  height: var(--mk-ts, 48px);
+  background-image: var(--mk-tex-forschung);
+  background-size: calc(var(--mk-ts, 48px) * 8) var(--mk-ts, 48px);
+  background-position: calc(var(--mk-ti, 0) * var(--mk-ts, 48px) * -1) 0;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.mk-research-card { width: min(1080px, 100%); }
+.mk-research-card > .mk-sub { margin-bottom: 10px; }
+.mk-rcur { margin-bottom: 4px; }
+.mk-rcur.mk-idle .mk-bar, .mk-rcur.mk-idle .mk-cur-icon { display: none; }
+.mk-rcur .mk-btn { flex: none; height: 28px; font-family: var(--mk-f-text); font-weight: 700; }
+.mk-rcols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.mk-rcol { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mk-rcard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px 10px;
+  border: 1px solid rgba(70, 45, 20, 0.5);
+  border-radius: 4px;
+  background: linear-gradient(rgba(255, 250, 232, 0.6), rgba(214, 188, 128, 0.35));
+  color: var(--mk-ink);
+}
+.mk-rhead { display: flex; align-items: center; gap: 10px; }
+.mk-rhead-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mk-rname { margin: 0; font: 700 16px/1.1 var(--mk-f-head); color: var(--mk-ink); }
+.mk-rbadge {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font: 700 11px/1.3 var(--mk-f-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: rgba(90, 70, 40, 0.18);
+  color: var(--mk-ink-soft);
+}
+.mk-rdesc { margin: 0; font-size: 13px; line-height: 1.3; }
+.mk-runlock { margin: 0; font-size: 12.5px; color: #3e5a1c; }
+.mk-rcost { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.mk-rcost .mk-cost { justify-content: flex-start; }
+.mk-rtime { font-weight: 700; color: var(--mk-ink-soft); white-space: nowrap; }
+.mk-rreq { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--mk-red-ink); }
+.mk-rreq:empty { display: none; }
+.mk-rcard .mk-btn-wide { height: 30px; font-size: 14px; }
+.mk-rcard.mk-r-erforscht { border-color: #4f7f24; background: linear-gradient(rgba(236, 248, 214, 0.75), rgba(176, 206, 128, 0.4)); }
+.mk-rcard.mk-r-erforscht .mk-rbadge { background: #4f7f24; color: #f3f8e6; }
+.mk-rcard.mk-r-laeuft { border-color: var(--mk-blue); box-shadow: 0 0 0 1px var(--mk-blue); }
+.mk-rcard.mk-r-laeuft .mk-rbadge { background: #3b5fb0; color: #eef3ff; }
+.mk-rcard.mk-r-verfuegbar .mk-rbadge { background: var(--mk-gold); color: var(--mk-ink); }
+.mk-rcard.mk-r-gesperrt { opacity: 0.78; }
+.mk-rcard.mk-r-gesperrt .mk-ticon { filter: grayscale(1) brightness(0.9); }
+.mk-tab-research { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; }
+.mk-tab-research kbd { font-size: 11px; padding: 0 4px; min-width: 16px; }
+.mk-tab-research .mk-ticon { margin: -4px 0; }
+.mk-tab-research.mk-busy { color: #bcd7ff; }
+@media (max-width: 900px) { .mk-rcols { grid-template-columns: 1fr; } .mk-tab-research kbd { display: none; } }
+
+/* Bergfried im Auswahl-Panel */
+.mk-level { display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--mk-ink); }
+.mk-level-pips { display: inline-flex; gap: 3px; }
+.mk-level-pip { width: 10px; height: 10px; transform: rotate(45deg); border: 1px solid var(--mk-gold-deep); background: transparent; }
+.mk-level-pip.mk-on { background: var(--mk-gold); }
+.mk-next { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 3px; background: rgba(120, 80, 30, 0.1); color: var(--mk-ink); font-size: 13px; }
+.mk-next .mk-cost { justify-content: flex-start; }
+.mk-next ul { margin: 0; padding-left: 16px; color: var(--mk-red-ink); font-size: 12.5px; }
+.mk-next ul:empty { display: none; }
+.mk-side .mk-btn-wide + .mk-btn-wide { margin-top: 6px; }
+
+/* Niederlage */
+.mk-defeat-card { width: min(460px, 100%); text-align: center; }
+.mk-defeat-card .mk-title { font-size: 32px; color: var(--mk-red-ink); margin-bottom: 8px; }
+.mk-defeat-card p { color: var(--mk-ink); font-size: 15px; margin: 0 0 14px; }
+.mk-defeat-card .mk-btn-wide + .mk-btn-wide { margin-top: 8px; }
+/* Baukarte, die eine Forschung braucht */
+.mk-card .mk-need { grid-column: auto; text-align: center; }
+.mk-card.mk-locked .mk-card-icon { filter: grayscale(1) brightness(0.65) contrast(0.9); }
+.mk-card.mk-locked .mk-card-name { color: #a99a80; }

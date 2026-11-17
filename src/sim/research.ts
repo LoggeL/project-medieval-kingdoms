@@ -220,7 +220,7 @@ export function startUpgrade(w: World, id: number): CommandResult {
   b.needs = Object.fromEntries(goodsOf(nx.upgrade.cost));
   b.site = {};
   b.ai.enroute = {}; b.ai.picked = {}; b.ai.builder = 0;
-  w.msg(`Ausbau zum ${nx.name} beginnt: Träger bringen das Material.`);
+  w.msg(`Ausbau beginnt (${nx.name}): Träger bringen das Material.`);
   return { ok: true, ids: [b.id] };
 }
 

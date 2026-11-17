@@ -15,7 +15,7 @@
  * Leistung: Treffer und Vorschau unter der Maus werden nur neu berechnet, wenn sich Maus, Kamera, Werkzeug, Auswahl
  * oder der Tick ändern; der Mauszeiger (CSS cursor) wird nur bei Änderung gesetzt.
  */
-import { BUILDINGS, UNITS, type BuildingKey } from "../data";
+import { BUILDINGS, UNITS, levelDef, type BuildingKey } from "../data";
 import { footprint } from "../sim/geom";
 import type { CommandResult, Game, PlacementCheck } from "../sim/types";
 import type { FrameInput, GameRenderer, Marker, Preview } from "../render";
@@ -496,7 +496,7 @@ export class Input {
   /** Gebäude mit Wehrgang oder Turmplattform? */
   private walkable(id: number): boolean {
     const b = this.ctx.game.state.buildings.find((q) => q.id === id);
-    return !!b && b.built >= 1 && !!BUILDINGS[b.key].walkway;
+    return !!b && b.built >= 1 && !!levelDef(b.key, b.level ?? 1).walkway; // Bergfried: erst ab Stufe 2
   }
 }
 

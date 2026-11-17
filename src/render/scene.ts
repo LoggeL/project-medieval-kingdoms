@@ -580,8 +580,9 @@ export class ObjectLayer {
         }
       }
     }
-    // Figuren auf Wehrgang, Turm und Treppe, dann das Vorderteil
-    const on = this.attached.get(b.id);
+    // Figuren auf Wehrgang, Turm und Treppe, dann das Vorderteil. Im Schnittbild (Bergfried) fehlt die Plattform:
+    // dann keine Figuren oben und kein äußeres Vorderteil.
+    const on = open < 0.5 ? this.attached.get(b.id) : undefined;
     if (on && on.length) {
       if (on.length > 1) on.sort((p, q) => {
         const [pu, pv] = toView(p.x, p.y, this.r, this.W, this.H), [qu, qv] = toView(q.x, q.y, this.r, this.W, this.H);
@@ -590,7 +591,7 @@ export class ObjectLayer {
       for (const a of on) this.figureParts(it, a.u, a.x, a.y, a.z, opt);
       if (spr && b.built >= 1) for (const [key, o] of spr.keys) {
         const ft = bs.texture(key, viewOf(o, this.r), spr.frame, b.team, "front");
-        if (ft) this.part(it, ft, X, Y, ax, ay, { tint });
+        if (ft) this.part(it, ft, X, Y, ax, ay, { tint, alpha: 1 - open });
       }
     }
     const before = this.nItems;

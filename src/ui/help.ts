@@ -8,6 +8,7 @@ const KEYS = STEUERUNG;
 const TIPS = [
   "Holzfäller und Steinmetze legen ihre Ware auf den Hof, Tagelöhner tragen sie durch das Tor ins Lagerhaus.",
   "Fährst du mit der Maus über ein Gebäude, siehst du hinein: im Lagerhaus jede Ware auf ihrem Fach. Ist es voll, ruht die Arbeit.",
+  "Der Bergfried ist dein Sitz: Fällt er, ist die Burg verloren. Dort wird geforscht (F), mit der Forschung baust du ihn in Stein und zur Burg aus.",
   "Soldaten kosten Gold und eine Waffe aus dem Lager. Ein Tagelöhner holt sie und tritt in die Kaserne ein.",
   "Mauern sind begehbar: Treppe anbauen, Soldaten stationieren. Schützen auf der Mauer schießen weiter und nehmen weniger Schaden.",
   "Übersichtskarte: Klicken oder Ziehen setzt die Kamera dorthin, der helle Rahmen zeigt den Sichtbereich.",

@@ -597,6 +597,145 @@
    ],
    "posts": [],
    "front": true
+  },
+  {
+   "key": "bergfried_holz",
+   "name": "Hölzerner Bergfried",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "bergfried_stein",
+   "name": "Steinerner Bergfried",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [
+    [
+     -0.8,
+     -0.8,
+     5
+    ],
+    [
+     0.8,
+     -0.8,
+     5
+    ],
+    [
+     -0.8,
+     0.8,
+     5
+    ],
+    [
+     0.8,
+     0.8,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "bergfried_burg",
+   "name": "Burgfried",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [
+    [
+     -0.8,
+     -0.8,
+     6
+    ],
+    [
+     0.8,
+     -0.8,
+     6
+    ],
+    [
+     -0.8,
+     0.8,
+     6
+    ],
+    [
+     0.8,
+     0.8,
+     6
+    ],
+    [
+     0,
+     -0.85,
+     6
+    ],
+    [
+     0,
+     0.85,
+     6
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "bergfried_holz_innen",
+   "name": "Hölzerner Bergfried (innen)",
+   "frames": 2,
+   "variants": [
+    "Burgherr",
+    "Burgherr und Gelehrter"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "bergfried_stein_innen",
+   "name": "Steinerner Bergfried (innen)",
+   "frames": 2,
+   "variants": [
+    "Burgherr",
+    "Burgherr und Gelehrter"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "bergfried_burg_innen",
+   "name": "Burgfried (innen)",
+   "frames": 2,
+   "variants": [
+    "Burgherr",
+    "Burgherr und Gelehrter"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true
   }
  ],
  "team_swap": {

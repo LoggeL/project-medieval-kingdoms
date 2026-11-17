@@ -1575,6 +1575,374 @@ def b_kaserne_innen(mb, var):
             mb.cyl("steel", (xx, -0.08, 2.07), 0.05, 0.22, n=4, rot=(-10, 0, 0), r2=0)
 
 
+# ---------------------------------------------------------------- Bergfried (town centre, three levels)
+# Footprint 3 x 3, door in the front wall (model -y, the access tile lies in front of it).
+# Level 1: timber tower on a stone plinth inside a palisade. Level 2: stone keep, platform on 5 steps.
+# Level 3: "Burgfried", platform on 6 steps, corner bartizans, a stair turret with the banner.
+# Posts (archers on the platform) are in buildings.json and BUILDINGS.bergfried.levels in src/data.
+BF_HW = {1: 2.45, 2: 2.85, 3: 2.85}
+BF_H = {2: 5 * STEP, 3: 6 * STEP}
+BF_DOOR = {1: (-0.55, 0.55, 0.7 + 2.1), 2: (-0.6, 0.6, 2.3), 3: (-0.7, 0.7, 2.5)}
+
+
+def pyramid_roof(mb, hw, z0, h, mat, courses=6, ov=0.3, group=None):
+    """Square pyramid roof over a body of half width hw: stacked courses, each lapping over the one above it."""
+    R = (hw + ov) * math.sqrt(2)  # cyl with n = 4 puts its corners on the diagonals
+    for i in range(courses):
+        t0, t1 = i / courses, (i + 1) / courses
+        za, zb = z0 + h * t0, z0 + h * t1
+        top = R * (1 - t1)
+        mb.cyl(mat, (0, 0, (za + zb) / 2), R * (1 - t0) + 0.06, zb - za, n=4, r2=(top + 0.01) if i < courses - 1 else 0, group=group)
+
+
+def palisade(mb, P, gap):
+    """Pointed stakes around the yard (half width P), open in front between -gap and gap."""
+    step = 0.27
+    r = random.Random(17)  # own draws: the same stakes outside and in the cutaway
+
+    def run(pts):
+        for (x, y) in pts:
+            h = 1.35 + 0.18 * r.random()
+            mb.cyl("log", (x, y, h / 2), 0.12, h, n=6)
+            mb.cyl("wood_hi", (x, y, h + 0.14), 0.12, 0.28, n=6, r2=0)
+    n = int(2 * P / step)
+    xs = [-P + (i + 0.5) * 2 * P / n for i in range(n)]
+    run([(x, P) for x in xs])                                    # back
+    run([(P, x) for x in xs[1:-1]] + [(-P, x) for x in xs[1:-1]])  # sides
+    run([(x, -P) for x in xs if abs(x) > gap])                   # front, open at the door
+    for (a, b) in ((-P, -gap), (gap, P)):                        # rail inside the front stakes
+        mb.bx("timber", a, b, -P + 0.12, -P + 0.2, 0.75, 0.85)
+    mb.bx("timber", -P, P, P - 0.2, P - 0.12, 0.75, 0.85)
+    for s in (-1, 1):
+        mb.bx("timber", s * P - 0.04 - (0.12 if s > 0 else -0.12), s * P + 0.04 - (0.12 if s > 0 else -0.12), -P, P, 0.75, 0.85)
+
+
+def bf_yard(mb, lvl):
+    """Things around the keep (the same outside and in the cutaway)."""
+    hw = BF_HW[lvl]
+    if lvl == 1:
+        palisade(mb, 3.62, 1.05)
+        log_pile(mb, -3.05, 1.6, 0, 3, length=1.0, r=0.11, axis="y")
+        barrel(mb, 3.05, -2.0, 0, r=0.26, h=0.66)
+        crate(mb, 3.0, -1.35, 0, s=0.46, rz=8)
+        mb.bx("stone_top", -0.75, 0.75, -hw - 0.95, -hw - 0.05, 0, 0.23)   # steps up to the door on the plinth
+        mb.bx("stone_top", -0.75, 0.75, -hw - 0.55, -hw - 0.05, 0.23, 0.46)
+        return
+    a, b, top = BF_DOOR[lvl]
+    mb.bx("stone_top", a - 0.35, b + 0.35, -hw - 0.7, -hw, 0, 0.12)
+    barrel(mb, hw + 0.45, -hw - 0.3, 0, r=0.27, h=0.7)
+    barrel(mb, hw + 0.5, -hw + 0.35, 0, r=0.25, h=0.66)
+    crate(mb, -hw - 0.45, -hw - 0.2, 0, s=0.5, rz=-10)
+    with mb.at((-hw - 0.5, 1.2, 0)):  # mounting block and a hitching rail
+        mb.bx("stone", -0.3, 0.3, -0.35, 0.35, 0, 0.35)
+        mb.bx("stone_top", -0.3, 0.3, -0.35, 0.0, 0.35, 0.55)
+    for yy in (-0.6, 0.6):
+        mb.bx("wood", hw + 0.55, hw + 0.65, yy - 0.05, yy + 0.05, 0, 1.0)
+    mb.bx("wood_hi", hw + 0.55, hw + 0.65, -0.7, 0.7, 0.9, 1.0)
+    if lvl == 3:
+        for (x, y) in ((-1.9, -hw - 0.55), (1.9, -hw - 0.55)):   # braziers beside the door
+            mb.cyl("iron", (x, y, 0.45), 0.05, 0.9, n=6)
+            mb.cyl("iron", (x, y, 0.95), 0.2, 0.16, n=8, r2=0.26)
+            mb.blob("target", (x, y, 1.08), (0.15, 0.15, 0.12), seg=6, rings=4, jitter=0.2)
+            mb.blob("gold", (x, y, 1.18), (0.08, 0.08, 0.12), seg=5, rings=3, jitter=0.2)
+
+
+def slit(mb, face, c, h=0.75, w=0.14):
+    """Arrow slit with a stone sill on face s/n/e/w (c = centre of the opening at its bottom, on the wall face)."""
+    x, y, z = c
+    if face in "sn":
+        k = -1 if face == "s" else 1
+        mb.bx("window", x - w / 2, x + w / 2, y + k * 0.03 - 0.02, y + k * 0.03 + 0.02, z, z + h)
+        mb.bx("stone_top", x - w / 2 - 0.12, x + w / 2 + 0.12, y + k * 0.06 - 0.04, y + k * 0.06 + 0.04, z - 0.08, z)
+    else:
+        k = 1 if face == "e" else -1
+        mb.bx("window", x + k * 0.03 - 0.02, x + k * 0.03 + 0.02, y - w / 2, y + w / 2, z, z + h)
+        mb.bx("stone_top", x + k * 0.06 - 0.04, x + k * 0.06 + 0.04, y - w / 2 - 0.12, y + w / 2 + 0.12, z - 0.08, z)
+
+
+def shield_sign(mb, x, y, z, s=0.5):
+    """House sign above the door: team-coloured shield with the gold chevron (as on the banners)."""
+    mb.bx("team", x - s / 2, x + s / 2, y - 0.08, y, z, z + s * 1.05)
+    mb.cyl("team", (x, y - 0.04, z), s / 2, 0.08, n=10, rot=(90, 0, 0))
+    for k in (-1, 1):
+        mb.box("gold", (x + k * s * 0.18, y - 0.1, z + s * 0.45), (s * 0.55, 0.02, 0.09), rot=(0, k * 38, 0))
+
+
+def keep_body(mb, lvl):
+    """Stone keep of level 2 or 3: battered base, masonry, string courses, cornice, platform with battlements."""
+    hw, H = BF_HW[lvl], BF_H[lvl]
+    a, b, top = BF_DOOR[lvl]
+    batter = 0.25 if lvl == 2 else 0.35
+    masonry(mb, -hw - batter, hw + batter, -hw - batter, hw + batter, 0, 0.5, row=0.25, top=True)
+    if lvl == 3:
+        masonry(mb, -hw - 0.17, hw + 0.17, -hw - 0.17, hw + 0.17, 0.5, 1.0, row=0.25, top=True)
+    masonry(mb, -hw, hw, -hw, hw, 0, H, row=0.36, top=False)
+    for zc in ((2.8,) if lvl == 2 else (2.9, 4.6)):
+        mb.bx("stone_top", -hw - 0.06, hw + 0.06, -hw - 0.06, hw + 0.06, zc, zc + 0.14)
+    mb.bx("stone_top", -hw - 0.1, hw + 0.1, -hw - 0.1, hw + 0.1, H - 0.22, H)   # cornice
+    mb.bx("stone_top", -hw, hw, -hw, hw, H - 0.02, H + 0.04)                    # platform
+    mb.bx("wood", -1.6, -1.0, 0.9, 1.5, H + 0.04, H + 0.08)                      # trapdoor
+    mb.bx("iron", -1.35, -1.25, 0.95, 1.45, H + 0.08, H + 0.1)
+    if lvl == 3:  # corbels under the cornice
+        n = 9
+        for i in range(n):
+            t = -hw + (i + 0.5) * 2 * hw / n
+            for (x0, x1, y0, y1) in ((t - 0.1, t + 0.1, -hw - 0.1, -hw), (t - 0.1, t + 0.1, hw, hw + 0.1),
+                                     (-hw - 0.1, -hw, t - 0.1, t + 0.1), (hw, hw + 0.1, t - 0.1, t + 0.1)):
+                mb.bx("stone2", x0, x1, y0, y1, H - 0.55, H - 0.22)
+    groups = {"s": "f:0:-1", "n": "f:0:1", "e": "f:1:0", "w": "f:-1:0"}
+    battlements(mb, -hw - 0.1, hw + 0.1, -hw - 0.1, hw + 0.1, H, sides="nesw", side_groups=groups)
+    # door: stone surround, plank leaves with iron bands; the house sign above it
+    y0 = -hw
+    mb.bx("stone_top", a - 0.22, b + 0.22, y0 - 0.1, y0, 0, top + 0.28)
+    mb.bx("door", a, b, y0 - 0.14, y0 - 0.08, 0, top)
+    mb.bx("wood", -0.015, 0.015, y0 - 0.16, y0 - 0.14, 0, top)
+    for zz in (0.5, top * 0.55, top - 0.35):
+        mb.bx("iron", a + 0.05, b - 0.05, y0 - 0.17, y0 - 0.14, zz - 0.035, zz + 0.035)
+    shield_sign(mb, 0, y0 - 0.1, top + 0.45, s=0.5 if lvl == 2 else 0.62)
+    # arrow slits and windows on all faces
+    zs = (1.4, 3.4) if lvl == 2 else (1.5, 3.3, 5.0)
+    for zi, z in enumerate(zs):
+        for t in ((-1.4, 1.4) if zi else (-1.6, 1.6)):
+            if zi == 0 and abs(t) < 1.0:
+                continue
+            slit(mb, "s", (t, -hw, z))
+            slit(mb, "n", (t, hw, z))
+            slit(mb, "e", (hw, t, z))
+            slit(mb, "w", (-hw, t, z))
+    if lvl == 3:  # paired lancet windows of the hall over the door
+        for x in (-0.25, 0.25):
+            mb.bx("window", x - 0.11, x + 0.11, -hw - 0.04, -hw + 0.01, 3.35, 4.25)
+        mb.bx("stone_top", -0.55, 0.55, -hw - 0.08, -hw, 3.27, 3.35)
+        for t in (-0.25, 0.25):
+            mb.bx("window", hw - 0.01, hw + 0.04, t - 0.11, t + 0.11, 3.35, 4.25)
+        mb.bx("stone_top", hw, hw + 0.08, -0.55, 0.55, 3.27, 3.35)
+
+
+def bartizan(mb, sx, sy, hw, H):
+    """Corner turret corbelled out at the top of the keep, with a conical tiled roof."""
+    g = "f:%d:%d" % (sx, sy)
+    c = (sx * (hw - 0.05), sy * (hw - 0.05))
+    mb.cyl("stone2", (c[0], c[1], H - 1.85), 0.12, 0.9, n=10, r2=0.68, group=g)    # corbel cone
+    mb.cyl("stone", (c[0], c[1], H - 0.45), 0.7, 1.9, n=10, group=g)
+    mb.cyl("stone_top", (c[0], c[1], H + 0.45), 0.76, 0.12, n=10, group=g)
+    for k in range(5):  # merlons on the outer half
+        a = math.atan2(sy, sx) + (k - 2) * 0.55
+        mb.box("stone", (c[0] + 0.58 * math.cos(a), c[1] + 0.58 * math.sin(a), H + 0.82), (0.26, 0.26, 0.6), rot=(0, 0, math.degrees(a)), group=g)
+    mb.cyl("roof_tile", (c[0], c[1], H + 1.05 + 0.7), 0.82, 1.4, n=10, r2=0, group=g)
+    mb.cyl("gold", (c[0], c[1], H + 2.5), 0.06, 0.12, n=6, group=g)
+    a = math.atan2(sy, sx)
+    mb.bx("window", c[0] + 0.69 * math.cos(a) - 0.05, c[0] + 0.69 * math.cos(a) + 0.05,
+          c[1] + 0.69 * math.sin(a) - 0.05, c[1] + 0.69 * math.sin(a) + 0.05, H - 0.6, H - 0.05, group=g)
+
+
+def b_bergfried_holz(mb, var):
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    mb.rnd = random.Random(1000 * mb.seed + 81)
+    hw = BF_HW[1]
+    masonry(mb, -hw - 0.1, hw + 0.1, -hw - 0.1, hw + 0.1, 0, 0.7, row=0.235, top=True)
+    timber_frame(mb, -hw, hw, -hw, hw, 0.7, 3.9, spacing=0.98, braces=True)
+    mb.bx("timber", -hw - 0.28, hw + 0.28, -hw - 0.28, hw + 0.28, 3.9, 4.1)           # jetty beams
+    for t in (-1.6, -0.55, 0.55, 1.6):
+        for (x0, x1, y0, y1) in ((t - 0.07, t + 0.07, -hw - 0.3, -hw), (hw, hw + 0.3, t - 0.07, t + 0.07),
+                                 (t - 0.07, t + 0.07, hw, hw + 0.3), (-hw - 0.3, -hw, t - 0.07, t + 0.07)):
+            mb.bx("timber", x0, x1, y0, y1, 3.62, 3.9)
+    timber_frame(mb, -hw - 0.2, hw + 0.2, -hw - 0.2, hw + 0.2, 4.1, 6.3, spacing=0.88, braces=False)
+    pyramid_roof(mb, hw + 0.2, 6.3, 2.9, "shingle", courses=7, ov=0.35)
+    mb.cyl("gold", (0, 0, 9.25), 0.1, 0.16, n=6)
+    banner(mb, 0, 0, 9.2, h=1.5, w=0.5, bh=0.85, face="s")
+    a, b, top = BF_DOOR[1]
+    door(mb, "s", (0, -hw, 0.7), w=b - a, h=top - 0.7)
+    for x in (-1.3, 1.3):
+        window(mb, "s", (x, -hw, 2.1), w=0.45, h=0.5)
+    for y in (-1.0, 1.0):
+        window(mb, "e", (hw, y, 2.1), w=0.45, h=0.5)
+        window(mb, "w", (-hw - 0.03, y, 2.1), w=0.45, h=0.5, shutters=False)
+    for t in (-1.1, 0.0, 1.1):
+        window(mb, "s", (t, -hw - 0.2, 4.95), w=0.42, h=0.55)
+        window(mb, "e", (hw + 0.2, t, 4.95), w=0.42, h=0.55)
+    bf_yard(mb, 1)
+
+
+def b_bergfried_stein(mb, var):
+    S = 3 * T / 2
+    ground(mb, "gravel", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    mb.rnd = random.Random(1000 * mb.seed + 82)
+    keep_body(mb, 2)
+    hw, H = BF_HW[2], BF_H[2]
+    banner(mb, hw - 0.5, hw - 0.5, H, h=2.4, w=0.55, bh=1.0, face="s", group="f:1:1")
+    bf_yard(mb, 2)
+
+
+def b_bergfried_burg(mb, var):
+    S = 3 * T / 2
+    ground(mb, "gravel", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    mb.rnd = random.Random(1000 * mb.seed + 83)
+    keep_body(mb, 3)
+    hw, H = BF_HW[3], BF_H[3]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            bartizan(mb, sx, sy, hw, H)
+    # stair turret in the middle of the platform, the banner on top
+    masonry(mb, -0.6, 0.6, -0.6, 0.6, H, H + 1.9, row=0.32, top=True)
+    mb.bx("door", -0.3, 0.3, -0.64, -0.6, H + 0.04, H + 1.4)
+    battlements(mb, -0.68, 0.68, -0.68, 0.68, H + 1.9, h=0.5, th=0.18, merlon=0.3, gap=0.22)
+    banner(mb, 0.25, 0.25, H + 1.9, h=2.1, w=0.55, bh=0.95, face="s")
+    bf_yard(mb, 3)
+
+
+def seated_lord(mb, x, y, z):
+    """The lord at the table, seen from the front (faces model -y): tunic in the house colour, cloak, gold circlet."""
+    mb.bx("leather", x - 0.2, x + 0.2, y - 0.25, y + 0.1, z + 0.42, z + 0.56)              # thighs on the seat
+    mb.blob("team", (x, y + 0.02, z + 0.88), (0.24, 0.17, 0.34), seg=8, rings=5, jitter=0.03)
+    mb.blob("target", (x, y + 0.13, z + 0.92), (0.27, 0.12, 0.36), seg=8, rings=5, jitter=0.03)  # cloak behind
+    for k in (-1, 1):  # arms forward onto the table
+        mb.box("team", (x + k * 0.24, y - 0.15, z + 0.9), (0.1, 0.38, 0.11), rot=(-25, 0, 0))
+        mb.bx("skin", x + k * 0.24 - 0.05, x + k * 0.24 + 0.05, y - 0.42, y - 0.32, z + 0.78, z + 0.84)
+    mb.blob("skin", (x, y, z + 1.33), (0.13, 0.13, 0.15), seg=8, rings=5, jitter=0.02)
+    mb.blob("hair", (x, y + 0.03, z + 1.4), (0.13, 0.12, 0.09), seg=7, rings=4, jitter=0.02)
+    mb.bx("hair", x - 0.08, x + 0.08, y - 0.14, y - 0.06, z + 1.17, z + 1.27)             # beard
+    mb.cyl("gold", (x, y, z + 1.45), 0.14, 0.06, n=8)
+
+
+def scholar(mb, x, y, z):
+    """The scholar standing at the lectern (faces model +x): long brown robe, grey hair, hands on the book."""
+    mb.cyl("leather", (x, y, z + 0.55), 0.27, 1.1, n=8, r2=0.19)
+    mb.blob("leather", (x, y, z + 1.18), (0.2, 0.2, 0.22), seg=8, rings=5, jitter=0.03)
+    mb.blob("skin", (x + 0.02, y, z + 1.5), (0.12, 0.12, 0.14), seg=8, rings=5, jitter=0.02)
+    mb.blob("steel", (x - 0.03, y, z + 1.56), (0.12, 0.13, 0.08), seg=7, rings=4, jitter=0.03)
+    for k in (-1, 1):
+        mb.box("leather", (x + 0.2, y + k * 0.16, z + 1.08), (0.36, 0.09, 0.1), rot=(0, 20, 0))
+        mb.bx("skin", x + 0.34, x + 0.42, y + k * 0.12 - 0.04, y + k * 0.12 + 0.04, z + 0.98, z + 1.04)
+
+
+def lectern(mb, x, y, z, book):
+    mb.bx("wood", x - 0.06, x + 0.06, y - 0.06, y + 0.06, z, z + 0.95)
+    mb.bx("wood", x - 0.25, x + 0.25, y - 0.25, y + 0.25, z, z + 0.05)
+    mb.box("wood_hi", (x, y, z + 1.0), (0.42, 0.55, 0.05), rot=(0, 20, 0))
+    if book:
+        for k in (-1, 1):
+            mb.box("cloth", (x - 0.02, y + k * 0.13, z + 1.05), (0.3, 0.24, 0.04), rot=(0, 20, 0))
+        mb.box("leather", (x - 0.02, y, z + 1.03), (0.33, 0.52, 0.02), rot=(0, 20, 0))
+        mb.cyl("cloth", (x + 0.18, y + 0.35, z + 1.0), 0.03, 0.14, n=6)      # candle
+        mb.box("gold", (x + 0.18, y + 0.35, z + 1.1), (0.03, 0.03, 0.06))
+    else:
+        mb.box("leather", (x - 0.02, y, z + 1.05), (0.3, 0.4, 0.06), rot=(0, 20, 0))   # closed book
+
+
+def b_bergfried_innen(lvl):
+    """Cutaway of the keep's hall (ground floor): the lord at his table; variant 1 adds the scholar at the lectern
+    (shown while research is running). Walls towards the camera stay low (front mask)."""
+    def build(mb, var):
+        S = 3 * T / 2
+        ground(mb, "dirt" if lvl == 1 else "gravel", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+        mb.rnd = random.Random(1000 * mb.seed + 84)
+        hw = BF_HW[lvl]
+        d = mb.view
+        a, b, top = BF_DOOR[lvl]
+        if lvl == 1:
+            z0 = 0.73
+            masonry(mb, -hw - 0.1, hw + 0.1, -hw - 0.1, hw + 0.1, 0, 0.7, row=0.235, top=True)
+            cut_house(mb, -hw, hw, -hw, hw, 0.7, 3.2, th=0.16, gaps={"s": (a, b, top)}, posts=0.98, plinth=False)
+            plank_floor(mb, -hw + 0.16, hw - 0.16, -hw + 0.16, hw - 0.16, 0.7, z0, pitch=0.34, along="x")
+            th = 0.16
+        else:
+            z0 = 0.06
+            th = 0.42
+            for side in "nesw":
+                lo = low_side(side, d)
+                box = wall_box(side, -hw, hw, -hw, hw, th)
+                gap = (a, b, top) if side == "s" else None
+                if lo:
+                    stone_slab(mb, side, box, 0, 0.6, (gap[0], gap[1], 0.0) if gap else None, group=side_group(side), row=0.3)
+                    continue
+                stone_slab(mb, side, box, 0, 3.0, gap, row=0.36)
+                bx0, bx1, by0, by1 = box
+                ib = {"s": (bx0 + th, bx1 - th, by1, by1 + 0.03), "n": (bx0 + th, bx1 - th, by0 - 0.03, by0),
+                      "e": (bx0 - 0.03, bx0, by0, by1), "w": (bx1, bx1 + 0.03, by0, by1)}[side]
+                slab(mb, "plaster", side, ib, 0.3, 2.92, gap)
+            # flagstone floor
+            n = 6
+            q = (2 * (hw - th)) / n
+            for i in range(n):
+                for j in range(n):
+                    x0_, y0_ = -hw + th + i * q, -hw + th + j * q
+                    mb.bx("stone2" if (i * 7 + j * 3) % 4 == 0 else "stone_top", x0_ + 0.02, x0_ + q - 0.02, y0_ + 0.02, y0_ + q - 0.02, 0, z0)
+            if lvl == 3:
+                mb.bx("target", -1.35, 1.35, -0.4, 1.6, z0, z0 + 0.02)          # carpet under the table
+                mb.bx("gold", -1.35, 1.35, -0.4, -0.3, z0 + 0.02, z0 + 0.025)
+        inner = hw - th
+        # stair up to the platform along the left wall, rising towards the back
+        nst = 9
+        for i in range(nst):
+            yy = -0.9 + i * (inner + 0.9 - 0.1) / nst
+            zz = z0 + (i + 1) * (2.9 - z0) / nst
+            mb.bx("wood" if lvl == 1 else "stone", -inner, -inner + 0.85, yy, yy + (inner + 0.8) / nst + 0.02, zz - 0.12, zz)
+            mb.bx("wood_hi" if lvl == 1 else "stone_top", -inner, -inner + 0.85, yy, yy + 0.08, zz - 0.02, zz)
+        # back wall: tapestry with the house sign, torches; left of it the hearth
+        if not low_side("n", d):
+            yb = inner - 0.02
+            mb.bx("team", -0.7, 0.7, yb - 0.04, yb, 1.1, 2.6)
+            for k in (-1, 1):
+                mb.box("gold", (k * 0.25, yb - 0.06, 1.95), (0.75, 0.02, 0.12), rot=(0, k * 38, 0))
+            mb.bx("gold", -0.72, 0.72, yb - 0.06, yb - 0.04, 2.55, 2.62)
+            for x in (-1.3, 1.3):
+                mb.bx("iron", x - 0.04, x + 0.04, yb - 0.2, yb, 1.85, 1.92)
+                mb.cyl("wood", (x, yb - 0.18, 2.0), 0.04, 0.24, n=6)
+                mb.blob("gold", (x, yb - 0.18, 2.18), (0.07, 0.07, 0.11), seg=5, rings=3, jitter=0.15)
+        if not low_side("e", d):  # hearth against the right wall
+            xh = inner - 0.02
+            masonry(mb, xh - 0.45, xh, -1.6, -0.5, z0, 2.0, row=0.3, top=True)
+            mb.bx("window", xh - 0.47, xh - 0.44, -1.4, -0.7, z0, z0 + 0.7)
+            mb.bx("stone_top", xh - 0.7, xh, -1.75, -0.35, z0, z0 + 0.08)
+            mb.blob("target", (xh - 0.45, -1.05, z0 + 0.18), (0.2, 0.25, 0.12), seg=6, rings=4, jitter=0.2)
+            mb.blob("gold", (xh - 0.45, -1.05, z0 + 0.3), (0.1, 0.14, 0.12), seg=5, rings=3, jitter=0.2)
+            log(mb, (xh - 0.5, -1.05, z0 + 0.08), 0.6, r=0.06, axis="y")
+            # shelf with books and scrolls behind the lectern
+            mb.bx("wood", xh - 0.35, xh, 0.4, 1.6, z0, z0 + 1.9)
+            for k, zz in enumerate((z0 + 0.5, z0 + 1.1, z0 + 1.7)):
+                mb.bx("wood_hi", xh - 0.37, xh, 0.4, 1.6, zz - 0.04, zz)
+                for i in range(6):
+                    yy = 0.5 + i * 0.18
+                    m = ("leather", "team", "target", "leather", "wood_hi", "steel")[(i + k) % 6]
+                    if (i + k) % 5 == 4:
+                        mb.cyl("sack", (xh - 0.18, yy, zz + 0.07), 0.06, 0.3, n=6, rot=(0, 90, 0))
+                    else:
+                        mb.bx(m, xh - 0.3, xh - 0.06, yy - 0.06, yy + 0.06, zz, zz + 0.32 - 0.04 * (i % 2))
+        # table with the lord in his chair, goblet, plate, a charter
+        ty = 0.75
+        mb.bx("wood_hi", -1.0, 1.0, ty - 0.45, ty + 0.3, z0 + 0.74, z0 + 0.8)
+        for (lx, ly) in ((-0.9, ty - 0.37), (0.9, ty - 0.37), (-0.9, ty + 0.22), (0.9, ty + 0.22)):
+            mb.bx("wood", lx - 0.05, lx + 0.05, ly - 0.05, ly + 0.05, z0, z0 + 0.74)
+        cy_ = ty + 0.55
+        mb.bx("wood", -0.32, 0.32, cy_ - 0.28, cy_ + 0.25, z0 + 0.4, z0 + 0.48)        # chair seat
+        mb.bx("wood", -0.34, 0.34, cy_ + 0.22, cy_ + 0.32, z0, z0 + 1.75)               # high back
+        mb.bx("team", -0.26, 0.26, cy_ + 0.18, cy_ + 0.22, z0 + 0.6, z0 + 1.55)
+        mb.cyl("gold", (-0.3, cy_ + 0.27, z0 + 1.8), 0.05, 0.1, n=6)
+        mb.cyl("gold", (0.3, cy_ + 0.27, z0 + 1.8), 0.05, 0.1, n=6)
+        seated_lord(mb, 0, cy_, z0)
+        mb.cyl("gold", (0.55, ty - 0.2, z0 + 0.9), 0.05, 0.2, n=8, r2=0.07)
+        mb.cyl("steel", (-0.5, ty - 0.2, z0 + 0.82), 0.16, 0.03, n=10)
+        mb.bx("cloth", -0.2, 0.2, ty - 0.38, ty - 0.12, z0 + 0.8, z0 + 0.82)
+        mb.bx("target", -0.03, 0.03, ty - 0.4, ty - 0.36, z0 + 0.79, z0 + 0.82)          # seal
+        # chest and a barrel by the door
+        with mb.at((-1.25, -inner + 0.45, z0)):
+            mb.bx("crate", -0.35, 0.35, -0.22, 0.22, 0, 0.45)
+            mb.bx("iron", -0.37, 0.37, -0.24, 0.24, 0.41, 0.46)
+            mb.bx("gold", -0.05, 0.05, -0.25, -0.22, 0.25, 0.38)
+        barrel(mb, inner - 0.35, -inner + 0.35, z0, r=0.24, h=0.62)
+        # lectern; the scholar stands at it while research runs
+        lx, ly = 1.25, -0.55
+        lectern(mb, lx + 0.45, ly, z0, var >= 1)
+        if var >= 1:
+            scholar(mb, lx - 0.05, ly, z0)
+            for i in range(3):  # scrolls on the floor beside him
+                mb.cyl("sack", (lx - 0.2 + i * 0.2, ly - 0.55, z0 + 0.06), 0.06, 0.35, n=6, rot=(90, 0, 15 * i))
+        bf_yard(mb, lvl)
+    return build
+
+
 BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruch, "lager": b_lager, "kaserne": b_kaserne,
          "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne,
          "baum_liegt": b_baum_liegt, "baum_stumpf": b_baum_stumpf, "fels": b_fels,
@@ -1582,7 +1950,10 @@ BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruc
          "stapel_speer": b_stapel_speer, "stapel_schwert": b_stapel_schwert, "stapel_bogen": b_stapel_bogen,
          "lager_boden": b_lager_boden, "tor": b_tor,
          "lagerhaus": b_lagerhaus, "lagerhaus_innen": b_lagerhaus_innen, "haus_innen": b_haus_innen,
-         "holzfaeller_innen": b_holzfaeller_innen, "kaserne_innen": b_kaserne_innen}
+         "holzfaeller_innen": b_holzfaeller_innen, "kaserne_innen": b_kaserne_innen,
+         "bergfried_holz": b_bergfried_holz, "bergfried_stein": b_bergfried_stein, "bergfried_burg": b_bergfried_burg,
+         "bergfried_holz_innen": b_bergfried_innen(1), "bergfried_stein_innen": b_bergfried_innen(2),
+         "bergfried_burg_innen": b_bergfried_innen(3)}
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 
 

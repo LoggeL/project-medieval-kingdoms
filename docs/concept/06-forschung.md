@@ -119,4 +119,4 @@ Forschung ändert die Welt, nicht nur Werte: Strohdächer werden zu Schindeln un
 
 ## Umfang
 
-Release-Kern: ca. 45 Technologien wie oben. **Prototyp:** keine Forschung, nur das Datenformat für Voraussetzungen und Freischaltungen, damit Kaserne und Einheitenraster gesperrte Einheiten schon korrekt anzeigen können.
+Release-Kern: ca. 45 Technologien wie oben. **Prototyp:** sieben Techniken im Bergfried (Steinbaukunst, Festungsbau, Marktrecht, Gehärtete Werkzeuge, Tragjoch, Langbogen, Schwere Rüstung), Daten in `src/data/research.ts`, siehe [ADR 0006](../decisions/0006-bergfried-und-forschung.md).

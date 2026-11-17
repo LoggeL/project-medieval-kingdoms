@@ -162,7 +162,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     levels: [
       { name: "Hölzerner Bergfried", desc: "Fachwerkturm auf Steinsockel mit Palisade. Noch ohne Wehrplattform.", sprite: "bergfried_holz", hp: 2500, housing: 10, income: 4, interior: { sprite: "bergfried_holz_innen" } },
       {
-        name: "Steinerner Bergfried", desc: "Wohnturm aus Quadern mit Außentreppe und Wehrplattform: vier Posten für Schützen (Taste T).",
+        name: "Steinerner Bergfried", desc: "Wohnturm aus Quadern mit Zinnen und Wehrplattform: vier Posten für Schützen (Taste T).",
         sprite: "bergfried_stein", hp: 5000, housing: 14, income: 8, walkway: 2, deck: 5,
         posts: [[-0.8, -0.8, 5], [0.8, -0.8, 5], [-0.8, 0.8, 5], [0.8, 0.8, 5]],
         interior: { sprite: "bergfried_stein_innen" },
