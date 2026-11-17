@@ -11,7 +11,7 @@
  * Tor, Mauer oder Treppe angreift und wen die eigenen Pfeile schnell erledigen, kommt zuerst. Ein gewähltes Ziel wird
  * TUNING.targetHoldSeconds gehalten, damit niemand zwischen zwei Gegnern hin- und herwechselt.
  */
-import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, levelDef, type UnitKey } from "../data";
+import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, hitFactor, levelDef, type UnitKey } from "../data";
 import { removeBuilding } from "./build";
 import { footprint } from "./geom";
 import { releaseJob } from "./jobs";
@@ -70,8 +70,7 @@ export function nearestEnemy(w: World, u: SUnit, radius: number, ok?: (t: SUnit)
 /** Erwarteter Schaden eines Treffers von a gegen t (ohne Streuung), wie damageUnit rechnet. */
 export function expectedDamage(a: SUnit, t: SUnit): number {
   const ad = UNITS[a.key], td = UNITS[t.key];
-  let dmg = ad.damage ?? 1;
-  if (td.role !== "arbeiter") dmg *= ad.bonus?.[td.role] ?? 1;
+  let dmg = (ad.damage ?? 1) * hitFactor(ad, td);
   if (isRanged(a.key) && a.z >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor;
   dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[ad.damageType ?? "hieb"].armor);
   if (t.z >= 2 && a.z < 1) dmg *= WALL_BONUS.damageTakenFactor;
@@ -193,8 +192,8 @@ export function updateProjectiles(w: World): void {
 export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: number): void {
   const a = UNITS[akey], d = UNITS[t.key];
   const type = a.damageType ?? "hieb";
-  let dmg = (a.damage ?? 1) * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread);
-  if (d.role !== "arbeiter") dmg *= a.bonus?.[d.role] ?? 1;
+  // Konter-Bonus und Schadensart gegen Rüstungsklasse (hitFactor, Konzept 05), dann Rüstungspunkte
+  let dmg = (a.damage ?? 1) * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread) * hitFactor(a, d);
   if (a.role === "fernkampf" && az >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor; // Schuss von der Mauer
   dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[type].armor);
   if (t.z >= 2 && az < 1) dmg *= WALL_BONUS.damageTakenFactor; // Deckung hinter den Zinnen

@@ -16,6 +16,11 @@ const SPRITE: Record<string, [number, number][]> = {
   kaserne: [[4.6, -129.1], [-54.9, -103.9], [-4.6, -74.2], [54.9, -99.3]],
   // Oberkante des Schornsteins im Bild je Ansicht −72, −107, −94, −59 (wie beim Wohnhaus gut 3 px über der Öffnung)
   baeckerei: [[47.8, -68.6], [21.4, -103.2], [-47.8, -90.0], [-21.4, -55.4]],
+  // Werkstätten der Militärwirtschaft (Esse im Nordwesten), Schmelzhütte (Schlot im Osten): an jedem Punkt deckend,
+  // 4–5 px darüber durchsichtig (Oberkante), geprüft an assets/buildings/vorgerendert/*.png aller vier Ansichten
+  waffenschmiede: [[-14.5, -104.3], [-54.7, -69.8], [14.5, -49.6], [54.7, -84.2]],
+  ruestungsschmiede: [[-14.5, -104.3], [-54.7, -69.8], [14.5, -49.6], [54.7, -84.2]],
+  schmelzhuette: [[23.9, -86.0], [-5.0, -95.4], [-23.9, -80.9], [5.0, -71.5]],
 };
 
 describe("Schornsteinrauch", () => {

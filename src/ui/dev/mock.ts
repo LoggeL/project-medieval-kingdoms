@@ -5,7 +5,7 @@
  * Ausbildungszeiten in Sekunden wie in der Simulation; Kamera, Sichtbereich, Audio und Hinweise wie im Vertrag.
  */
 import type { IconKind, Selection, Tool, UiBridge } from "../../app/contract";
-import { BUILDINGS, TICKS_PER_SECOND, UNITS, type BuildingKey, type Good, type UnitKey } from "../../data";
+import { BUILDINGS, TICKS_PER_SECOND, UNITS, equipmentOf, type BuildingKey, type Good, type UnitKey } from "../../data";
 import type { MusicKey } from "../../data/audio";
 import { ZOOMS } from "../../data/view";
 import { createDemoGame } from "../../sim/demo";
@@ -18,7 +18,7 @@ type Ev = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
 const BUILDING_FALLBACK: Record<string, string> = { tor: "mauer" };
 /** Waren ohne Stapel-Sprite: Figur, die sie trägt (nur Prüfstand). */
 const GOOD_FALLBACK: Partial<Record<Good, string>> = { holz: "traeger" };
-const GOOD_TINT: Record<Good, string> = { holz: "#8a5a2b", stein: "#9a958c", eisen: "#5c6670", speer: "#b08a50", schwert: "#c9ccd2", bogen: "#7a4a22", getreide: "#d0ae5c", mehl: "#e6ddc8", brot: "#b07a3e" };
+const GOOD_TINT: Record<Good, string> = { holz: "#8a5a2b", stein: "#9a958c", eisen: "#5c6670", speer: "#b08a50", schwert: "#c9ccd2", bogen: "#7a4a22", getreide: "#d0ae5c", mehl: "#e6ddc8", brot: "#b07a3e", erz: "#8c3f22", armbrust: "#9c7040", pike: "#b08a50", ruestung: "#8f969c" };
 
 export interface MockBridge {
   bridge: UiBridge; game: Game; log: (Command & { result: CommandResult })[]; onLog(fn: () => void): void;
@@ -55,9 +55,10 @@ export function createMockBridge(): MockBridge {
         const t = UNITS[cmd.unit].train;
         if (!b || !t) return { ok: false, reason: "Keine Kaserne." };
         if (s.gold < t.gold) return { ok: false, reason: `Nicht genug Gold (${t.gold} nötig).` };
-        if ((s.stock[t.equipment] ?? 0) < 1) return { ok: false, reason: "Keine passende Waffe im Lager." };
+        const eq = equipmentOf(UNITS[cmd.unit]);
+        if (eq.some((g) => (s.stock[g] ?? 0) < eq.filter((x) => x === g).length)) return { ok: false, reason: "Keine passende Ausrüstung im Lager." };
         s.gold -= t.gold;
-        s.stock[t.equipment]--;
+        for (const g of eq) s.stock[g]--;
         // wie die Simulation: Auftrag in die Warteschlange, ein Tagelöhner holt die Waffe und tritt dann ein
         b.queue.push(cmd.unit);
         return { ok: true };

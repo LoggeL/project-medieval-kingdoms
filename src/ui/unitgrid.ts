@@ -4,14 +4,24 @@
  * Gruppen nach Ausbildungsstätte, je Gruppe zweizeilig; die Leiste blättert waagrecht (Mausrad, Pfeilknöpfe),
  * so bleibt das Raster auch bei vielen Einheiten übersichtlich und vollständig erreichbar.
  */
-import { BUILDINGS, GOODS, TECHS, UNITS, WALL_BONUS, type Good, type UnitKey } from "../data";
+import { ARMOR_NAME, BUILDINGS, GOODS, TECHS, UNITS, WALL_BONUS, equipmentOf, trainCost, type Good, type UnitDef, type UnitKey } from "../data";
 import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
 import { h, num, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
 import { costRow, type UiCtx } from "./shared";
 
-const EQUIP: Partial<Record<Good, string>> = { speer: "den Speer", schwert: "das Schwert", bogen: "den Bogen", eisen: "das Eisen" };
+const EQUIP: Partial<Record<Good, string>> = {
+  speer: "den Speer", schwert: "das Schwert", bogen: "den Bogen", eisen: "das Eisen", armbrust: "die Armbrust", pike: "die Pike", ruestung: "die Rüstung",
+};
+
+/** Fehlt Ausrüstung im Lager (Bestand der Kopfleiste, je Stück)? */
+export function gearShort(s: SimState, def: UnitDef): boolean {
+  const eq = equipmentOf(def);
+  return eq.some((g) => (s.stock[g] ?? 0) < eq.filter((x) => x === g).length);
+}
+
+const dec = (n: number) => String(n).replace(".", ",");
 
 /** keyed: Karten, die eine Taste bekommen (spielbare Einheiten, in Rasterreihenfolge; gesperrte haben keine). */
 export interface UnitGrid { el: HTMLElement; keyed: HTMLElement[]; update(s: SimState): void }
@@ -28,8 +38,8 @@ export function trainingSite(ctx: UiCtx, unit: UnitKey): Building | null {
 
 /** Icon einer Einheit: Figur aus dem Blatt oder, solange es keine gibt, ein Wappenschild mit Anfangsbuchstaben. */
 export function unitIcon(ctx: UiCtx, e: RosterEntry, size: number): HTMLElement {
-  const sprite = e.unit ?? e.sprite;
-  if (sprite) return ctx.icons.make("einheit", sprite, size, size);
+  // über den Einheitenschlüssel: die Darstellung liest daraus die Figur (UnitDef.sprite, z. B. fusssoldat → ritter)
+  if (e.sprite) return ctx.icons.make("einheit", e.data, size, size);
   return h("span.mk-shield", { title: "Noch keine Figur", style: `width:${size}px;height:${size}px` }, h("span", { text: initials(e.name) }));
 }
 
@@ -49,7 +59,7 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
       const need = h("span.mk-need");
       let costEl: HTMLElement;
       if (def?.train) {
-        const cost = costRow(ctx, { gold: def.train.gold, [def.train.equipment]: 1 }, 14);
+        const cost = costRow(ctx, trainCost(def), 14);
         live.push({ e, el: null as unknown as HTMLElement, cost, need });
         costEl = cost.el;
       } else {
@@ -87,25 +97,33 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
     open = e;
     detail.textContent = "";
     if (!detail.isConnected) document.querySelector(".mk-root")?.append(detail);
-    const def = e.unit ? UNITS[e.unit] : null;
+    const def = UNITS[e.data];
     const rows: [string, string][] = [];
-    if (def) {
-      rows.push(["Leben", num(def.hp)], ["Rüstung", num(def.armor)]);
+    {
+      rows.push(["Leben", num(def.hp)], ["Rüstung", `${num(def.armor)}${def.armorClass ? ` (${ARMOR_NAME[def.armorClass]})` : ""}`]);
       if (def.damage) rows.push(["Schaden", `${def.damage} ${def.damageType ? DAMAGE_NAME[def.damageType] : ""}`.trim()]);
-      if (def.range) rows.push(["Reichweite", `${String(def.range).replace(".", ",")} Felder`]);
-      if (def.cooldown) rows.push(["Angriffstakt", `${String(def.cooldown).replace(".", ",")} s`]);
-      rows.push(["Tempo", `${String(def.speed).replace(".", ",")} Felder/s`]);
-      if (def.bonus?.nahkampf) rows.push(["Stark gegen", `Nahkämpfer (×${String(def.bonus.nahkampf).replace(".", ",")})`]);
-      if (def.role === "fernkampf" && def.canStation) rows.push(["Auf der Mauer", `+${String(WALL_BONUS.rangePerStep).replace(".", ",")} Reichweite je Höhenstufe`]);
-      if (def.train) rows.push(["Ausbildung", `${def.train.seconds} s in der Kaserne`]);
+      if (def.range) rows.push(["Reichweite", `${dec(def.range)} Felder`]);
+      if (def.cooldown) rows.push(["Angriffstakt", `${dec(def.cooldown)} s`]);
+      rows.push(["Tempo", `${dec(def.speed)} Felder/s${def.mounted ? " (beritten)" : ""}`]);
+      const strong = [
+        def.bonus?.reiter ? `Reiter (×${dec(def.bonus.reiter)})` : "",
+        def.bonus?.nahkampf ? `Nahkämpfer (×${dec(def.bonus.nahkampf)})` : "",
+        def.bonus?.fernkampf ? `Schützen (×${dec(def.bonus.fernkampf)})` : "",
+        def.damageType === "bolzen" || def.damageType === "kugel" ? "Kette und Platte" : "",
+      ].filter(Boolean);
+      if (strong.length) rows.push(["Stark gegen", strong.join(", ")]);
+      if (def.role === "fernkampf" && def.canStation) rows.push(["Auf der Mauer", `+${dec(WALL_BONUS.rangePerStep)} Reichweite je Höhenstufe`]);
+      if (def.train) rows.push(["Ausbildung", `${def.train.seconds} s`]);
     }
     const body = h("div.mk-detail-body", null,
       h("div.mk-detail-head", null, h("span.mk-detail-icon", null, unitIcon(ctx, e, 64)),
-        h("div", null, h("h3.mk-title", { text: e.name }), h("p.mk-sub", { text: def ? ROLE_NAME[def.role] : e.role ?? "" }))),
+        h("div", null, h("h3.mk-title", { text: e.name }), h("p.mk-sub", { text: ROLE_NAME[def.role] }))),
+      e.role ? h("p.mk-sub", { text: e.role }) : null,
       rows.length ? h("dl.mk-stats", null, ...rows.flatMap(([k, v]) => [h("dt", { text: k }), h("dd", { text: v })])) : null,
     );
-    if (def?.train) {
-      const cost = costRow(ctx, { gold: def.train.gold, [def.train.equipment]: 1 }, 16);
+    if (e.unit && def.train) {
+      const cost = costRow(ctx, trainCost(def), 16);
+      const gear = equipmentOf(def).map((g) => EQUIP[g] ?? GOODS[g].name);
       const where = h("p.mk-sub");
       const go = h("button.mk-btn.mk-btn-wide", { type: "button", text: "Ausbilden", onclick: () => {
         const k = trainingSite(ctx, e.unit!);
@@ -113,7 +131,9 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         recruit(ctx, k.id, e.unit!);
       } });
       body.append(h("div.mk-detail-cost", null, h("span", { text: "Kosten: " }), cost.el),
-        h("p.mk-sub", { text: `Dazu ein Tagelöhner, der ${EQUIP[def.train.equipment] ?? GOODS[def.train.equipment].name} selbst aus dem Lager holt.` }),
+        h("p.mk-sub", { text: gear.length
+          ? `Dazu ein Tagelöhner, der ${gear.length > 1 ? `${gear.slice(0, -1).join(", ")} und ${gear[gear.length - 1]}` : gear[0]} selbst aus dem Lager holt.`
+          : "Dazu ein Tagelöhner." }),
         where, go);
       detailUpdate = (s) => {
         cost.update(s);
@@ -123,9 +143,10 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         setClass(go, "mk-disabled", !k || !!need);
       };
     } else {
+      if (def.train) body.append(h("div.mk-detail-cost", null, h("span", { text: "Kosten: " }), costRow(ctx, trainCost(def), 16).el));
       body.append(h("div.mk-locked-box", null, h("span.mk-lock", { "aria-hidden": "true" }),
         h("div", null, h("strong", { text: "Gesperrt" }), h("ul", null, ...(e.needs ?? []).map((n) => h("li", { text: n }))))),
-      h("p.mk-sub", { text: "Diese Forschung gibt es im Prototyp noch nicht. Was sich schon erforschen lässt, zeigt der Forschungsbaum (F)." }));
+      h("p.mk-sub", { text: "Gebäude, Waren und Forschungen dieser Liste gibt es im Spiel noch nicht. Was sich schon erforschen lässt, zeigt der Forschungsbaum (F)." }));
     }
     detail.append(h("button.mk-x", { type: "button", "aria-label": "Schließen", text: "×", onclick: close }), body);
     detail.hidden = false;
@@ -150,7 +171,7 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         const lack = need ? `Forschung: ${TECHS[need].name}` : !site ? "Kaserne nötig" : !hasPeasant ? "Kein Tagelöhner frei" : "";
         setClass(l.el, "mk-locked", !!need);
         setText(l.need, lack);
-        setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || (s.stock[def.train!.equipment] ?? 0) < 1);
+        setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || gearShort(s, def));
       }
       detailUpdate?.(s);
     },

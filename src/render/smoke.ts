@@ -23,12 +23,17 @@ const STEP_M = 16 / (Math.cos(Math.PI / 6) * PPM);
 /**
  * Schornsteine je Sprite: Öffnung in Modellmetern (aus buildings.py: b_haus masonry 0.75–1.3 × 0.25–0.8, Oberkante
  * 5.37; b_kaserne masonry −2.3…−1.7 × 0.6…1.2 um (0, cy = 1.469), Oberkante 6.6; b_baeckerei BK_CHIMNEY 2.45–3.05 ×
- * 0.75–1.35, Oberkante 5.15). Werkstätten mit production rauchen nur, solange gearbeitet wird (scene.ts).
+ * 0.75–1.35, Oberkante 5.15; tools/blender/buildings_ruestung.py: Werkstätten WS_CHIMNEY −3.05…−2.45 × 1.3…1.9,
+ * Oberkante 5.0, Schlot der Schmelzhütte SM_STACK-Mitte (0.75, 1.15), Oberkante 5.4 plus Glutschicht). Werkstätten mit
+ * production rauchen nur, solange gearbeitet wird (scene.ts).
  */
 export const CHIMNEYS: Record<string, readonly [number, number, number][]> = {
   haus: [[1.025, 0.525, 5.37]],
   kaserne: [[-2.0, 2.369, 6.6]],
   baeckerei: [[2.75, 1.05, 5.15]],
+  waffenschmiede: [[-2.75, 1.6, 5.0]],
+  ruestungsschmiede: [[-2.75, 1.6, 5.0]],
+  schmelzhuette: [[0.75, 1.15, 5.42]],
 };
 
 /** Schornsteinöffnung als Welt-Versatz zur Gebäudemitte (Tiles) und Höhe (Höhenstufen) für Ausrichtung o. */

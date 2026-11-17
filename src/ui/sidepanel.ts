@@ -4,11 +4,11 @@
  * Stillstandsgrund, Anhalten; ADR 0011), Hofstapel, Lagerplätze, Ausbildung, Abreißen.
  * Bergfried: Stufe, Steuern, Ausbau (Kosten, fehlende Forschung, Fortschritt), laufende Forschung und der Forschungsbaum.
  * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
- * Tasten (src/data/hotkeys.ts): Ausbilden U I O, Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
+ * Tasten (src/data/hotkeys.ts): Ausbilden U I O J K L, Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
  * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
-import { BUILDINGS, GOODS, RECIPES, TECHS, UNITS, levelDef, recipesOf, type Good, type RecipeKey, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, RECIPES, TECHS, UNITS, levelDef, recipesOf, trainCost, type Good, type RecipeKey, type UnitKey } from "../data";
 import { inputCap, outputCap, procProgress, procReason } from "../sim/production";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
@@ -18,9 +18,9 @@ import { setKey } from "./hotkeys";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
-import { recruit } from "./unitgrid";
+import { gearShort, recruit } from "./unitgrid";
 
-const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
+const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", handwerk: "Handwerk", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
 const LAYER_NAME = ["am Boden", "auf dem Wehrgang", "auf dem Turm"];
 
 export interface SidePanel { el: HTMLElement; update(s: SimState): void }
@@ -238,7 +238,13 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         inBox.replaceChildren(...ins.get(p.recipe)!.map((x) => x.el));
         outBox.replaceChildren(...outs.get(p.recipe)!.map((x) => x.el));
       }
-      for (const x of recipeBtns) setClass(x.b, "mk-on", x.k === p.recipe);
+      for (const x of recipeBtns) {
+        setClass(x.b, "mk-on", x.k === p.recipe);
+        // gesperrte Rezepte (RecipeDef.tech) ausgegraut mit der nötigen Forschung
+        const lock = lockedBy(s, RECIPES[x.k]);
+        setClass(x.b, "mk-locked", !!lock);
+        x.b.title = lock ? `${RECIPES[x.k].name}: erst erforschen (${TECHS[lock].name})` : RECIPES[x.k].name;
+      }
       for (const x of ins.get(p.recipe)!) {
         const n = p.in[x.g] ?? 0, cap = inputCap(b, x.g), on = (p.enroute[x.g] ?? 0) - (p.picked[x.g] ?? 0);
         setText(x.val, `${n} / ${cap}`);
@@ -362,7 +368,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const get = (s: SimState) => s.buildings.find((q) => q.id === id);
     const buttons = trains.map((u, i) => {
       const t = UNITS[u].train!;
-      const cost = costRow(ctx, { gold: t.gold, [t.equipment]: 1 }, 14);
+      const cost = costRow(ctx, trainCost(UNITS[u]), 14);
       const el = h("button.mk-recruit", { type: "button", title: `${UNITS[u].name} ausbilden (${t.seconds} s)`, onclick: () => recruit(ctx, id, u) },
         ctx.icons.make("einheit", u, 36, 36), h("span.mk-recruit-name", { text: UNITS[u].name }), cost.el);
       setKey(el, i < TRAIN_KEYS.length ? [TRAIN_KEYS[i]] : null);
@@ -383,7 +389,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         const t = UNITS[x.u].train!;
         const need = lockedBy(s, UNITS[x.u]);
         x.el.title = need ? `${UNITS[x.u].name}: erst erforschen (${TECHS[need].name})` : `${UNITS[x.u].name} ausbilden (${t.seconds} s)`;
-        setClass(x.el, "mk-cant", !!need || s.gold < t.gold || (s.stock[t.equipment] ?? 0) < 1);
+        setClass(x.el, "mk-cant", !!need || s.gold < t.gold || gearShort(s, UNITS[x.u]));
       }
       // Rekruten auf dem Weg: aus Building.recruits; fehlt das Feld, gilt der Kopf der Warteschlange als unterwegs,
       // solange nicht ausgebildet wird (die Simulation nimmt ihn erst beim Eintreten aus der Warteschlange).

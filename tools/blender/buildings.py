@@ -2739,6 +2739,8 @@ BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
 BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
+# Militärwirtschaft (ADR 0014): eigene Datei im selben Namensraum, hängt sich an BUILD, SITE_RECTS und SCAFFOLDS an
+exec(compile(open(os.path.join(HERE, "buildings_ruestung.py"), encoding="utf-8").read(), "buildings_ruestung.py", "exec"))
 
 
 # ---------------------------------------------------------------- scene and render

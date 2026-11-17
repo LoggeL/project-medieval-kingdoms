@@ -42,5 +42,10 @@
  "skin": "#d39a74",
  "hair": "#4b3324",
  "bread": "#b8743a",
- "flour": "#f3eee0"
+ "flour": "#f3eee0",
+ "ore": "#8c3f22",
+ "ore_hi": "#c4683a",
+ "ember": "#ff9a2a",
+ "coal": "#2b2624",
+ "clay": "#a87652"
 }

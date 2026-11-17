@@ -12,8 +12,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `activity.ts` | Anzeige-Zustand: `Unit.activity`, `Building.recruits`, `Building.gateOpen` |
 | `storage.ts` | Lager-Slots je Lagertyp (`storagesNear(kind)`, Materiallager/Kornkammer): reservieren, einlagern, verplante Waren, Bestand und `stores` (Bestand/Kapazität je Typ) |
 | `production.ts` | Verarbeitung nach Rezept (ADR 0011): Eingangspuffer, Arbeitsgang, Ausgabestapel, Stillstandsgrund, Rezeptwahl, Anhalten, Rückgabe bei Abriss |
-| `jobs.ts` | Aufträge ausführen: Arbeitszyklen aus den Daten (auch `process`), Tragen (Hofstapel und Ausgabestapel), Anliefern (Baustelle, Forschung, Eingangspuffer), Bauen, Rekrut holt Waffe |
-| `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
+| `jobs.ts` | Aufträge ausführen: Arbeitszyklen aus den Daten (auch `process`; Brocken nach Art, `rockTag`: Steinbruch nur Stein, Erzmine nur Erz), Tragen (Hofstapel und Ausgabestapel), Anliefern (Baustelle, Forschung, Eingangspuffer), Bauen, Rekrut holt seine Ausrüstung Stück für Stück (ADR 0014) |
+| `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht, Werkstätten mit jede Sekunde wechselndem Anfang), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
 | `military.ts` | Soldatenverhalten je Befehl, Befehle bewegen/angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
 | `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Rückzug) |
@@ -55,6 +55,17 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 - `production: { buffer, stock, spot, face, inputPiles, outputPiles }` (Modellachsen ab Grundrissmitte, drehen mit der Ausrichtung; Stapel neben der Tür, nicht auf dem Vorplatz `door`)
 - `door`, `construction` (ADR 0009), `interior.sprite` (Schnittbild), optional `workAnim: { fps }`, wenn die Sprite-Varianten die Arbeit zeigen (Mühlenflügel)
 - Schornsteinrauch: `CHIMNEYS` in `src/render/smoke.ts` (Modellmeter) und eine gemessene Zeile in `tests/render/smoke.test.ts`; Verarbeitungsgebäude rauchen nur bei laufendem Arbeitsgang.
+
+## Militärwirtschaft und Einheiten (ADR 0014)
+
+- Erz: Felsbrocken mit `kind: "erz"` (Kartengenerator, Südwestrand des Felsfelds). `ResourceTag` (`tree`, `rock`, `erz`) in `reserveNearest` und `placement.nearTag`, Texte und Sprite in `RESOURCE_TAGS`.
+- Werkstätten und Erzmine in `src/data/ruestung.ts`: nur Daten, Rezepte über ADR 0011, Sperren über `BuildingDef.tech` bzw. `RecipeDef.tech`.
+- Einheiten in `src/data/militaer.ts`:
+  - Spielbar ist eine Einheit, die ein Gebäude in `trains` führt und deren `planned` leer ist.
+  - `train.equipment` ist das erste Stück, `train.extra` sind weitere. `equipmentOf` und `trainCost` liefern Stückliste und Kosten.
+  - Der Rekrutierungsauftrag (`recruit`) reserviert alle Stücke und holt sie nacheinander (`more`, `n`; `Building.ai.recruitGot`).
+  - Bei Abbruch gehen geholte Stücke zurück ins Lager: getragen über `carryBack`, die übrigen über `storeDirect`.
+- Schaden: `hitFactor` (Konter-Bonus, gegen Berittene `bonus.reiter`, mal `ARMOR_MATRIX` nach Rüstungsklasse), dann Rüstungspunkte wie bisher. `expectedDamage` und `damageUnit` rechnen gleich.
 
 **Neues Lager bzw. neuer Lagertyp**: Lagertyp = Eintrag in `STORES` (Name, Meldungen „voll“/„keines“). Lagergebäude = `storage: { kind, slots, perSlot, shelves }` (`shelves` dieselben Werte wie im Blender-Eintrag `*_innen`), `door`, `interior`. Die Kopfleiste zeigt je Lagertyp eine Zelle.
 

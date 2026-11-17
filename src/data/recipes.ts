@@ -15,8 +15,9 @@
  */
 import type { Good } from "./goods";
 import type { AnimKey, BuildingKey, TechKey } from "./index";
+import { RUESTUNG_RECIPES, type RuestungRecipe } from "./ruestung";
 
-export type RecipeKey = "mahlen" | "backen";
+export type RecipeKey = "mahlen" | "backen" | RuestungRecipe;
 
 export interface RecipeDef {
   /** Name im Panel, z. B. „Mehl mahlen“. */
@@ -38,6 +39,8 @@ export interface RecipeDef {
 export const RECIPES: Record<RecipeKey, RecipeDef> = {
   mahlen: { name: "Mehl mahlen", building: "muehle", inputs: { getreide: 2 }, outputs: { mehl: 1 }, seconds: 10, anim: "mahlen" },
   backen: { name: "Brot backen", building: "baeckerei", inputs: { mehl: 1 }, outputs: { brot: 2 }, seconds: 12, anim: "backen" },
+  // Schmelzen, Schmieden, Bogner (src/data/ruestung.ts)
+  ...RUESTUNG_RECIPES,
 };
 
 export const RECIPE_KEYS = Object.keys(RECIPES) as RecipeKey[];

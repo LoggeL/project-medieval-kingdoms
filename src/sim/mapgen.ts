@@ -3,7 +3,8 @@
  *
  * Aufbau der Standardkarte (Welt-Achsen, x nach Osten, y nach Süden im Sinne von geom.NEIGHBOURS):
  *   Westen  dichter Wald (Laub und Tannen) auf Waldboden, ein Waldweg führt hindurch zum Kartenrand
- *   Norden  Felsfeld mit Felsbrocken (je 8–16 Blöcke), ein Weg führt hinunter zur Hauptstraße
+ *   Norden  Felsfeld mit Felsbrocken (je 8–16 Blöcke), ein Weg führt hinunter zur Hauptstraße; am Südwestrand des
+ *           Felsfelds einige rostrote Erzbrocken (je 18–28 Erz) für die Erzmine
  *   Mitte   Wiesen und Gras, das Startlager an der Straße, viel Baufläche zwischen Wald und Fels
  *   Osten   Fluss von Nord nach Süd (unpassierbar) mit einer Furt, über die die Straße zum Ostrand führt
  * Die Angreifer kommen von Osten (dem Wald abgewandt) über die Furt: ein natürlicher Engpass für Mauern.
@@ -101,6 +102,25 @@ export function generateMap(W: number, H: number, rand: Rand, nextId: () => numb
     if (rocks.some((r) => Math.max(Math.abs(r.x - x), Math.abs(r.y - y)) < 3)) continue;
     const max = 8 + Math.floor(rand() * 9);
     rocks.push({ id: nextId(), x, y, amount: max, max, reservedBy: 0 });
+  }
+
+  // Erzvorkommen (ADR 0014): ein paar Erzbrocken am Südwestrand des Felsfelds (zur Siedlung hin), höchstens drei Felder vom Bauland, damit
+  // eine Erzmine sie erreicht. Eigener Zufall aus dem Rauschen: Die Zufallsfolge der übrigen Karte bleibt unverändert.
+  let oreSeed = (Math.floor(n3[0] * 0x7fffffff) | 1) >>> 0;
+  const oreRand = () => ((oreSeed = (Math.imul(oreSeed, 1103515245) + 12345) & 0x7fffffff) / 0x7fffffff);
+  const nearLand = (x: number, y: number) => {
+    for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (!isFels(x + dx, y + dy)) return true;
+    return false;
+  };
+  const maxOre = Math.max(3, Math.round((W * H) / 4096 * 5));
+  let ores = 0;
+  for (const [x, y] of cand) {
+    if (ores >= maxOre) break;
+    if (x > fels.cx || y < fels.cy - 0.3 * fels.ry || !nearLand(x, y)) continue;
+    if (rocks.some((r) => Math.max(Math.abs(r.x - x), Math.abs(r.y - y)) < 2)) continue;
+    const max = 18 + Math.floor(oreRand() * 11); // ergiebiger als Stein: Erz ist knapp und geht in Eisen 2 : 1 auf
+    rocks.push({ id: nextId(), x, y, amount: max, max, reservedBy: 0, kind: "erz" });
+    ores++;
   }
 
   return {

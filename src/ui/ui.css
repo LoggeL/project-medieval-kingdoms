@@ -1071,7 +1071,7 @@ kbd {
   flex: none;
   width: var(--mk-ts, 48px);
   height: var(--mk-ts, 48px);
-  background-image: var(--mk-tex-forschung);
+  background-image: var(--mk-ticon-tex, var(--mk-tex-forschung));
   background-size: calc(var(--mk-ts, 48px) * 8) var(--mk-ts, 48px);
   background-position: calc(var(--mk-ti, 0) * var(--mk-ts, 48px) * -1) 0;
   background-repeat: no-repeat;

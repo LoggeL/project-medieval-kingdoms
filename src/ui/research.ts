@@ -19,7 +19,9 @@ export interface ResearchView { el: HTMLElement; toggle(on?: boolean): void; isO
 
 /** Ikone einer Technik aus assets/ui/forschung.png (Spalte TechDef.icon). */
 export function techIcon(k: TechKey, size = 48): HTMLElement {
-  return h("span.mk-ticon", { "aria-hidden": "true", style: `--mk-ti:${TECHS[k].icon};--mk-ts:${size}px` });
+  // weitere Ikonenblätter (TechDef.iconSheet) registriert src/ui/index.ts als --mk-tex-<blatt>
+  const sheet = TECHS[k].iconSheet;
+  return h("span.mk-ticon", { "aria-hidden": "true", style: `--mk-ti:${TECHS[k].icon};--mk-ts:${size}px${sheet ? `;--mk-ticon-tex:var(--mk-tex-${sheet})` : ""}` });
 }
 
 /** Forschung starten mit Rückmeldung. */

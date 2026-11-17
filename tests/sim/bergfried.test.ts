@@ -74,13 +74,13 @@ describe("Bergfried als Stadtzentrum", () => {
 describe("Forschung", () => {
   it("jede Technik hat Kosten, Dauer, Ikone und deutsche Texte; Voraussetzungen zeigen auf vorhandene Techniken", () => {
     expect(TECH_KEYS.length).toBeGreaterThanOrEqual(5);
-    const icons = new Set<number>();
+    const icons = new Set<string>(); // Ikone je Blatt (TechDef.iconSheet, sonst „forschung“)
     for (const k of TECH_KEYS) {
       const t = TECHS[k];
       expect(t.seconds).toBeGreaterThan(0);
       expect(Object.values(t.cost).some((n) => (n ?? 0) > 0)).toBe(true);
       expect(t.desc.length).toBeGreaterThan(20);
-      icons.add(t.icon);
+      icons.add(`${t.iconSheet ?? "forschung"}:${t.icon}`);
       for (const r of t.requires?.techs ?? []) expect(TECH_KEYS).toContain(r);
     }
     expect(icons.size).toBe(TECH_KEYS.length);

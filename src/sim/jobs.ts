@@ -3,17 +3,20 @@
  * Tragen (Hof → Lager, Lager → Baustelle, Waffe → Kaserne), Bauen und Anstellen.
  * Jede Ware wechselt nur dann den Ort, wenn die Figur am Ziel steht; unterwegs trägt sie sie sichtbar (carry).
  */
-import { BUILDINGS, STORES, TUNING, UNITS, storeOf, type CycleStep, type Good } from "../data";
+import { BUILDINGS, RESOURCE_TAGS, STORES, TUNING, UNITS, storeOf, type CycleStep, type Good, type ResourceTag } from "../data";
 import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, storeWalk } from "./geom";
 import { buildCap, canWork, completeBuilding, refreshAfterPlace, useMaterial } from "./build";
 import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
-import { fullMessage, hasStoreOf, reservePut, tidy } from "./storage";
+import { fullMessage, hasStoreOf, reservePut, storeDirect, tidy } from "./storage";
 import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
 import type { Rock, Tree } from "./types";
-import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
+import { TPS, face, setAnim, type Job, type RecruitPiece, type SBuilding, type SUnit, type World } from "./world";
 
 type CycleJob = Extract<Job, { k: "cycle" }>;
+
+/** Art eines Felsbrockens als Rohstoff-Tag: Stein (rock) oder Erz (erz, Rock.kind). */
+export const rockTag = (r: Rock): ResourceTag => r.kind ?? "rock";
 
 export function runJob(w: World, u: SUnit): void {
   const j = u.ai.job!;
@@ -48,7 +51,7 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       if (!t) {
         j.wait = 3 * TPS;
         idleAt(w, u, home);
-        w.msg(step.tag === "tree" ? `${def.name}: keine Bäume mehr in Reichweite.` : `${def.name}: kein Fels mehr in Reichweite.`, "warnung", `leer-${home.id}`, 60, "rohstoff_leer");
+        w.msg(`${def.name}: ${RESOURCE_TAGS[step.tag].empty}.`, "warnung", `leer-${home.id}`, 60, "rohstoff_leer");
         return;
       }
       t.reservedBy = u.id; j.tgt = t.id;
@@ -134,10 +137,10 @@ function applyEffect(w: World, u: SUnit, effect: NonNullable<Extract<CycleStep, 
   }
 }
 
-function targetOf(w: World, j: CycleJob, tag?: "tree" | "rock"): Tree | Rock | null {
+function targetOf(w: World, j: CycleJob, tag?: ResourceTag): Tree | Rock | null {
   if (!j.tgt) return null;
-  if (tag !== "rock") { const t = w.s.trees.find((x) => x.id === j.tgt); if (t) return t.state === "stumpf" ? null : t; }
-  if (tag !== "tree") { const r = w.s.rocks.find((x) => x.id === j.tgt); if (r) return r.amount > 0 ? r : null; }
+  if (!tag || tag === "tree") { const t = w.s.trees.find((x) => x.id === j.tgt); if (t) return t.state === "stumpf" ? null : t; }
+  if (tag !== "tree") { const r = w.s.rocks.find((x) => x.id === j.tgt && (!tag || rockTag(x) === tag)); if (r) return r.amount > 0 ? r : null; }
   return null;
 }
 
@@ -148,16 +151,17 @@ function releaseTarget(w: World, u: SUnit, j: CycleJob): void {
   j.tgt = 0;
 }
 
-/** Nächster freier Baum (liegende zuerst) bzw. Felsbrocken im Umkreis des Gebäudes, der erreichbar ist. */
-function findTarget(w: World, home: SBuilding, tag: "tree" | "rock", radius: number, u: SUnit): Tree | Rock | null {
+/** Nächster freier Baum (liegende zuerst) bzw. Felsbrocken dieser Art (Stein, Erz) im Umkreis des Gebäudes, der erreichbar ist. */
+function findTarget(w: World, home: SBuilding, tag: ResourceTag, radius: number, u: SUnit): Tree | Rock | null {
   const [cx, cy] = center(home.key, home.x, home.y, home.o);
   const nav = w.nav;
   const myComp = nav.comp[0][nav.node(u.layer, Math.floor(u.x), Math.floor(u.y))];
   const reach = (x: number, y: number) => myComp < 0 || nav.goalInComp(tileGoal(x, y, 0, 1), 0, myComp);
   let best: Tree | Rock | null = null, bestScore = Infinity;
-  const list: (Tree | Rock)[] = tag === "tree" ? w.s.trees : w.s.rocks;
+  const list: readonly (Tree | Rock)[] = tag === "tree" ? w.s.trees : w.s.rocks;
   for (const t of list) {
     if (t.reservedBy && t.reservedBy !== u.id) continue;
+    if (tag !== "tree" && rockTag(t as Rock) !== tag) continue; // Steinbruch nur Stein, Erzmine nur Erz
     let score = Math.hypot(t.x + 0.5 - cx, t.y + 0.5 - cy);
     if (score > radius) continue;
     if (tag === "tree") {
@@ -356,21 +360,41 @@ function buildSpot(w: World, u: SUnit, site: SBuilding, j: Extract<Job, { k: "bu
   return tileGoal(x, y);
 }
 
-function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void {
+type RecruitJob = Extract<Job, { k: "recruit" }>;
+
+/** Ausrüstungsstücke eines Rekrutierungsauftrags in Abholreihenfolge (das erste trägt er sichtbar). */
+export function recruitPieces(j: RecruitJob): RecruitPiece[] {
+  return [...(j.good ? [{ from: j.from, slot: j.slot, good: j.good }] : []), ...(j.more ?? [])];
+}
+
+/** Schon aufgenommene Zusatzstücke (Rüstung …) zurück ins Lager, wenn der Rekrut seine Waffe zurückbringt. */
+function returnExtras(w: World, j: RecruitJob): void {
+  const pieces = recruitPieces(j);
+  for (let i = 1; i < Math.min(j.n ?? 0, pieces.length); i++) storeDirect(w, pieces[i].good, 1);
+  j.n = Math.min(j.n ?? 0, 1);
+}
+
+function runRecruit(w: World, u: SUnit, j: RecruitJob): void {
   const b = w.buildings.get(j.b);
   if (j.ph === 0) {
-    const st = w.buildings.get(j.from);
-    if (!b || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
-    const r = storeVisit(w, u, st, j.slot);
-    if (r === "unreachable") { giveUp(w, u); return; }
+    // Stück für Stück aus dem Lager holen (bei mehreren Fächern bzw. Lagern nacheinander), dann zur Kaserne
+    const pieces = recruitPieces(j), n = j.n ?? 0, pc = pieces[n];
+    const st = pc && w.buildings.get(pc.from);
+    if (!b || !st || !st.slots[pc.slot]) { releaseJob(w, u, true); if (u.carry) carryBack(w, u); return; }
+    const r = storeVisit(w, u, st, pc.slot);
+    if (r === "unreachable") {
+      if (!u.carry) { giveUp(w, u); return; }
+      releaseJob(w, u, true); carryBack(w, u); u.ai.noJob = w.s.tick + 5 * TPS; return;
+    }
     if (r !== "arrived") return;
-    const s = st.slots[j.slot];
+    const s = st.slots[pc.slot];
     s.amount--; s.reserved--; tidy(s);
-    u.carry = j.good; j.ph = 1;
-    b.ai.recruitPicked = true;
+    if (n === 0) u.carry = pc.good;
+    j.n = n + 1; b.ai.recruitGot = j.n;
+    if (j.n >= pieces.length) { j.ph = 1; b.ai.recruitPicked = true; }
     return;
   }
-  if (!b) { carryBack(w, u); return; }
+  if (!b) { returnExtras(w, j); carryBack(w, u); return; }
   const r = travel(w, u, goalEntrance(w, b));
   if (r === "unreachable") { releaseJob(w, u, true); carryBack(w, u); return; }
   if (r !== "arrived") return;
@@ -493,10 +517,16 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
         break;
       }
       case "recruit": {
-        const s = w.buildings.get(j.from)?.slots[j.slot];
-        if (j.ph === 0 && s) { s.reserved--; tidy(s); }
+        // noch nicht aufgenommene Stücke freigeben; aufgenommene Zusatzstücke gehen mit der Waffe zurück ins Lager
+        // (keepCarry), sonst (der Träger fällt) sind sie wie die Waffe verloren
+        const pieces = recruitPieces(j);
+        if (j.ph === 0) for (let i = j.n ?? 0; i < pieces.length; i++) {
+          const s = w.buildings.get(pieces[i].from)?.slots[pieces[i].slot];
+          if (s) { s.reserved--; tidy(s); }
+        }
+        if (keepCarry) returnExtras(w, j);
         const b = w.buildings.get(j.b);
-        if (b && b.ai.recruit === u.id) { b.ai.recruit = 0; b.ai.recruitPicked = false; }
+        if (b && b.ai.recruit === u.id) { b.ai.recruit = 0; b.ai.recruitPicked = false; b.ai.recruitGot = 0; }
         break;
       }
     }
@@ -548,8 +578,8 @@ export function abortJobsAt(w: World, b: SBuilding): void {
         else if (j.ph === 1 && j.site === b.id) { u.ai.job = null; carryBack(w, u); }
         break;
       case "recruit":
-        if (j.ph === 0 && (j.b === b.id || j.from === b.id)) releaseJob(w, u);
-        else if (j.ph === 1 && j.b === b.id) { u.ai.job = null; carryBack(w, u); }
+        if (j.ph === 0 && (j.b === b.id || recruitPieces(j).slice(j.n ?? 0).some((p) => p.from === b.id))) { releaseJob(w, u, true); if (u.carry) carryBack(w, u); }
+        else if (j.ph === 1 && j.b === b.id) { releaseJob(w, u, true); carryBack(w, u); }
         break;
       case "cycle": break;
     }

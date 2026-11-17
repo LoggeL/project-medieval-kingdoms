@@ -552,6 +552,259 @@
     ]
    },
    "row": 152
+  },
+  {
+   "key": "bergmann",
+   "name": "Bergmann",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "abbauen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 160
+  },
+  {
+   "key": "schmelzer",
+   "name": "Schmelzer",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "schmelzen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 168
+  },
+  {
+   "key": "schmied",
+   "name": "Schmied",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "schmieden": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 176
+  },
+  {
+   "key": "bogner",
+   "name": "Bogner",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "schnitzen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 184
+  },
+  {
+   "key": "waffenknecht",
+   "name": "Waffenknecht",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "angriff": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 192
+  },
+  {
+   "key": "pikenier",
+   "name": "Pikenier",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "angriff": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 200
+  },
+  {
+   "key": "armbrustschuetze",
+   "name": "Armbrustschütze",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "schiessen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 208
+  },
+  {
+   "key": "traeger_erz",
+   "name": "Tagelöhner mit Erzkorb",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 216
+  },
+  {
+   "key": "traeger_pike",
+   "name": "Tagelöhner mit Piken",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 224
   }
  ],
  "team_swap": {

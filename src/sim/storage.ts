@@ -7,7 +7,7 @@
  * (BuildingDef.storage.kind, Standard Materiallager). Alle Funktionen hier suchen Ware und Platz nur in Lagern des
  * passenden Typs: Getreide liegt in der Kornkammer, Holz im Lagerhaus.
  */
-import { BUILDINGS, GOODS, STORES, STORE_KEYS, UNITS, storeOf, type Good, type StoreKey } from "../data";
+import { BUILDINGS, GOODS, STORES, STORE_KEYS, UNITS, equipmentOf, storeOf, type Good, type StoreKey } from "../data";
 import { center } from "./geom";
 import type { StorageSlot } from "./types";
 import type { SBuilding, World } from "./world";
@@ -100,9 +100,10 @@ export function committed(w: World, good: Good): number {
     if (b.built < 1 || b.upgrade) n += (b.needs[good] ?? 0) - (b.ai.picked[good] ?? 0);
     if (b.proc) n += (b.proc.enroute[good] ?? 0) - (b.proc.picked[good] ?? 0);
     for (let i = 0; i < b.queue.length; i++) {
-      if (UNITS[b.queue[i]].train?.equipment !== good) continue;
-      if (i === 0 && b.ai.recruitPicked) continue;
-      n++;
+      // Ausrüstung der Warteschlange; beim ersten Auftrag zählt nur, was der Rekrut noch nicht aufgenommen hat
+      const eq = equipmentOf(UNITS[b.queue[i]]);
+      const got = i > 0 ? 0 : b.ai.recruitPicked ? eq.length : b.ai.recruit ? (b.ai.recruitGot ?? 0) : 0;
+      for (let k = got; k < eq.length; k++) if (eq[k] === good) n++;
     }
   }
   const cur = w.s.research.cur;

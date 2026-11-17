@@ -41,8 +41,15 @@ export type Job =
   /** Bauen auf einer Baustelle, deren Material vollständig ist. */
   /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
   | { k: "build"; site: number; spot?: number; t?: number }
-  /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
-  | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 };
+  /**
+   * Ausrüstung aus dem Lager holen und in der Kaserne ausbilden lassen: from/slot/good = erstes Stück (die getragene
+   * Waffe), more = weitere Stücke (z. B. die Rüstung des Pikeniers, ADR 0014), n = schon aufgenommene Stücke. Alle
+   * Stücke sind ab der Vergabe im Fach reserviert. Ohne Ausrüstung (Söldner) gleich ph 1, good fehlt.
+   */
+  | { k: "recruit"; b: number; from: number; slot: number; good?: Good; unit: UnitKey; ph: 0 | 1; more?: RecruitPiece[]; n?: number };
+
+/** Ein Ausrüstungsstück des Rekruten: Lager, Fach, Ware. */
+export interface RecruitPiece { from: number; slot: number; good: Good }
 
 export interface UnitAI {
   /** Knoten (Laufebene · W · H + y · W + x) bis zum Ziel. */
@@ -101,9 +108,11 @@ export interface BuildingAI {
    * rückt ihn eine Seite weiter, damit auch bei stockendem Nachschub rund um den Bau gearbeitet wird.
    */
   nextSpot?: number;
-  /** Kaserne: Tagelöhner, der gerade die Waffe holt, und ob er sie schon trägt. */
+  /** Kaserne: Tagelöhner, der gerade die Waffe holt, und ob er sie schon trägt (alle Stücke). */
   recruit: number;
   recruitPicked: boolean;
+  /** Kaserne: so viele Ausrüstungsstücke hat der Rekrut schon aus dem Lager genommen (storage.committed). */
+  recruitGot?: number;
   /** Kaserne: Rekrut in Ausbildung (aus der Welt genommen). */
   inside: SUnit | null;
 }

@@ -8,8 +8,9 @@
  * freischaltet, damit nichts doppelt gepflegt wird.
  */
 import type { AnimKey, BuildingKey, Cost, UnitKey } from "./index";
+import { RUESTUNG_TECHS, type RuestungTech } from "./ruestung";
 
-export type TechKey = "steinbau" | "festungsbau" | "werkzeuge" | "tragjoch" | "langbogen" | "ruestung" | "marktrecht";
+export type TechKey = "steinbau" | "festungsbau" | "werkzeuge" | "tragjoch" | "langbogen" | "ruestung" | "marktrecht" | RuestungTech;
 
 export interface TechEffects {
   /** Arbeitszeit-Faktor je Arbeitsanimation (0,75 = ein Viertel schneller). */
@@ -26,8 +27,10 @@ export interface TechDef {
   name: string;
   /** Was die Technik bewirkt, ein bis zwei Sätze. */
   desc: string;
-  /** Ikone im Ikonenblatt (assets/ui/forschung.png, Spalte). */
+  /** Ikone im Ikonenblatt (assets/ui/<iconSheet>.png, Spalte; ohne iconSheet forschung.png). */
   icon: number;
+  /** Ikonenblatt (8 Spalten à 96 px), z. B. "forschung_ruestung"; fehlt = "forschung". */
+  iconSheet?: string;
   /** Gold sofort, Waren bringen Träger in den Bergfried. */
   cost: Cost;
   seconds: number;
@@ -54,7 +57,7 @@ export const TECHS: Record<TechKey, TechDef> = {
     requires: { level: 2 }, effects: { income: 1.5 },
   },
   werkzeuge: {
-    name: "Gehärtete Werkzeuge", desc: "Stahlschneiden für Axt und Spitzhacke: Holzfäller und Steinmetze arbeiten ein Viertel schneller.",
+    name: "Gehärtete Werkzeuge", desc: "Stahlschneiden für Axt und Spitzhacke: Holzfäller, Steinmetze und Bergleute arbeiten ein Viertel schneller.",
     icon: 2, cost: { gold: 15, holz: 8 }, seconds: 35, branch: 1,
     effects: { work: { hacken: 0.75, abbauen: 0.75 } },
   },
@@ -73,6 +76,8 @@ export const TECHS: Record<TechKey, TechDef> = {
     icon: 5, cost: { gold: 35, holz: 6, stein: 6 }, seconds: 50, branch: 2,
     requires: { buildings: ["kaserne"], level: 2 }, effects: { units: { keys: ["speer", "schwert"], armor: 2 } },
   },
+  // Militärwirtschaft: Rennofen, Kettenschmiede, Armbrustbau, Gewalthaufen (src/data/ruestung.ts)
+  ...RUESTUNG_TECHS,
 };
 
 export const TECH_KEYS = Object.keys(TECHS) as TechKey[];

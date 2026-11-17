@@ -477,6 +477,42 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         cyl("peelshaft", th(limb * 0.4) / 2, H * 1.0, (0, 0, H * 0.3), "wood_hi", hr)
         box("peelblade", (H * 0.16, th(limb * 0.2), H * 0.18), (0, 0, H * 0.86), "wood_hi", hr)
         ball("peelloaf", (H * 0.05, H * 0.045, H * 0.03), (0, -limb * 0.25, H * 0.86), "leather", hr, seg=6, rings=4)
+    # ---- Militärwirtschaft (ADR 0014)
+    elif g == "poker":
+        # smelter's iron poker, held like the baker's peel, glowing tip (action frames only)
+        cyl("pokershaft", th(limb * 0.36) / 2, H * 0.95, (0, 0, H * 0.3), "dark", hr)
+        box("pokertip", (th(limb * 0.45), th(limb * 0.45), H * 0.08), (0, 0, H * 0.8), "slash1", hr)
+    elif g == "stave":
+        # bow stave held upright in the left hand while the bowyer shaves it (action frames only)
+        b = empty("stavepv", (0, -limb * 0.4, 0), hl)
+        box("stave", (th(limb * 0.35), th(limb * 0.45), H * 0.7), (0, 0, H * 0.12), "bow", b)
+    elif g == "drawknife":
+        # short blade with a handle in the right hand (action frames only)
+        box("dkhandle", (limb * 0.3, limb * 0.3, H * 0.08), (0, 0, 0), "wood", hr)
+        box("dkblade", (th(limb * 0.2), limb * 1.6, th(limb * 0.5)), (0, -limb * 0.7, H * 0.05), "steel_hi", hr)
+    elif g == "crossbow_hand":
+        # crossbow held in the right hand: stock along the hand axis (upright on the march, forward when aiming),
+        # steel prod across the front end, string and stirrup
+        cyl("xbstock", th(limb * 0.5) / 2, H * 0.44, (0, 0, H * 0.14), "wood_hi", hr, verts=6)
+        box("xbprod", (H * 0.42, th(limb * 0.32), th(limb * 0.32)), (0, 0, H * 0.33), "steel_hi", hr)
+        box("xbstring", (H * 0.38, th(0) * 0.7, th(0) * 0.7), (0, limb * 0.25, H * 0.27), "string", hr)
+        box("xbstirrup", (limb * 1.2, th(limb * 0.25), limb * 0.9), (0, 0, H * 0.38), "steel", hr)
+    elif g == "ore_basket":
+        # wicker basket full of reddish ore lumps carried in front of the chest with both arms
+        bk = empty("orepv", (0, -depth * 0.5 - H * 0.13, torso * 0.4), hip)
+        cyl("orebasket", H * 0.13, H * 0.12, (0, 0, 0), "bow", bk, verts=10)
+        cyl("orerim", H * 0.135, th(limb * 0.35), (0, 0, H * 0.06), "wood_hi", bk, verts=10)
+        for k, (dx, dy, c) in enumerate(((-H * 0.05, -H * 0.03, "cap"), (H * 0.05, -H * 0.02, "dark"), (0.0, H * 0.05, "cap"),
+                                         (H * 0.01, -H * 0.06, "cap"))):
+            ball("ore%d" % k, (H * 0.05, H * 0.045, H * 0.04), (dx, dy, H * 0.075), c, bk, seg=5, rings=3)
+    elif g == "pike_bundle":
+        # two pikes on the right shoulder like the spear bundle, much longer
+        sp = empty("pikepv", (-sw * 0.4, -H * 0.02, torso * 0.98 + limb * 0.6), hip)
+        sp.rotation_euler = (math.radians(62), 0, math.radians(-22.5))
+        for k, (dx, dz) in enumerate(((-limb * 0.3, 0.0), (limb * 0.3, -H * 0.06))):
+            cyl("pshaft%d" % k, th(limb * 0.4) / 2, H * 1.7, (dx, 0, H * 0.25 + dz), "wood", sp)
+            cone("ptip%d" % k, limb * 0.45, 0, H * 0.1, (dx, 0, H * 1.14 + dz), "steel_hi", sp)
+        box("pcord", (limb * 1.6, limb * 0.9, th(limb * 0.3)), (0, 0, -H * 0.1), "belt", sp)
 
 
 # ---------------------------------------------------------------- camera
@@ -564,6 +600,27 @@ ACTIONS = {
         {"armR": (-130, 0, 4), "armL": (-50, 0, -12), "gripR": -10, "lean": 18, "legs": (-16, 10)},
         {"armR": (-85, 0, 2), "armL": (-48, 0, -12), "gripR": 55, "lean": 24, "legs": (-18, 12)},
         {"armR": (-52, 0, 2), "armL": (-46, 0, -12), "gripR": 95, "lean": 28, "legs": (-18, 12)},
+    ],
+    # smith: hammer blows on the anvil at hip height, the left hand holds the work piece on the anvil
+    "schmieden": [
+        {"armR": (-175, 0, 6), "armL": (-55, 0, -14), "gripR": -60, "lean": 2, "legs": (-10, 6)},
+        {"armR": (-140, 0, 4), "armL": (-55, 0, -14), "gripR": 0, "lean": 6, "legs": (-10, 6)},
+        {"armR": (-100, 0, 2), "armL": (-53, 0, -14), "gripR": 60, "lean": 10, "legs": (-12, 8)},
+        {"armR": (-68, 0, 2), "armL": (-52, 0, -14), "gripR": 100, "lean": 13, "legs": (-12, 8)},
+    ],
+    # bowyer: stave upright in the left hand, the right hand pulls the draw knife down along it
+    "schnitzen": [
+        {"armL": (-55, 0, 6), "armR": (-95, 0, -14), "gripR": 90, "lean": 10, "legs": (-8, 4)},
+        {"armL": (-55, 0, 6), "armR": (-80, 0, -14), "gripR": 95, "lean": 12, "legs": (-8, 4)},
+        {"armL": (-55, 0, 6), "armR": (-62, 0, -14), "gripR": 100, "lean": 14, "legs": (-8, 4)},
+        {"armL": (-55, 0, 6), "armR": (-46, 0, -14), "gripR": 105, "lean": 15, "legs": (-8, 4)},
+    ],
+    # crossbow: aim at the shoulder, loose (recoil), tip the bow down, span with the foot in the stirrup
+    "armbrust": [
+        {"armR": (-82, 0, -10), "armL": (-96, 0, 16), "gripR": 92, "lean": -2, "legs": (-10, 8)},
+        {"armR": (-90, 0, -10), "armL": (-102, 0, 16), "gripR": 84, "lean": -7, "legs": (-10, 8)},
+        {"armR": (-38, 0, -6), "armL": (-40, 0, 10), "gripR": 170, "lean": 24, "legs": (-18, 10)},
+        {"armR": (-18, 0, -6), "armL": (-62, 0, 10), "gripR": 176, "lean": 30, "legs": (-22, 10)},
     ],
 }
 # collapse: hit, knees buckle, topple backwards, lying on the back (corpse centred on the foot point)

@@ -23,7 +23,9 @@ describe("Karte", () => {
       expect(s.trees.some((t) => t.kind === "tanne") && s.trees.some((t) => t.kind === "baum")).toBe(true);
       expect(s.rocks.length).toBeGreaterThanOrEqual(8);
       for (const r of s.rocks) {
-        expect(r.amount).toBeGreaterThanOrEqual(8); expect(r.amount).toBeLessThanOrEqual(16);
+        // Steinbrocken 8–16 Blöcke, Erzbrocken (ADR 0014) 18–28 Erz
+        const [lo, hi] = r.kind === "erz" ? [18, 28] : [8, 16];
+        expect(r.amount).toBeGreaterThanOrEqual(lo); expect(r.amount).toBeLessThanOrEqual(hi);
         expect(s.tiles[r.y * s.w + r.x].terrain).toBe("fels");
       }
       const count = (t: string) => s.tiles.filter((x) => x.terrain === t).length;

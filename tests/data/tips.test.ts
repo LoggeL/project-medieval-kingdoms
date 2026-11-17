@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUILDINGS, START, TUNING } from "../../src/data";
+import { BUILDINGS, START, TUNING, UNITS } from "../../src/data";
 import { STEUERUNG, TIPS } from "../../src/data/tips";
 
 /** Häufige englische Wörter: kommen in einem deutschen Tipp nicht vor. */
@@ -59,7 +59,10 @@ describe("Tipps (Ladebildschirm)", () => {
     expect(START.raid.firstSeconds).toBe(300); // „etwa fünf Minuten“
     expect(START.raid.everySeconds).toBe(240); // „alle vier Minuten“
     expect(find("besiegte Angreifer")).toContain(`${TUNING.bounty} Gold`);
-    expect(BUILDINGS.kaserne.trains).toEqual(["speer", "schwert", "bogen"]);
+    expect(find("Die Kaserne")).toContain("sechs Truppen");
+    expect(BUILDINGS.kaserne.trains).toHaveLength(6);
+    // „Pikeniere und Armbrustschützen erst nach Forschung“, die übrigen ohne
+    expect(BUILDINGS.kaserne.trains!.filter((u) => UNITS[u].tech)).toEqual(["pikenier", "armbrustschuetze"]);
   });
 });
 

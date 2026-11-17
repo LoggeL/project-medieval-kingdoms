@@ -7,6 +7,7 @@
  * Gebäudeblatt, Füllstufen 0–4) und Trägerfigur (`carrier`, Figurenblatt); die Ikone der Oberfläche schneidet die
  * Darstellung aus dem vollen Stapel. Fehlt ein Sprite, zeichnet die Darstellung einen Ersatz und warnt einmal.
  */
+import { RUESTUNG_GOODS, type RuestungGood } from "./ruestung";
 
 /** Lagertyp: welches Lager eine Ware aufnimmt. */
 export type StoreKey = "material" | "nahrung";
@@ -45,7 +46,7 @@ export const GOOD_GROUPS: { key: GoodGroup; label: string }[] = [
   { key: "nahrung", label: "Nahrung" },
 ];
 
-export type Good = "holz" | "stein" | "eisen" | "speer" | "schwert" | "bogen" | "getreide" | "mehl" | "brot";
+export type Good = "holz" | "stein" | "eisen" | "speer" | "schwert" | "bogen" | "getreide" | "mehl" | "brot" | RuestungGood;
 
 export interface GoodDef {
   name: string;
@@ -71,6 +72,8 @@ export const GOODS: Record<Good, GoodDef> = {
   getreide: { name: "Getreide", store: "nahrung", group: "nahrung", stack: "stapel_getreide", carrier: "traeger_sack" },
   mehl: { name: "Mehl", store: "nahrung", group: "nahrung", stack: "stapel_mehl", carrier: "traeger_mehl" },
   brot: { name: "Brot", store: "nahrung", group: "nahrung", stack: "stapel_brot", carrier: "traeger_brot" },
+  // Erz, Armbrüste, Piken, Rüstungen (src/data/ruestung.ts)
+  ...RUESTUNG_GOODS,
 };
 
 export const GOOD_KEYS = Object.keys(GOODS) as Good[];

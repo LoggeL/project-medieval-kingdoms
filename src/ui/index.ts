@@ -5,6 +5,7 @@
  * Aktualisiert wird über bridge.on(...), gebündelt auf höchstens ~10 Mal pro Sekunde und nur bei Änderungen.
  */
 import type { MountUi } from "../app/contract";
+import { TECHS } from "../data";
 import { createBuildBar } from "./buildbar";
 import { h } from "./dom";
 import { createHelp } from "./help";
@@ -30,7 +31,10 @@ export const mountUi: MountUi = (root, bridge) => {
   for (const t of ["stein", "holz", "pergament"]) {
     root.style.setProperty(`--mk-tex-${t}`, `url("${new URL(`ui/${t}_kachel.png`, base).href}")`);
   }
-  root.style.setProperty("--mk-tex-forschung", `url("${new URL("ui/forschung.png", base).href}")`);
+  // Ikonenblätter der Forschung: forschung.png und weitere aus TechDef.iconSheet (z. B. forschung_ruestung.png)
+  for (const sheet of new Set(["forschung", ...Object.values(TECHS).map((t) => t.iconSheet ?? "forschung")])) {
+    root.style.setProperty(`--mk-tex-${sheet}`, `url("${new URL(`ui/${sheet}.png`, base).href}")`);
+  }
 
   const toastLayer = h("div.mk-toasts");
   const rectOf = (el: HTMLElement) => (el.isConnected && !el.hidden ? el.getBoundingClientRect() : null);
