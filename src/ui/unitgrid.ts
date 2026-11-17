@@ -9,7 +9,7 @@ import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
 import { h, num, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
-import { costRow, type UiCtx } from "./shared";
+import { costRow, freeOf, type UiCtx } from "./shared";
 
 const EQUIP: Partial<Record<Good, string>> = { speer: "den Speer", schwert: "das Schwert", bogen: "den Bogen", eisen: "das Eisen" };
 
@@ -150,7 +150,7 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         const lack = need ? `Forschung: ${TECHS[need].name}` : !site ? "Kaserne nötig" : !hasPeasant ? "Kein Tagelöhner frei" : "";
         setClass(l.el, "mk-locked", !!need);
         setText(l.need, lack);
-        setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || (s.stock[def.train!.equipment] ?? 0) < 1);
+        setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || freeOf(s, def.train!.equipment) < 1);
       }
       detailUpdate?.(s);
     },

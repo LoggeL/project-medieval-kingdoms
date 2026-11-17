@@ -17,11 +17,17 @@ export interface UiCtx {
 /** Kleines Goldmünzen-Glyph (CSS, kein Sprite: im Gebäudeblatt gibt es keine Münze). */
 export const coin = (): HTMLElement => h("span.mk-coin", { "aria-hidden": "true" });
 
-/** Reicht der Bestand für diese Kosten? */
+/**
+ * Frei verfügbare Menge einer Ware: Bestand minus verplant (Baustellen, Forschung, Verarbeitung, wartende Rekruten),
+ * dieselbe Rechnung wie die Simulation beim Bauen (storage.available). Ohne state.free (alter Stand) der Bestand.
+ */
+export const freeOf = (s: SimState, g: Good): number => (s.free ?? s.stock)[g] ?? 0;
+
+/** Reicht der freie Bestand für diese Kosten? */
 export function canAfford(s: SimState, cost: Cost): boolean {
   for (const [k, v] of Object.entries(cost) as [Good | "gold", number][]) {
     if (!v) continue;
-    if (k === "gold" ? s.gold < v : (s.stock[k] ?? 0) < v) return false;
+    if (k === "gold" ? s.gold < v : freeOf(s, k) < v) return false;
   }
   return true;
 }
@@ -42,7 +48,7 @@ export function costRow(ctx: UiCtx, cost: Cost, iconSize = 16): { el: HTMLElemen
   return {
     el,
     update(s) {
-      for (const p of parts) setClass(p.el, "mk-short", p.k === "gold" ? s.gold < p.v : (s.stock[p.k] ?? 0) < p.v);
+      for (const p of parts) setClass(p.el, "mk-short", p.k === "gold" ? s.gold < p.v : freeOf(s, p.k) < p.v);
     },
   };
 }

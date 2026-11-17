@@ -94,6 +94,12 @@ export class GameRenderer {
   /** Gelände neu zeichnen (z. B. nachdem Übergangsmasken gesetzt wurden). */
   invalidateTerrain(): void { this.terrain.invalidate(); }
 
+  /** Andere Partie geladen (gleiche oder andere Karte): Gelände neu aufbauen, Spuren der alten Partie vergessen. */
+  resetWorld(): void {
+    this.builtR = -1;
+    this.objects.resetTracking();
+  }
+
   private snapshot(): void {
     const { app } = this;
     if (this.fade) { this.fade.texture.destroy(true); this.fade.destroy(); this.fade = null; }

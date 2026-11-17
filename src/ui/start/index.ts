@@ -12,7 +12,9 @@ import { LoadProgress, phaseOfAsset, type LoadPhase } from "../../app/progress";
 import { TIPS } from "../../data/tips";
 import { Ladebildschirm } from "./laden";
 import { TitelMusik } from "./musik";
-import { Titelbildschirm } from "./titel";
+import { Titelbildschirm, type TitelWahl } from "./titel";
+
+export type { TitelWahl };
 
 export const LADE_ABSCHNITTE: LoadPhase[] = [
   { id: "code", label: "Spielcode wird geladen", weight: 2 },
@@ -153,10 +155,11 @@ export class Startbildschirm {
   }
 
   /**
-   * Nach dem Laden: Titelbildschirm zeigen und warten, bis „Neues Spiel“ gewählt wird.
+   * Nach dem Laden: Titelbildschirm zeigen und warten, bis ein Spiel begonnen, fortgesetzt oder geladen ist
+   * (waehlen führt die Wahl aus und wirft mit Spielertext, dann bleibt der Titel stehen).
    * Der Klick darauf ist die Nutzergeste, die die Audio-Regie freischaltet (Begrüßung, Aufbaumusik).
    */
-  async titel(bridge: UiBridge): Promise<void> {
+  async titel(bridge: UiBridge, waehlen: (w: TitelWahl) => Promise<void> = async () => undefined): Promise<void> {
     window.clearInterval(this.wache);
     this.zeichne();
     if (this.dev?.has("halten")) {
@@ -173,7 +176,7 @@ export class Startbildschirm {
     }
     this.musik = new TitelMusik(() => bridge.audio());
     // Konzeptseite liegt neben dem Spiel unter /konzept/ (Build: nginx, Entwicklung: Middleware in vite.config.ts)
-    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept: "./konzept/" });
+    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept: "./konzept/", waehlen });
     const gewaehlt = this.titelbild.zeigen();
     this.phase = "titel";
     await this.laden.ausblenden(600);

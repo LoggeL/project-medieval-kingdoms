@@ -279,6 +279,11 @@ export class AudioDirector {
     this.listen(true);
   }
 
+  /** Andere Partie geladen: ihre Meldungen gelten als schon angesagt (sonst kämen alle alten Ansagen auf einmal). */
+  markSeen(): void {
+    for (const m of this.state().messages) this.seen.add(m);
+  }
+
   /** Ansage aus einem Befehlsergebnis. */
   say(key: VoiceKey | undefined): void {
     if (key && this.gate.running) this.voices.offer(key, performance.now() / 1000);

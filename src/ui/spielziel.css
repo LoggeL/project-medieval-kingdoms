@@ -1,0 +1,155 @@
+/*
+ * Spielziel, Spielstände und Meldungen im Spiel (ADR 0019): Aufgabenleiste und Chronik als linke Spalte,
+ * Spielmenü, Meldungsverlauf, Tafel am Ende der Partie, freie/verplante Bestände in der Kopfleiste, Abbrechen in der
+ * Ausbildung. Materialien wie ui.css (Pergament, Holzknöpfe, Eisen); eigene Datei, damit ui.css unberührt bleibt.
+ */
+
+/* ------------------------------------------------------------------ Linke Spalte: Aufgaben über der Chronik */
+.mk-left {
+  position: absolute;
+  top: calc(var(--mk-top-h) + 10px);
+  left: 12px;
+  width: min(380px, calc(100vw - var(--mk-side-w) - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.mk-left .mk-chron { position: static; max-width: 100%; }
+.mk-root:has(.mk-side:not([hidden])) .mk-left { max-width: calc(100vw - var(--mk-side-w) - 48px); }
+
+.mk-tasks {
+  pointer-events: auto;
+  padding: 6px 10px 8px;
+  font-size: 13.5px;
+  animation: mk-in 0.3s ease-out;
+}
+.mk-task-head { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.mk-task-kicker {
+  font: 700 10.5px/1 var(--mk-f-text);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mk-gold-deep);
+}
+.mk-task-name { font: 700 15px/1.1 var(--mk-f-head); color: var(--mk-ink); flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-task-sum { font-size: 14px; color: var(--mk-ink); }
+.mk-task-btn {
+  appearance: none;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 1px solid #5c4730;
+  border-radius: 3px;
+  color: var(--mk-ink);
+  background: linear-gradient(#f4e6c0, #d9bf86);
+  font: 700 12px/1 var(--mk-f-text);
+  cursor: pointer;
+}
+.mk-task-btn:hover { background: linear-gradient(#fff3d2, #e6cd94); }
+.mk-task-btn:focus-visible { outline: 2px solid var(--mk-gold-deep); outline-offset: 1px; }
+.mk-task-body { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+.mk-task-goals { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; color: var(--mk-ink); }
+.mk-task-auftrag { color: var(--mk-ink-soft); font-style: italic; line-height: 1.3; }
+.mk-task-goal { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.mk-task-goal > span:first-child { flex: 1 1 auto; }
+.mk-task-goal.mk-done { color: var(--mk-green); }
+.mk-task-goal.mk-lost { color: var(--mk-red-ink); }
+.mk-task-pips { display: flex; gap: 3px; }
+.mk-task-pip { width: 9px; height: 9px; transform: rotate(45deg); border: 1px solid #5c4730; background: rgba(90, 70, 40, 0.15); }
+.mk-task-pip.mk-on { background: linear-gradient(135deg, #fff1b0, #c7922a); border-color: #4a3208; }
+.mk-task-tut { border-top: 1px solid rgba(92, 71, 48, 0.35); padding-top: 5px; }
+.mk-task-step { margin: 2px 0 0; color: var(--mk-ink); line-height: 1.3; }
+.mk-tasks.mk-task-won { box-shadow: inset 0 0 0 1px var(--mk-green), inset 0 0 0 3px rgba(234, 214, 164, 0.6), 0 4px 10px rgba(0, 0, 0, 0.45); }
+.mk-tasks.mk-task-lost .mk-task-sum { color: var(--mk-red-ink); }
+
+/* ------------------------------------------------------------------ Kopfleiste: verplante Bestände, Menüknopf */
+.mk-res-verplant {
+  align-self: flex-start;
+  margin: 3px 0 0 -2px;
+  font-size: 10.5px;
+  color: var(--mk-light-soft);
+  opacity: 0.85;
+}
+.mk-btn-menu { width: 30px; font-size: 17px; }
+
+/* ------------------------------------------------------------------ Ausbildung abbrechen */
+.mk-q-stop {
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border: 1px solid #5c4730;
+  border-radius: 3px;
+  color: var(--mk-red-ink);
+  background: linear-gradient(#f4e6c0, #d9bf86);
+  font: 700 15px/1 var(--mk-f-text);
+  cursor: pointer;
+}
+.mk-q-stop:hover { color: #fff; background: linear-gradient(#b8503a, #7a2516); }
+.mk-qitem-stop { appearance: none; border: 1px solid transparent; cursor: pointer; position: relative; }
+.mk-qitem-stop:hover { border-color: var(--mk-red-ink); background: rgba(192, 57, 43, 0.18); }
+.mk-qitem-stop:hover::after {
+  content: "×";
+  position: absolute;
+  right: -2px;
+  top: -6px;
+  font: 700 13px/1 var(--mk-f-text);
+  color: var(--mk-red-ink);
+}
+
+/* ------------------------------------------------------------------ Tafeln: Menü, Verlauf, Ende */
+.mk-menu, .mk-hist, .mk-ende { z-index: 6; }
+.mk-menu-card { width: min(420px, 100%); }
+.mk-menu-body { display: flex; flex-direction: column; gap: 8px; }
+.mk-menu-body p { margin: 0; color: var(--mk-ink); }
+.mk-menu-hint { font-size: 13px; color: var(--mk-ink-soft) !important; font-style: italic; }
+.mk-menu-first { height: 40px; font-size: 16px; }
+.mk-menu-back { margin-top: 4px; }
+.mk-menu-status { min-height: 1.3em; margin: 10px 0 0; font-weight: 700; color: var(--mk-green); }
+.mk-menu-status.mk-menu-fehler, .mk-menu-body .mk-menu-fehler { color: var(--mk-red-ink) !important; }
+.mk-menu-check { display: flex; align-items: center; gap: 8px; color: var(--mk-ink); font-weight: 700; cursor: pointer; }
+.mk-menu-check input { width: 18px; height: 18px; accent-color: #7a2a17; }
+
+.mk-plaetze { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mk-platz { display: flex; gap: 6px; align-items: stretch; }
+.mk-platz-knopf { flex: 1 1 auto; height: auto !important; min-height: 44px; padding: 5px 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-align: left; }
+.mk-platz-name { font: 700 15px/1.1 var(--mk-f-head); }
+.mk-platz-info { font: 400 12.5px/1.2 var(--mk-f-text); opacity: 0.9; }
+.mk-platz-frage .mk-platz-info { font-weight: 700; color: #ffd27a; }
+.mk-platz-weg { flex: none; width: 34px !important; height: auto !important; font-size: 18px; }
+.mk-platz-leer { color: var(--mk-ink-soft); font-style: italic; }
+
+.mk-hist-card { width: min(620px, 100%); }
+.mk-hist-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.mk-hist-filter .mk-btn { padding: 0 10px; font-family: var(--mk-f-text); font-size: 13px; font-weight: 700; }
+.mk-hist-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: min(60vh, 520px); overflow-y: auto; }
+.mk-hist-item { display: flex; gap: 10px; align-items: baseline; padding: 3px 8px; border-left: 3px solid var(--mk-gold-deep); background: rgba(120, 80, 30, 0.08); color: var(--mk-ink); }
+.mk-hist-item.mk-msg-warnung { border-left-color: #d08a1e; }
+.mk-hist-item.mk-msg-warnung .mk-hist-text { color: #7a4300; font-weight: 700; }
+.mk-hist-item.mk-msg-kampf { border-left-color: var(--mk-red); }
+.mk-hist-item.mk-msg-kampf .mk-hist-text { color: var(--mk-red-ink); font-weight: 700; }
+.mk-hist-text { user-select: text; }
+.mk-hist-leer { color: var(--mk-ink-soft); font-style: italic; }
+
+.mk-ende-card { width: min(520px, 100%); text-align: center; }
+.mk-ende-card .mk-title { font-size: 32px; margin-bottom: 8px; }
+.mk-ende-card.mk-sieg .mk-title { color: #2f5a14; }
+.mk-ende-card.mk-niederlage .mk-title { color: var(--mk-red-ink); }
+.mk-ende-text { color: var(--mk-ink); font-size: 15px; margin: 0 0 12px; }
+.mk-ende-stats { display: grid; grid-template-columns: 1fr auto; gap: 3px 18px; margin: 0 auto 12px; max-width: 340px; text-align: left; color: var(--mk-ink); }
+.mk-ende-stats dt { color: var(--mk-ink-soft); }
+.mk-ende-stats dd { margin: 0; text-align: right; font-size: 15px; }
+.mk-ende-waren h3 { margin: 0 0 4px; font: 700 14px/1.2 var(--mk-f-head); color: var(--mk-ink); }
+.mk-ende-waren ul { list-style: none; margin: 0 auto 14px; padding: 0; max-width: 340px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; color: var(--mk-ink); text-align: left; }
+.mk-ende-waren li { display: flex; justify-content: space-between; gap: 8px; }
+.mk-ende-waren p { margin: 0 0 14px; color: var(--mk-ink-soft); }
+.mk-ende-knoepfe { display: flex; flex-direction: column; gap: 8px; }
+
+@media (max-width: 1023px) {
+  .mk-left { width: min(320px, calc(100vw - 24px)); }
+  .mk-tasks { font-size: 12.5px; }
+}
+@media (max-width: 599px) {
+  .mk-task-auftrag { display: none; }
+}

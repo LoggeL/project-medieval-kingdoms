@@ -12,12 +12,12 @@ import { BUILDINGS, GOODS, RECIPES, TECHS, UNITS, levelDef, recipesOf, type Good
 import { inputCap, outputCap, procProgress, procReason } from "../sim/production";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
-import { h, num, setBar, setClass, setText } from "./dom";
+import { h, num, setAttr, setBar, setClass, setText } from "./dom";
 import { BUTTON_KEYS, TRAIN_KEYS } from "../data/hotkeys";
 import { setKey } from "./hotkeys";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { cancelTech, researchText, techIcon } from "./research";
-import { costRow, hpBar, type UiCtx } from "./shared";
+import { costRow, freeOf, hpBar, type UiCtx } from "./shared";
 import { recruit } from "./unitgrid";
 
 const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
@@ -371,7 +371,15 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const curIcon = h("span.mk-cur-icon");
     const curName = h("span");
     const fill = h("span.mk-bar-fill");
-    const cur = h("div.mk-training", null, curIcon, h("div.mk-training-col", null, curName, h("span.mk-bar.mk-bar-train", null, fill)));
+    // Abbrechen (ADR 0019): laufende Ausbildung (−1) bzw. den Rekruten, der gerade die Waffe holt (Platz 0)
+    let curIndex: number | null = null;
+    const cancel = (index: number) => {
+      const r = ctx.bridge.dispatch({ t: "ausbildung_abbrechen", building: id, index });
+      if (!r.ok) ctx.toast(r.reason ?? "Abbrechen nicht möglich", "warnung");
+      else ctx.toast(index === -1 ? "Ausbildung abgebrochen: Gold zurück, die Waffe kommt ins Lager." : "Abgebrochen: Gold zurück.");
+    };
+    const curStop = h("button.mk-q-stop", { type: "button", text: "×", onclick: () => { if (curIndex !== null) cancel(curIndex); } });
+    const cur = h("div.mk-training", null, curIcon, h("div.mk-training-col", null, curName, h("span.mk-bar.mk-bar-train", null, fill)), curStop);
     const way = h("div.mk-recruits-way");
     const queue = h("div.mk-queue");
     body.append(section("Ausbildung", h("div.mk-recruits", null, ...buttons.map((b) => b.el)), cur, way, queue));
@@ -383,7 +391,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         const t = UNITS[x.u].train!;
         const need = lockedBy(s, UNITS[x.u]);
         x.el.title = need ? `${UNITS[x.u].name}: erst erforschen (${TECHS[need].name})` : `${UNITS[x.u].name} ausbilden (${t.seconds} s)`;
-        setClass(x.el, "mk-cant", !!need || s.gold < t.gold || (s.stock[t.equipment] ?? 0) < 1);
+        setClass(x.el, "mk-cant", !!need || s.gold < t.gold || freeOf(s, t.equipment) < 1);
       }
       // Rekruten auf dem Weg: aus Building.recruits; fehlt das Feld, gilt der Kopf der Warteschlange als unterwegs,
       // solange nicht ausgebildet wird (die Simulation nimmt ihn erst beim Eintreten aus der Warteschlange).
@@ -393,6 +401,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       for (const r of recruits) { const i = rest.indexOf(r.unit); if (i >= 0) rest.splice(i, 1); }
 
       const tr = b.training;
+      curIndex = tr ? -1 : recruits.length ? 0 : null;
+      curStop.hidden = curIndex === null;
+      setAttr(curStop, "title", tr ? "Ausbildung abbrechen: Gold zurück, der Rekrut bringt die Waffe ins Lager" : "Abbrechen: Gold zurück, die Waffe bleibt im Lager");
+      setAttr(curStop, "aria-label", tr ? "Ausbildung abbrechen" : "Rekruten zurückrufen");
       const ck = tr ? `t:${tr.unit}` : recruits.length ? `w:${recruits[0].unit}` : "";
       if (ck !== lastCur) {
         lastCur = ck;
@@ -417,15 +429,22 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       if (wk !== lastWay) {
         lastWay = wk;
         way.textContent = "";
-        for (const r of more) way.append(h("div.mk-row.mk-way", null, ctx.icons.make("einheit", r.unit, 24, 24), h("span.mk-sub", { text: recruitText(r.unit, r.stage) })));
+        // Während ausgebildet wird, ist der Rekrut auf dem Weg der Kopf der Warteschlange (Platz 0)
+        for (const r of more) way.append(h("div.mk-row.mk-way", null, ctx.icons.make("einheit", r.unit, 24, 24), h("span.mk-sub", { text: recruitText(r.unit, r.stage) }),
+          h("button.mk-q-stop", { type: "button", text: "×", title: "Abbrechen: Gold zurück", "aria-label": `${UNITS[r.unit].name} abbrechen`, onclick: () => cancel(0) })));
       }
-      const qk = rest.join(",");
+      // Warteschlange: Klick bricht den Platz ab (Gold zurück); die Plätze vor `rest` sind Rekruten auf dem Weg
+      const offset = b.queue.length - rest.length;
+      const qk = `${offset}:${rest.join(",")}`;
       if (qk !== lastQ) {
         lastQ = qk;
         queue.textContent = "";
         if (rest.length) {
           queue.append(h("span.mk-label", { text: "Warteschlange" }));
-          for (const u of rest) queue.append(h("span.mk-qitem", { title: UNITS[u].name }, ctx.icons.make("einheit", u, 24, 24)));
+          rest.forEach((u, i) => queue.append(h("button.mk-qitem.mk-qitem-stop", {
+            type: "button", title: `${UNITS[u].name}: Klick bricht ab (${UNITS[u].train!.gold} Gold zurück)`, "aria-label": `${UNITS[u].name} aus der Warteschlange nehmen`,
+            onclick: () => cancel(offset + i),
+          }, ctx.icons.make("einheit", u, 24, 24))));
         }
       }
     });

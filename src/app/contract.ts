@@ -2,9 +2,26 @@
  * Schnittstelle zwischen Spielschleife/Darstellung (src/app, src/render) und der DOM-Oberfläche (src/ui).
  * src/app/main.ts erzeugt die Brücke und ruft mountUi(root, bridge) aus src/ui auf.
  */
-import type { BuildingKey, Good, UnitKey } from "../data";
+import type { BuildingKey, Good, SaveSlotKey, UnitKey } from "../data";
 import type { MusicKey } from "../data/audio";
 import type { Command, CommandResult, SimState } from "../sim/types";
+import type { SaveInfo } from "./saves";
+
+export type { SaveInfo };
+
+/**
+ * Spielstände (ADR 0019, src/app/saves.ts). Alle Aufrufe sind asynchron; Fehler kommen als Error mit Spielertext.
+ * Laden ersetzt die laufende Partie an Ort und Stelle (Auswahl, Werkzeug und Gruppen werden zurückgesetzt) und meldet
+ * on("loaded").
+ */
+export interface SaveApi {
+  /** false: Der Browser erlaubt keine dauerhafte Ablage, Spielstände gelten nur für diese Sitzung. */
+  persistent(): boolean;
+  list(): Promise<SaveInfo[]>;
+  save(slot: SaveSlotKey): Promise<SaveInfo>;
+  load(slot: SaveSlotKey): Promise<void>;
+  remove(slot: SaveSlotKey): Promise<void>;
+}
 
 /** Werkzeug der Maus. */
 export type Tool =
@@ -51,8 +68,15 @@ export interface UiBridge {
    */
   audio(): { music: number; voice: number; muted: boolean; track?: MusicKey | null };
   setAudio(a: Partial<{ music: number; voice: number; muted: boolean }>): void;
-  /** Meldung oder Wechsel (Auswahl, Werkzeug, Tick) abonnieren. Gibt eine Abmeldefunktion zurück. */
-  on(ev: "tick" | "selection" | "tool" | "view" | "assets" | "audio", fn: () => void): () => void;
+  /**
+   * Meldung oder Wechsel (Auswahl, Werkzeug, Tick) abonnieren. Gibt eine Abmeldefunktion zurück. "menu": Esc ohne
+   * Auswahl und Werkzeug (Spielmenü öffnen), "loaded": eine andere Partie wurde geladen.
+   */
+  on(ev: AppEvent, fn: () => void): () => void;
+  /** Spielstände speichern und laden. */
+  saves: SaveApi;
+  /** Zum Hauptmenü: automatisch speichern (Platz „auto“), dann zurück zum Titel (Seite neu laden). */
+  toTitle(): Promise<void>;
   /** Kurzer Hinweis am Mauszeiger oder in der Meldungsleiste (z. B. Grund, warum nicht gebaut werden kann). */
   notify(text: string, kind?: "info" | "warnung"): void;
   /**
@@ -61,6 +85,8 @@ export interface UiBridge {
    */
   onNotify(fn: (text: string, kind?: "info" | "warnung") => void): () => void;
 }
+
+export type AppEvent = "tick" | "selection" | "tool" | "view" | "assets" | "audio" | "menu" | "loaded";
 
 /** Wird von src/ui exportiert. */
 export type MountUi = (root: HTMLElement, bridge: UiBridge) => void;

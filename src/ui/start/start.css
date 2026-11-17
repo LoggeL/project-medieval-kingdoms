@@ -512,6 +512,59 @@
 .mk-start .mk-regler::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b0, #c7922a 70%); box-shadow: 0 0 0 1px #4a3208, 0 1px 2px rgba(0, 0, 0, 0.5); }
 .mk-start .mk-regler::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b0, #c7922a 70%); box-shadow: 0 0 0 1px #4a3208; }
 
+/* Neues Spiel, Laden, Fortsetzen (ADR 0019) */
+.mk-titel-fehler {
+  margin: 2px 0 0;
+  padding: 6px 10px;
+  border-radius: 3px;
+  color: #fff3e6;
+  background: rgba(122, 37, 22, 0.92);
+  border: 1px solid #3d0f07;
+  font-size: 14px;
+  text-shadow: 0 1px 0 #000;
+}
+.mk-titel-wartet, .mk-titel-wartet * { cursor: progress !important; }
+.mk-auftrag { margin: 0 0 6px; color: var(--s-ink); }
+.mk-schwierigkeit { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 14px; }
+.mk-stufe {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 12px 8px 34px;
+  position: relative;
+  text-align: left;
+  border: 1px solid #7a6040;
+  border-radius: 3px;
+  color: var(--s-ink);
+  background: rgba(255, 248, 225, 0.35);
+  font: 400 13.5px/1.25 var(--s-f-text);
+  cursor: pointer;
+}
+.mk-stufe strong { font: 700 17px/1.1 var(--s-f-head); }
+.mk-stufe::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  border: 1px solid #5c4730;
+  background: rgba(90, 70, 40, 0.12);
+}
+.mk-stufe:hover { background: rgba(255, 248, 225, 0.6); }
+.mk-stufe.mk-an { border-color: var(--s-gold-deep); background: rgba(246, 220, 140, 0.55); box-shadow: inset 0 0 0 1px var(--s-gold-deep); }
+.mk-stufe.mk-an::before { background: linear-gradient(135deg, #fff1b0, #c7922a); border-color: #4a3208; }
+.mk-beginnen { margin-top: 2px; }
+.mk-start .mk-plaetze { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mk-start .mk-platz-knopf { height: auto; min-height: 52px; padding: 6px 22px; flex-direction: column; gap: 3px; }
+.mk-start .mk-platz-name { font: 700 20px/1.1 var(--s-f-head); }
+.mk-start .mk-platz-info { font: 400 13px/1.2 var(--s-f-text); color: var(--s-light-soft); }
+.mk-start .mk-platz-leer { color: var(--s-ink-soft); font-style: italic; }
+
 /* ================================================================== Klein und mobil */
 @media (max-width: 760px) {
   .mk-titel-inhalt {

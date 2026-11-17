@@ -1,12 +1,13 @@
 /**
  * Einstieg: Simulation erzeugen, Pixi starten, Oberfläche einhängen, Sprites laden, Spielschleife, Eingabe und Audio verbinden.
  * Davor und währenddessen: Ladebildschirm mit Fortschritt (boot), danach der Titelbildschirm. Die Simulation tickt erst
- * nach „Neues Spiel“ (src/ui/start).
+ * nach „Neues Spiel“, „Fortsetzen“ oder „Laden“ (src/ui/start). Spielstände: SaveSession (spielstand.ts, ADR 0019);
+ * Laden ersetzt die Partie an Ort und Stelle (Simulation.restore), afterLoad räumt Auswahl, Darstellung und Ansagen auf.
  */
 import { Application, TextureSource } from "pixi.js";
 import { GameRenderer } from "../render";
 import { loadSheets } from "../render/assets";
-import { center, createGame } from "../sim";
+import { center, createGame, type SimState } from "../sim";
 import { mountUi } from "../ui";
 import { Startbildschirm } from "../ui/start";
 import { AudioDirector } from "./audio";
@@ -15,6 +16,8 @@ import { DebugOverlay } from "./debug";
 import { Input } from "./input";
 import { FixedLoop } from "./loop";
 import { NotifyHub, PointerHint } from "./notify";
+import { openSaveBackend } from "./saves";
+import { SaveSession } from "./spielstand";
 import { AppStore } from "./store";
 import "./style.css";
 
@@ -40,9 +43,30 @@ async function start(boot: Startbildschirm): Promise<void> {
 
   const audioSettings = loadAudioSettings();
   let audio: AudioDirector | null = null;
+  /** Kamera auf den Sitz (sonst das Lager) der eigenen Partie. */
+  const lookHome = (s: SimState) => {
+    const home = s.buildings.find((b) => b.team === 0 && b.key === "lager") ?? s.buildings.find((b) => b.team === 0);
+    if (home) renderer?.camera.lookAt(...center(home.key, home.x, home.y, home.o));
+    else renderer?.camera.lookAt(s.w / 2, s.h / 2);
+  };
+  /** Eine andere Partie steht jetzt in der Simulation (geladen oder neu begonnen). */
+  const afterLoad = () => {
+    store.reset();
+    renderer?.resetWorld();
+    lookHome(game.state);
+    audio?.markSeen();
+    emitTick();
+    store.emit("loaded");
+    store.emit("view");
+  };
+  const saves = new SaveSession(game, openSaveBackend(), afterLoad, (t) => hub.emit(t, "warnung"));
   const bridge = createBridge({
     game, store, hub, renderer: () => renderer, afterDispatch: emitTick, say: (k) => audio?.say(k),
-    track: () => audio?.current() ?? null,
+    track: () => audio?.current() ?? null, saves,
+    async toTitle() {
+      await saves.save("auto");
+      location.reload();
+    },
   }, audioSettings);
   audio = new AudioDirector(() => audioSettings, () => game.state, () => store.speed);
   mountUi(uiRoot, bridge);
@@ -68,13 +92,19 @@ async function start(boot: Startbildschirm): Promise<void> {
   boot.fertig("gebaeude", "figuren", "gelaende");
   renderer = new GameRenderer(app, sheets, game.state);
   // Start: Blick auf das eigene Lager
-  const home = game.state.buildings.find((b) => b.team === 0 && b.key === "lager") ?? game.state.buildings.find((b) => b.team === 0);
-  if (home) renderer.camera.lookAt(...center(home.key, home.x, home.y, home.o));
-  else renderer.camera.lookAt(game.state.w / 2, game.state.h / 2);
+  lookHome(game.state);
 
   await nebenbei;
-  // Titelbildschirm; erst danach Eingabe, Spielschleife und Audio-Regie
-  await boot.titel(bridge);
+  // Titelbildschirm; erst danach Eingabe, Spielschleife und Audio-Regie. Neues Spiel mit anderem Schwierigkeitsgrad
+  // ersetzt die beim Laden angelegte Partie, „Fortsetzen“ und „Laden“ laden einen Spielstand an ihre Stelle.
+  await boot.titel(bridge, async (wahl) => {
+    if (wahl.k === "laden") { await saves.load(wahl.slot); return; }
+    if (wahl.difficulty !== game.state.match.difficulty) {
+      game.restore(createGame({ difficulty: wahl.difficulty }).save());
+      saves.restarted();
+      afterLoad();
+    }
+  });
 
   const debug = new DebugOverlay();
   const hint = new PointerHint();
@@ -82,7 +112,7 @@ async function start(boot: Startbildschirm): Promise<void> {
   store.emit("assets");
   store.emit("view");
   // Nur im Entwicklungsmodus: Zugriff für Tests im Browser (window.mk).
-  if (import.meta.env.DEV) Object.assign(window, { mk: { game, bridge, store, renderer, app, hub, audio } });
+  if (import.meta.env.DEV) Object.assign(window, { mk: { game, bridge, store, renderer, app, hub, audio, saves } });
 
   let last = performance.now(), fps = 60;
   const t0 = last;
@@ -109,6 +139,7 @@ async function start(boot: Startbildschirm): Promise<void> {
     const vk = `${Math.round(cam.x)},${Math.round(cam.y)},${cam.r},${cam.zoom},${cam.sw},${cam.sh}`;
     if (vk !== viewKey && now - lastViewEmit >= VIEW_EVENT_MS) { viewKey = vk; lastViewEmit = now; store.emit("view"); }
     audio!.update();
+    saves.autosave();
     const tr = audio!.current();
     if (tr !== lastTrack) { lastTrack = tr; store.emit("audio"); }
     // Canvas weich skalieren bei Übersicht (< 1×) und Zwischenstufen (1,5×), sonst pixelig (render/camera.ts pixelMode)

@@ -1,7 +1,8 @@
 /**
  * Mittelalterliche Oberfläche (DOM + CSS). Spricht nur über die UiBridge (src/app/contract.ts) mit dem Spiel.
- * Aufbau: Kopfleiste (Holz), Chronik, Auswahl-Panel rechts (Pergament), Fußleiste (Stein) mit Übersichtskarte
- * und Bauleiste, Hilfe-Overlay und Hinweise. Die Leisten fangen Mausereignisse nur dort ab, wo sie liegen.
+ * Aufbau: Kopfleiste (Holz), links Aufgabenleiste (Ziel, Einführung) und Chronik, Auswahl-Panel rechts (Pergament),
+ * Fußleiste (Stein) mit Übersichtskarte und Bauleiste, Hilfe-Overlay, Spielmenü, Meldungsverlauf, Tafel am Ende der
+ * Partie und Hinweise. Die Leisten fangen Mausereignisse nur dort ab, wo sie liegen.
  * Aktualisiert wird über bridge.on(...), gebündelt auf höchstens ~10 Mal pro Sekunde und nur bei Änderungen.
  */
 import type { MountUi } from "../app/contract";
@@ -12,7 +13,11 @@ import { installHotkeys } from "./hotkeys";
 import { Icons } from "./icons";
 import { createChronicle, createToaster } from "./messages";
 import { createMinimap } from "./minimap";
-import { createDefeat } from "./defeat";
+import { createTaskBar } from "./aufgaben";
+import { createEnde } from "./ende";
+import { createGameMenu } from "./spielmenue";
+import { createHistory } from "./verlauf";
+import "./spielziel.css";
 import { createResearch } from "./research";
 import type { UiCtx } from "./shared";
 import { createSidePanel } from "./sidepanel";
@@ -42,15 +47,19 @@ export const mountUi: MountUi = (root, bridge) => {
   const help = createHelp();
   const research = createResearch(ctx);
   ctx.research = research;
-  const defeat = createDefeat(ctx);
-  const top = createTopBar(ctx, () => help.toggle());
+  const ende = createEnde(ctx);
+  const menu = createGameMenu(ctx);
+  const history = createHistory();
+  const top = createTopBar(ctx, () => help.toggle(), () => menu.toggle(true));
   const chron = createChronicle();
+  const tasks = createTaskBar(() => history.toggle(true));
   const side = createSidePanel(ctx);
   const build = createBuildBar(ctx);
   const mini = createMinimap(bridge);
   const bottom = h("footer.mk-bottom.mk-stone", null, h("div.mk-mini-frame", null, mini.el), build.el);
 
-  root.append(top.el, chron.el, side.el, bottom, help.el, research.el, defeat.el, toastLayer);
+  const left = h("div.mk-left", null, tasks.el, chron.el);
+  root.append(top.el, left, side.el, bottom, help.el, research.el, history.el, menu.el, ende.el, toastLayer);
   installHotkeys(root, toast);
   if (window.innerWidth < 1024) build.el.classList.add("mk-collapsed");
 
@@ -78,7 +87,9 @@ export const mountUi: MountUi = (root, bridge) => {
     build.update(s);
     mini.update(s);
     research.update(s);
-    defeat.update(s);
+    tasks.update(s);
+    history.update(s);
+    ende.update(s);
   };
   const schedule = () => {
     if (pending) return;
@@ -92,6 +103,15 @@ export const mountUi: MountUi = (root, bridge) => {
   bridge.on("tool", () => build.updateTool());
   bridge.on("view", () => { top.updateView(); mini.update(bridge.state(), true); });
   bridge.on("audio", () => top.updateAudio());
+  // Andere Partie geladen: Tafeln und Verlauf gehören zur alten
+  bridge.on("loaded", () => {
+    const s = bridge.state();
+    ende.loaded(s);
+    history.loaded(s);
+    research.toggle(false);
+    help.toggle(false);
+    schedule();
+  });
   // Geschwindigkeit hat kein eigenes Ereignis; in der Pause kommen keine Ticks, Befehle ändern den Zustand aber trotzdem.
   window.setInterval(() => {
     top.updateSpeed();
