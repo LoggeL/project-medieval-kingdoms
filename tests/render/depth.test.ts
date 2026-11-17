@@ -69,6 +69,24 @@ describe("Tiefensortierung", () => {
     }
   });
 
+  it("Figur dicht an der Rückwand bleibt dahinter, dicht an der Vorderwand davor (alle Drehungen)", () => {
+    // Gebäude 10..12 × 10..12; Figuren 0,1 Tiles neben jeder Seite (die Sortierbox ±0,2 ragt hinein)
+    for (const r of [0, 1, 2, 3] as Rot[]) {
+      const house = item(10, 10, 2, 2, r);
+      const spots: [number, number][] = [[11, 9.9], [12.1, 11], [11, 12.1], [9.9, 11]];
+      for (const [x, y] of spots) {
+        const fig = item(x - 0.2, y - 0.2, 0.4, 0.4, r, { fig: true });
+        const [fu, fv] = toView(x, y, r, W, H);
+        const behind = fu < house.u0 || fv < house.v0;
+        // Boxen überlappen sich wirklich (sonst prüfte der Test nichts)
+        expect(fig.u1 > house.u0 && fig.u0 < house.u1 && fig.v1 > house.v0 && fig.v0 < house.v1).toBe(true);
+        expect(relation(fig, house), `r ${r}, Figur bei ${x},${y}`).toBe(behind ? 1 : -1);
+        const order = new DepthSorter().sort([house, fig]);
+        expect(order[0]).toBe(behind ? 1 : 0);
+      }
+    }
+  });
+
   it("bleibt bei vielen Objekten schnell und vollständig", () => {
     const items: DepthItem[] = [];
     for (let i = 0; i < 600; i++) items.push(item((i * 7) % 30, (i * 13) % 30, 0.4, 0.4, 0, { fig: i % 2 === 0 }));

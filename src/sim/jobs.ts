@@ -6,7 +6,7 @@
 import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
 import { center, entrance, footprintTiles } from "./geom";
 import { completeBuilding } from "./build";
-import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal } from "./move";
+import { goalAround, goalEntrance, faceSlot, goalSlot, stop, tileGoal, travel, type TravelGoal } from "./move";
 import { reservePut, tidy } from "./storage";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
@@ -221,9 +221,10 @@ function runHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void {
   }
   const dst = w.buildings.get(j.to);
   if (!dst || !dst.slots[j.slot]) { retargetHaul(w, u, j); return; }
-  const r = travel(w, u, goalSlot(dst, j.slot));
+  const r = travel(w, u, goalSlot(w, dst, j.slot));
   if (r === "unreachable") { const s = dst.slots[j.slot]; s.incoming--; tidy(s); j.to = 0; retargetHaul(w, u, j); return; }
   if (r !== "arrived") return;
+  faceSlot(u, dst, j.slot);
   const s = dst.slots[j.slot];
   s.incoming--; s.amount++;
   if (s.good !== j.good) s.good = j.good;
@@ -244,9 +245,10 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!site || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
-    const r = travel(w, u, goalSlot(st, j.slot));
+    const r = travel(w, u, goalSlot(w, st, j.slot));
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
+    faceSlot(u, st, j.slot);
     const s = st.slots[j.slot];
     s.amount--; s.reserved--; tidy(s);
     u.carry = j.good; j.ph = 1;
@@ -286,9 +288,10 @@ function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!b || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
-    const r = travel(w, u, goalSlot(st, j.slot));
+    const r = travel(w, u, goalSlot(w, st, j.slot));
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
+    faceSlot(u, st, j.slot);
     const s = st.slots[j.slot];
     s.amount--; s.reserved--; tidy(s);
     u.carry = j.good; j.ph = 1;

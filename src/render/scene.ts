@@ -8,7 +8,7 @@
  */
 import { Container, type Texture } from "pixi.js";
 import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
-import { center, entrance, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { center, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -598,13 +598,18 @@ export class ObjectLayer {
   private siteItems(b: Building): void {
     const goods = (Object.keys(b.site) as Good[]).filter((g) => (b.site[g] ?? 0) > 0);
     if (!goods.length) return;
-    const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
+    // Im Grundriss an der Vorderkante (die Baustelle ist schon Hindernis), nicht auf dem Weg vor der Tür:
+    // dort liefen die Träger sonst durch die Stapel.
+    const [fw, fd] = BUILDINGS[b.key].footprint;
+    const [cx, cy] = center(b.key, b.x, b.y, b.o);
+    const [fx, fy] = modelToWorld(0, -(fd / 2 - 0.5), b.o);
     const [lx, ly] = modelToWorld(1, 0, b.o);
+    const spread = Math.min(0.7, (fw - 0.6) / Math.max(1, goods.length - 1));
     goods.forEach((g, k) => {
-      const off = (k - (goods.length - 1) / 2) * 0.7;
-      const x = ex + 0.5 + lx * off, y = ey + 0.5 + ly * off;
+      const off = (k - (goods.length - 1) / 2) * spread;
+      const x = cx + fx + lx * off, y = cy + fy + ly * off;
       const [cu, cv] = toView(x, y, this.r, this.W, this.H);
-      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3);
+      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3, false, false, 0.05); // vor dem wachsenden Bau
       const [X, Y] = this.scr(x, y);
       const level = Math.max(1, Math.min(4, Math.ceil((b.site[g] ?? 0) / 3)));
       const st = this.stackTexture(g, level, b.o);

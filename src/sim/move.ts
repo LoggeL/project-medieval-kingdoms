@@ -192,10 +192,24 @@ export function goalEntrance(w: World, b: SBuilding): TravelGoal {
   return goalAround(b);
 }
 
-/** An einen Lager-Slot (daneben stehen). */
-export function goalSlot(b: SBuilding, k: number): TravelGoal {
-  const [x, y] = slotTile(b.x, b.y, b.o, k);
-  return tileGoal(x, y, 0, 1);
+/**
+ * Ware an Lager-Slot k abgeben oder holen: über die Tür des Lagers (Daten `door`), nie quer über die Stapel.
+ * Auf der Tür tritt die Figur ein Stück zur Seite des Stapels, damit sie ihm zugewandt ist und sich mehrere Träger
+ * nicht decken. Ist die Tür versperrt, irgendwo an den Grundriss (wie goalEntrance).
+ */
+export function goalSlot(w: World, b: SBuilding, k: number): TravelGoal {
+  const g = goalEntrance(w, b);
+  if (g.d !== 0 || g.x0 !== g.x1 || g.y0 !== g.y1) return g;
+  const [sx, sy] = slotTile(b.x, b.y, b.o, k);
+  const dx = sx - g.x0, dy = sy - g.y0, d = Math.hypot(dx, dy) || 1;
+  const f = 0.28 / d;
+  return { ...g, endX: g.x0 + 0.5 + dx * f, endY: g.y0 + 0.5 + dy * f };
+}
+
+/** Beim Abgeben oder Holen zum Stapel von Slot k schauen. */
+export function faceSlot(u: SUnit, b: SBuilding, k: number): void {
+  const [sx, sy] = slotTile(b.x, b.y, b.o, k);
+  face(u, sx + 0.5 - u.x, sy + 0.5 - u.y);
 }
 
 export function isWorkshop(b: SBuilding): boolean { return !!BUILDINGS[b.key].workers; }

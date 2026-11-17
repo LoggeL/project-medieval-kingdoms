@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entrance, footprint, modelToWorld, slotTile, stairEnds, turn, viewOf } from "../src/sim/geom";
+import { approach, doorInside, entrance, footprint, modelToWorld, slotTile, stairEnds, turn, viewOf } from "../src/sim/geom";
 
 describe("geom", () => {
   it("dreht Versätze im Sinn der Gebäudeansichten", () => {
@@ -12,7 +12,21 @@ describe("geom", () => {
     expect(footprint("kaserne", 1)).toEqual([3, 4]);
   });
   it("legt den Eingang vor die Vorderseite", () => {
-    expect(entrance("lager", 10, 10, 0)).toEqual([11, 13]); // Vorderseite Modell −y = Welt +y
+    expect(entrance("kaserne", 10, 10, 0)).toEqual([12, 13]); // Vorderseite Modell −y = Welt +y
+    expect(approach("kaserne", 10, 10, 0)).toEqual([12, 13]);
+    // Lagerplatz: Tür ist die Einfahrt im Grundriss (Daten door [0, −1]), der Vorplatz liegt davor
+    expect(entrance("lager", 10, 10, 0)).toEqual([11, 12]);
+    expect(approach("lager", 10, 10, 0)).toEqual([11, 13]);
+    expect(doorInside("lager", 10, 10, 0)).toBe(true);
+    expect(doorInside("haus", 10, 10, 0)).toBe(false);
+  });
+  it("Einfahrt des Lagers ist kein Stellplatz und dreht mit", () => {
+    for (let o = 0; o < 4; o++) {
+      const door = entrance("lager", 10, 10, o);
+      for (let k = 0; k < 8; k++) expect(slotTile(10, 10, o, k)).not.toEqual(door);
+      const [ax, ay] = approach("lager", 10, 10, o), [fx, fy] = modelToWorld(0, -1, o);
+      expect([ax - door[0], ay - door[1]]).toEqual([fx + 0, fy + 0]);
+    }
   });
   it("Lager-Slots liegen im Grundriss", () => {
     for (let k = 0; k < 8; k++) for (let o = 0; o < 4; o++) {

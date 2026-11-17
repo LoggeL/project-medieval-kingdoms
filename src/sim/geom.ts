@@ -42,18 +42,50 @@ export function center(key: BuildingKey, x: number, y: number, o: number): [numb
   return [x + w / 2, y + h / 2];
 }
 
+/** Tür in Modellachsen ab Grundrissmitte (Daten `door`, sonst mittig vor der Vorderkante). */
+export function doorModel(key: BuildingKey): [number, number] {
+  const def = BUILDINGS[key];
+  return def.door ?? [0, -(def.footprint[1] / 2 + 0.5)];
+}
+
 /**
- * Eingang: der Tile vor der Vorderseite (Modell −y, im Sprite die Tür).
- * Liegt außerhalb des Grundrisses, mittig vor der Vorderkante.
+ * Eingang: die Tür- bzw. Zugangskachel (Daten `door`, dreht mit). Meist der Tile vor der Vorderseite (Modell −y, im
+ * Sprite die Tür); beim Lagerplatz die Einfahrt im Grundriss. Figuren betreten und verlassen Gebäude nur hier.
  */
 export function entrance(key: BuildingKey, x: number, y: number, o: number): [number, number] {
-  const [, d] = BUILDINGS[key].footprint;
+  const [mx, my] = doorModel(key);
   const [cx, cy] = center(key, x, y, o);
-  const [ox, oy] = modelToWorld(0, -(d / 2 + 0.5), o);
+  const [ox, oy] = modelToWorld(mx, my, o);
   return [Math.floor(cx + ox), Math.floor(cy + oy)];
 }
 
-/** Lager-Slot k (0..7) → Welt-Tile. Reihenfolge wie in buildings.py b_lager: (i, j) ∈ 3 × 3 ohne die Einfahrt (0, −1). */
+/** Liegt (tx, ty) im Grundriss des Gebäudes? */
+export function inFootprint(key: BuildingKey, x: number, y: number, o: number, tx: number, ty: number): boolean {
+  const [w, h] = footprint(key, o);
+  return tx >= x && ty >= y && tx < x + w && ty < y + h;
+}
+
+/** Tür im Grundriss (begehbare Einfahrt wie beim Lagerplatz)? */
+export function doorInside(key: BuildingKey, x: number, y: number, o: number): boolean {
+  const [ex, ey] = entrance(key, x, y, o);
+  return inFootprint(key, x, y, o, ex, ey);
+}
+
+/**
+ * Vorplatz: der erste Tile vor der Tür außerhalb des Grundrisses (Modell −y). Liegt die Tür schon draußen, ist es
+ * die Tür selbst. Über diesen Tile wird eine Einfahrt im Grundriss betreten; er muss frei bleiben.
+ */
+export function approach(key: BuildingKey, x: number, y: number, o: number): [number, number] {
+  let [ex, ey] = entrance(key, x, y, o);
+  const [fx, fy] = modelToWorld(0, -1, o);
+  for (let i = 0; i < 8 && inFootprint(key, x, y, o, ex, ey); i++) { ex += fx; ey += fy; }
+  return [ex, ey];
+}
+
+/**
+ * Lager-Slot k (0..7) → Welt-Tile. Reihenfolge wie in buildings.py b_lager: (i, j) ∈ 3 × 3 ohne die Einfahrt (0, −1),
+ * die als Tür des Lagerplatzes (Daten `door`) der einzige begehbare Tile im Hof ist.
+ */
 export const STORAGE_SLOTS: [number, number][] = [[-1, 1], [0, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [0, 0]];
 export function slotTile(x: number, y: number, o: number, k: number): [number, number] {
   const [cx, cy] = center("lager", x, y, o);

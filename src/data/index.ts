@@ -77,6 +77,13 @@ export interface BuildingDef {
   buildSeconds: number;
   /** Sprite-Schlüssel im Gebäudeblatt (assets/buildings/<stil>/sheet.json). Mauerteile wählt die Darstellung selbst. */
   sprite: string;
+  /**
+   * Tür bzw. Zugang: Mitte der Zugangskachel in Modellachsen ab Grundrissmitte (Tiles, Modell −y = Vorderseite),
+   * dreht mit der Ausrichtung. Figuren betreten und verlassen das Gebäude nur hier, Waren werden hier abgegeben und
+   * abgeholt. Liegt die Kachel im Grundriss (Einfahrt des Lagerplatzes), bleibt nur sie begehbar und wird von der
+   * Vorderseite her betreten; sonst liegt sie davor. Fehlt der Eintrag, liegt die Tür mittig vor der Vorderkante.
+   */
+  door?: [number, number];
   /** Platzierungsregeln. */
   placement?: { nearTag?: { tag: "tree" | "rock"; count: number; radius: number }; adjacentTerrain?: TerrainKey };
   workers?: { unit: UnitKey; count: number; cycle: CycleStep[] };
@@ -105,11 +112,11 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   lager: {
     name: "Lagerplatz", desc: "Acht Stellplätze für Holz, Stein, Eisen und Waffen. Jede Ware liegt sichtbar auf ihrem Stapel.",
     category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lager_boden",
-    storage: { slots: 8, perSlot: 20 }, hp: 300,
+    door: [0, -1], storage: { slots: 8, perSlot: 20 }, hp: 300,
   },
   holzfaeller: {
     name: "Holzfällerhütte", desc: "Ein Holzfäller fällt Bäume in der Nähe, zerlegt sie und legt die Stämme auf seinen Hof.",
-    category: "wirtschaft", footprint: [2, 2], cost: { holz: 6 }, buildSeconds: 12, sprite: "holzfaeller",
+    category: "wirtschaft", footprint: [2, 2], cost: { holz: 6 }, buildSeconds: 12, sprite: "holzfaeller", door: [0, -1.5],
     placement: { nearTag: { tag: "tree", count: 4, radius: 10 } },
     workers: {
       unit: "holzfaeller", count: 1, cycle: [
@@ -125,7 +132,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   steinbruch: {
     name: "Steinbruch", desc: "Zwei Steinmetze brechen Blöcke aus dem Fels. Muss an Fels grenzen.",
-    category: "wirtschaft", footprint: [3, 3], cost: { holz: 12 }, buildSeconds: 18, sprite: "steinbruch",
+    category: "wirtschaft", footprint: [3, 3], cost: { holz: 12 }, buildSeconds: 18, sprite: "steinbruch", door: [0, -2],
     placement: { adjacentTerrain: "fels", nearTag: { tag: "rock", count: 1, radius: 6 } },
     workers: {
       unit: "steinmetz", count: 2, cycle: [
@@ -140,12 +147,12 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   kaserne: {
     name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt die Waffe aus dem Lager und tritt hier ein.",
-    category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne",
+    category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne", door: [0, -2],
     trains: ["speer", "schwert", "bogen"], hp: 500,
   },
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
-    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", housing: 4, hp: 150,
+    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5], housing: 4, hp: 150,
   },
   mauer: {
     name: "Steinmauer", desc: "Ziehen, um eine Mauer zu bauen. Der Wehrgang ist begehbar, Schützen stehen hinter den Zinnen.",
@@ -163,7 +170,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   turm: {
     name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
-    category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm",
+    category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm", door: [0, -1.5],
     walkway: 2, posts: [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]], hp: 1200,
   },
 };

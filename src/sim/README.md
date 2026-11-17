@@ -6,7 +6,7 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 |---|---|
 | `world.ts` | Innerer Zustand: `World` (Zustand + Meta + Laufraster + Nachschlagetabellen), Aufträge (`Job`), `ai`-Feld an Einheiten und Gebäuden |
 | `mapgen.ts` | Kartengenerator: Wald im Westen, Felsfeld im Norden, Fluss mit Furt im Osten, Wege, Startlager in der Mitte |
-| `nav.ts` | Laufraster mit drei Ebenen (Boden, Wehrgang, Turm), Treppen- und Turmübergänge, Tore und Turmtüren (nur Team 0), A* mit Wegkosten, Komponenten, Cache, Belagerungsmodus |
+| `nav.ts` | Laufraster mit drei Ebenen (Boden, Wehrgang, Turm), Gebäude als feste Hindernisse (Tür im Grundriss begehbar), Treppen- und Turmübergänge, Tore und Turmtüren (nur Team 0), A* mit Wegkosten, keine Diagonale an gesperrten Ecken, Komponenten, Cache, Belagerungsmodus |
 | `move.ts` | Gehen entlang von Pfaden (Höhe gleitet mit, auf Treppen nach den Stufen), Pfadbudget pro Tick, Ziele an Gebäuden, Einheiten aus neuen Grundrissen schieben |
 | `build.ts` | Platzierungsregeln, Baustellen, Mauerlinien (Vorschau = Bau), Tor nur in gerader Mauer, Fertigstellung, Abriss, Zerstörung, Mauer-Nachbarschaft |
 | `activity.ts` | Anzeige-Zustand: `Unit.activity`, `Building.recruits`, `Building.gateOpen` |
@@ -28,6 +28,7 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 - Bäume: `faellt` mit `progress` 0..1 (1,5 s) und Fallrichtung, `liegt` mit `logs` und `progress` = Zerlegefortschritt, dann `stumpf`. Felsbrocken verschwinden bei `amount` 0.
 - Einheiten auf Treppen haben eine Zwischenhöhe `z`; `layer` wechselt am Knoten (oberer Treppen-Tile zählt schon zu Ebene 1).
 - Lager: 8 Slots mit je 20 Stück (Balance in `src/data`), Füllstufe = `amount / perSlot`.
+- Gebäude sind feste Hindernisse (ADR 0005): Figuren betreten sie nur über die Tür (`BUILDINGS[..].door`, `geom.entrance`). Beim Lagerplatz ist die Tür die Einfahrt im Grundriss, der einzige begehbare Tile im Hof; Träger stehen beim Abgeben und Holen dort, leicht zum Stapel versetzt. Auf den Vorplatz einer Tür (`geom.approach`) lässt sich nichts bauen.
 - `Unit.activity` sagt, was eine Figur tut (wartet, unterwegs, baut, traegt, faellt, zerlegt, baut_ab, holt_waffe, flieht, kaempft, wache, haelt, zieht_zu); die Animation (`anim`) ist nur das Bild dazu. Tagelöhner bauen mit `anim = "bauen"`.
 - `Building.recruits` (Ausbildungsstätten): der Rekrut, der gerade die Waffe holt (`stage "waffe"`) bzw. zur Kaserne trägt (`"weg"`); `training` gibt es erst, wenn er eingetreten ist. `Building.gateOpen`: Tor offen, solange eigene Leute am Boden im oder vor dem Tor stehen.
 - Sprecheransagen: `Message.voice` bzw. `CommandResult.voice` (Schlüssel aus `VOICE` in `src/data/audio.ts`). Jede Ansage hat einen Auslöser, siehe `tests/sim/voice.test.ts`. Wiederholungen drosselt schon die Simulation über den Meldungsschlüssel; die App drosselt zusätzlich nach `repeatSeconds`.
