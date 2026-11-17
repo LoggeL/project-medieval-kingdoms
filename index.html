@@ -7,8 +7,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=Jacquarda+Bastarda+9&family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Lade- und Titelbildschirm: Stil schon vor dem Spielcode (src/ui/start) -->
+  <link rel="stylesheet" href="/src/ui/start/start.css">
 </head>
 <body>
+  <!-- Ladebildschirm: sofort sichtbar, src/ui/start/laden.ts übernimmt ihn, sobald der Spielcode läuft -->
+  <div id="mk-laden" class="mk-start mk-laden" aria-busy="true">
+    <div class="mk-laden-bild"></div>
+    <h1 class="mk-laden-titel">Medieval Kingdoms</h1>
+    <div class="mk-laden-unten">
+      <div class="mk-leiste" role="progressbar" aria-label="Ladefortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="mk-leiste-bahn"><div class="mk-leiste-fuell"></div></div></div>
+      <p class="mk-laden-schritt" aria-live="polite">Spielcode wird geladen …</p>
+      <p class="mk-laden-haenger">Das Laden dauert ungewöhnlich lange. <a href="">Seite neu laden</a></p>
+      <noscript><p class="mk-laden-meldung"><strong>JavaScript ist aus</strong>Das Spiel braucht JavaScript und WebGL.</p></noscript>
+    </div>
+  </div>
   <div id="game"></div>
   <div id="ui"></div>
   <script type="module" src="/src/app/main.ts"></script>

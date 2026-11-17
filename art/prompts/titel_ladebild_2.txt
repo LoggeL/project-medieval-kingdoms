@@ -1,0 +1,13 @@
+Wide landscape illustration, 16:9 or wider, at least 1536 pixels wide, used as a full-screen background picture of an original medieval strategy game.
+
+Subject: a hand-drawn medieval map of a fictional river valley on aged parchment, seen from directly above, lying on a dark oak table. The parchment fills almost the whole image with soft, slightly torn and curled edges; dark wood shows only at the outer margins. A lit candle in a brass holder stands on the table at the far left edge, a quill at the far right edge.
+
+The map, drawn in sepia and brown iron-gall ink with delicate watercolour washes (moss green, ochre, muted blue, brick red), fills the UPPER TWO THIRDS of the parchment: a winding river with tiny wave lines flowing from the mountains in the north to a lake in the south-west, little tree symbols forming a large forest in the west, small hill and mountain shapes along the top, a grey rocky outcrop in the north, a tiny walled settlement with a gatehouse and a square tower drawn as a small isometric sketch in the centre, dotted roads, a ford crossing the river on the east side, striped field patches, a compass rose made only of a star shape and lines (no letters) in the upper left corner, a few red hand-drawn arrows coming in from the right (east) edge toward the ford.
+
+The LOWER THIRD of the parchment is deliberately left almost empty: plain, clean, evenly lit aged parchment with only faint paper texture, a few tiny stains and a thin decorative vine in the very corners. Nothing drawn in the lower middle at all.
+
+Lighting: warm candlelight from the left, gentle vignette toward the outer edges.
+
+Style: crisp detailed pixel art rendition of an ink-and-watercolour map, limited warm palette, clean readable shapes, no blur.
+
+Strictly no user interface elements: no progress bar, no loading bar, no buttons, no panels, no boxes, no icons, no frames or cartouches in the lower part. Strictly no text, no letters, no words, no labels, no numbers, no runes, no compass letters, no signature, no watermark, no logo. Original design, not resembling any existing game.

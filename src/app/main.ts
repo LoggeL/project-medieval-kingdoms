@@ -1,11 +1,14 @@
 /**
  * Einstieg: Simulation erzeugen, Pixi starten, Oberfläche einhängen, Sprites laden, Spielschleife, Eingabe und Audio verbinden.
+ * Davor und währenddessen: Ladebildschirm mit Fortschritt (boot), danach der Titelbildschirm. Die Simulation tickt erst
+ * nach „Neues Spiel“ (src/ui/start).
  */
 import { Application, TextureSource } from "pixi.js";
 import { GameRenderer } from "../render";
 import { loadSheets } from "../render/assets";
 import { center, createGame } from "../sim";
 import { mountUi } from "../ui";
+import { Startbildschirm } from "../ui/start";
 import { AudioDirector } from "./audio";
 import { createBridge, loadAudioSettings } from "./bridge";
 import { DebugOverlay } from "./debug";
@@ -19,12 +22,15 @@ const TICK_EVENT_MS = 200;
 /** Kamerabewegung höchstens so oft als "view" melden (Übersichtskarte). */
 const VIEW_EVENT_MS = 100;
 
-async function start(): Promise<void> {
+async function start(boot: Startbildschirm): Promise<void> {
   TextureSource.defaultOptions.scaleMode = "nearest";
   const host = document.getElementById("game")!;
   const uiRoot = document.getElementById("ui")!;
+  boot.fertig("code");
+  const nebenbei = boot.nebenbei();
 
-  const game = createGame();
+  const game = await boot.schritt("welt", () => createGame());
+  if (import.meta.env.DEV) Object.assign(window, { mkStart: { boot, tick: () => game.state.tick } });
   const store = new AppStore();
   const hub = new NotifyHub();
   let renderer: GameRenderer | null = null;
@@ -42,7 +48,7 @@ async function start(): Promise<void> {
   mountUi(uiRoot, bridge);
 
   const app = new Application();
-  await app.init({
+  await boot.schritt("grafik", () => app.init({
     resizeTo: window,
     background: "#17140f",
     antialias: false,
@@ -53,16 +59,22 @@ async function start(): Promise<void> {
     resolution: 1,
     autoDensity: true,
     preference: "webgl",
-  });
+  }));
+  app.ticker.stop(); // bis „Neues Spiel“ nichts zeichnen
   app.canvas.classList.add("mk-canvas");
   host.prepend(app.canvas);
 
-  const sheets = await loadSheets();
+  const sheets = await loadSheets(boot.datei);
+  boot.fertig("gebaeude", "figuren", "gelaende");
   renderer = new GameRenderer(app, sheets, game.state);
   // Start: Blick auf das eigene Lager
   const home = game.state.buildings.find((b) => b.team === 0 && b.key === "lager") ?? game.state.buildings.find((b) => b.team === 0);
   if (home) renderer.camera.lookAt(...center(home.key, home.x, home.y, home.o));
   else renderer.camera.lookAt(game.state.w / 2, game.state.h / 2);
+
+  await nebenbei;
+  // Titelbildschirm; erst danach Eingabe, Spielschleife und Audio-Regie
+  await boot.titel(bridge);
 
   const debug = new DebugOverlay();
   const hint = new PointerHint();
@@ -112,10 +124,12 @@ async function start(): Promise<void> {
   });
   // JS-Zeit des ganzen Bildes einschließlich Pixi-Zeichnen (läuft mit niedrigerer Priorität nach dem Callback oben)
   app.ticker.add(() => { jsMs = jsMs * 0.9 + (performance.now() - frameStart) * 0.1; }, null, -100);
+  app.ticker.start();
+  void boot.insSpiel();
 }
 
-start().catch((e) => {
+const boot = new Startbildschirm();
+start(boot).catch((e) => {
   console.error(e);
-  const host = document.getElementById("game");
-  if (host) host.textContent = "Das Spiel konnte nicht starten: " + (e instanceof Error ? e.message : String(e));
+  boot.fehler(e);
 });

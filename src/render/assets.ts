@@ -25,7 +25,13 @@ function base(): string {
   return b.endsWith("/") ? b : b + "/";
 }
 
+/** Ladefortschritt je Datei (Ladebildschirm): einmal beim Start (done false), einmal am Ende (done true, auch bei Fehler). */
+export type LoadReport = (path: string, done: boolean) => void;
+let report: LoadReport | null = null;
+
 async function loadJson<T>(path: string): Promise<T | null> {
+  const r = report;
+  r?.(path, false);
   try {
     const res = await fetch(base() + path);
     if (!res.ok) return null;
@@ -34,14 +40,18 @@ async function loadJson<T>(path: string): Promise<T | null> {
     return (await res.json()) as T;
   } catch {
     return null;
+  } finally {
+    r?.(path, true);
   }
 }
 
 function loadImage(path: string): Promise<HTMLImageElement | null> {
+  const r = report;
+  r?.(path, false);
   return new Promise((resolve) => {
     const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => resolve(null);
+    im.onload = () => { r?.(path, true); resolve(im); };
+    im.onerror = () => { r?.(path, true); resolve(null); };
     im.src = base() + path;
   });
 }
@@ -516,8 +526,11 @@ export interface Sheets {
   terrain: TerrainSheet | null;
 }
 
-export async function loadSheets(): Promise<Sheets> {
-  const [buildings, figures, terrain] = await Promise.all([BuildingSheet.load(), FigureSheet.load(), TerrainSheet.load()]);
+export async function loadSheets(onFile?: LoadReport): Promise<Sheets> {
+  report = onFile ?? null;
+  let parts: [BuildingSheet | null, FigureSheet | null, TerrainSheet | null];
+  try { parts = await Promise.all([BuildingSheet.load(), FigureSheet.load(), TerrainSheet.load()]); } finally { report = null; }
+  const [buildings, figures, terrain] = parts;
   if (!buildings) warnOnce("Gebäudeblatt fehlt");
   if (!figures) warnOnce("Figurenblatt fehlt");
   if (!terrain) warnOnce("Geländeblatt assets/terrain/" + STYLE + " fehlt, Ersatzdarstellung mit eingefärbten Rauten");
