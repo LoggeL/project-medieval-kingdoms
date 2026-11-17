@@ -437,9 +437,11 @@ def ground(mb, mat, x0, x1, y0, y1, z=0.0, ragged=0.25):
                     (0.07, 0.06, 0.04), seg=5, rings=3, jitter=0.2)
 
 
-def fence(mb, pts, h=0.95, step=1.1, gaps=()):
-    """Post-and-rail fence along a polyline in the ground plane; gaps = list of (segment index)."""
+def fence(mb, pts, h=0.95, step=1.1, gaps=(), groups=None):
+    """Post-and-rail fence along a polyline in the ground plane; gaps = list of (segment index),
+    groups = group name per segment (front mask)."""
     for si in range(len(pts) - 1):
+        g = groups[si] if groups else None
         (ax, ay), (bx_, by) = pts[si], pts[si + 1]
         L = math.hypot(bx_ - ax, by - ay)
         n = max(1, round(L / step))
@@ -447,10 +449,10 @@ def fence(mb, pts, h=0.95, step=1.1, gaps=()):
             continue
         for i in range(n + 1):
             t = i / n
-            mb.box("wood", (ax + (bx_ - ax) * t, ay + (by - ay) * t, h / 2), (0.11, 0.11, h))
+            mb.box("wood", (ax + (bx_ - ax) * t, ay + (by - ay) * t, h / 2), (0.11, 0.11, h), group=g)
         ang = math.degrees(math.atan2(by - ay, bx_ - ax))
         for zr in (0.42, 0.82):
-            mb.box("wood_hi", ((ax + bx_) / 2, (ay + by) / 2, h * zr), (L, 0.06, 0.08), rot=(0, 0, ang))
+            mb.box("wood_hi", ((ax + bx_) / 2, (ay + by) / 2, h * zr), (L, 0.06, 0.08), rot=(0, 0, ang), group=g)
 
 
 # ---------------------------------------------------------------- buildings
@@ -659,13 +661,13 @@ def b_kaserne(mb, var):
 
 def b_turm(mb, var):
     h = 5 * STEP
-    w = T - 0.15  # 2 tiles wide, slightly inset
+    w = T - 0.03  # 2 tiles wide, flush with the footprint, so wall pieces meet the tower without a gap
     masonry(mb, -w, w, -w, w, 0, h, row=0.36, top=False)
-    mb.bx("stone_top", -w - 0.12, w + 0.12, -w - 0.12, w + 0.12, h - 0.22, h)  # cornice
+    mb.bx("stone_top", -w - 0.08, w + 0.08, -w - 0.08, w + 0.08, h - 0.22, h)  # cornice
     mb.bx("stone_top", -w, w, -w, w, h - 0.02, h + 0.04)                        # platform
     mb.bx("wood", -0.5, 0.1, 0.3, 0.9, h + 0.04, h + 0.08)                       # trapdoor
     groups = {"s": "f:0:-1", "n": "f:0:1", "e": "f:1:0", "w": "f:-1:0"}
-    battlements(mb, -w - 0.12, w + 0.12, -w - 0.12, w + 0.12, h, sides="nesw", side_groups=groups)
+    battlements(mb, -w - 0.08, w + 0.08, -w - 0.08, w + 0.08, h, sides="nesw", side_groups=groups)
     door(mb, "s", (0, -w, 0), w=1.0, h=2.0)
     mb.bx("stone_top", -0.62, 0.62, -w - 0.06, -w, 2.0, 2.3)
     for (x, y, f) in ((0, -w, "s"), (w, 0, "e"), (-w, 0, "w"), (0, w, "n")):
@@ -691,12 +693,13 @@ def b_mauer(mb, var):
         mb.bx("stone2", x - 0.03, x + 0.03, y0 + 0.16, y1 - 0.42, h - 0.01, h + 0.005)
     battlements(mb, -L, L, y1 - 0.42, y1, h, sides="n", side_groups={"n": "f:0:1"}, centred=True)
     mb.bx("stone_top", -L, L, y0, y0 + 0.16, h, h + 0.12)
+    wall_ghosts(mb, {"e", "w"})
 
 
 def b_treppe(mb, var):
     h = 3 * STEP
     n = 10
-    y0, y1 = -T + 0.05, T - 0.05
+    y0, y1 = -T + 0.05, T + 0.17  # the top step reaches the face of the wall on the next tile
     w = 0.9
     depth = (y1 - y0) / n
     for i in range(n):
@@ -740,8 +743,361 @@ def b_tanne(mb, var):
         z += h_ * 0.6
 
 
+# ---------------------------------------------------------------- prototype objects (trees, rocks, stacks, wall pieces)
+WALL_H = 3 * STEP          # walkway height (3 steps), the same as "mauer"
+WALL_D = 1.1               # half thickness of the wall body (model y for a wall along x)
+PARA_T, PARA_H = 0.42, 0.95
+MERLON, GAP = 0.62, 0.48
+SIDE_GROUP = {"s": "f:0:-1", "n": "f:0:1", "w": "f:-1:0", "e": "f:1:0"}
+
+
+def parapet_run(mb, side, a, b, open_a, open_b, z):
+    """Breastwork and merlons along one outer edge of a wall top. side: s/n (line y = -/+WALL_D, run along x)
+    or w/e (line x = -/+WALL_D, run along y). open_*: the end is a tile edge (half gap, so neighbours keep the rhythm),
+    otherwise a corner (merlon flush with the end)."""
+    g = SIDE_GROUP[side]
+    ma, mb_ = (GAP / 2 if open_a else 0.0), (GAP / 2 if open_b else 0.0)
+    length = b - a - ma - mb_
+    k = max(1, round((length + GAP) / (MERLON + GAP)))
+    mw = (length - (k - 1) * GAP) / k
+    D, t = WALL_D, PARA_T
+
+    def place(a0, a1, z0, z1, m):
+        if side == "s":
+            mb.bx(m, a0, a1, -D, -D + t, z0, z1, group=g)
+        elif side == "n":
+            mb.bx(m, a0, a1, D - t, D, z0, z1, group=g)
+        elif side == "w":
+            mb.bx(m, -D, -D + t, a0, a1, z0, z1, group=g)
+        else:
+            mb.bx(m, D - t, D, a0, a1, z0, z1, group=g)
+    place(a, b, z, z + PARA_H * 0.42, "stone")
+    for i in range(k):
+        x = a + ma + i * (mw + GAP)
+        place(x, x + mw, z + PARA_H * 0.42, z + PARA_H, "stone2" if i % 3 == 1 else "stone")
+        place(x - 0.02, x + mw + 0.02, z + PARA_H, z + PARA_H + 0.07, "stone_top")
+
+
+def wall_outline(conn):
+    """Parapet runs of a wall piece: (side, a, b, open_a, open_b). conn = connected model directions (e +x, w -x, n +y, s -y).
+    The body is a square of 2 WALL_D around the centre plus an arm to the tile edge per connection."""
+    L, D, t = T / 2, WALL_D, PARA_T
+    runs = []
+    # line, axis of the run (negative and positive end direction), the arm that crosses this line
+    for side, neg, pos in (("s", "w", "e"), ("n", "w", "e"), ("w", "s", "n"), ("e", "s", "n")):
+        a = -L if neg in conn else -D
+        b = L if pos in conn else D
+        segs = [(a, b, neg in conn, pos in conn)]
+        if side in conn:  # the arm leaves through this side: two flanks, extended into the inner corners
+            segs = [(a, -D + t, neg in conn, False), (D - t, b, False, pos in conn)]
+            segs = [s_ for s_ in segs if s_[1] - s_[0] > t + 0.05]
+        runs += [(side,) + s_ for s_ in segs]
+    return runs
+
+
+def wall_body(mb, conn, z0=0.0, z1=None, skip_main=False):
+    """Masonry of a wall piece: main box along x (all pieces connect east), cross box along y for n/s arms."""
+    L, D = T / 2, WALL_D
+    z1 = WALL_H - 0.03 if z1 is None else z1
+    xa = -L if "w" in conn else -D
+    xb = L if "e" in conn else D
+    cross = "n" in conn or "s" in conn
+    if not skip_main:
+        sides = "sn" + ("" if ("w" in conn or cross) else "w") + ("" if ("e" in conn or cross) else "e")
+        masonry(mb, xa, xb, -D, D, z0, z1, row=0.36, top=False, sides=sides)
+    if cross:
+        ya = -L if "s" in conn else -D
+        yb = L if "n" in conn else D
+        masonry(mb, -D, D, ya, yb, z0, z1, row=0.36, top=False, sides="ew")
+    return xa, xb
+
+
+def wall_top(mb, conn):
+    L, D, h = T / 2, WALL_D, WALL_H
+    xa = -L if "w" in conn else -D
+    xb = L if "e" in conn else D
+    mb.bx("stone_top", xa, xb, -D, D, h - 0.03, h)
+    if "n" in conn or "s" in conn:
+        mb.bx("stone_top", -D, D, -L if "s" in conn else -D, L if "n" in conn else D, h - 0.03, h)
+    for x in (-L / 2, L / 2):  # slab joints across the walkway
+        if xa < x < xb:
+            mb.bx("stone2", x - 0.03, x + 0.03, -D + PARA_T + 0.04, D - PARA_T - 0.04, h - 0.01, h + 0.005)
+    for run in wall_outline(conn):
+        parapet_run(mb, run[0], run[1], run[2], run[3], run[4], h)
+
+
+WALL_CONN = {"mauer_gerade": "ew", "mauer_ende": "e", "mauer_ecke": "en", "mauer_t": "ewn", "mauer_kreuz": "ewns", "mauer_einzel": ""}
+
+
+def wall_ghosts(mb, conn):
+    """Stand-ins for the connected neighbours (group "ghost", not drawn): the ground shadow of this piece must not
+    fall on the place where a neighbour stands, or the game would draw the shadow over that neighbour's face."""
+    L, D, z = T / 2, WALL_D, WALL_H + PARA_H + 0.1
+    if "e" in conn:
+        mb.bx("stone", L, 3 * L, -D, D, 0, z, group="ghost")
+    if "w" in conn:
+        mb.bx("stone", -3 * L, -L, -D, D, 0, z, group="ghost")
+    if "n" in conn:
+        mb.bx("stone", -D, D, L, 3 * L, 0, z, group="ghost")
+    if "s" in conn:
+        mb.bx("stone", -D, D, -3 * L, -L, 0, z, group="ghost")
+
+
+def b_wallpiece(key):
+    def build(mb, var):
+        conn = set(WALL_CONN[key])
+        wall_body(mb, conn)
+        wall_top(mb, conn)
+        wall_ghosts(mb, conn)
+    return build
+
+
+def b_tor(mb, var):
+    """Straight wall piece (e + w) with an arched gateway through the wall (model +-y) and a wooden gate."""
+    L, D, h = T / 2, WALL_D, WALL_H
+    hw, spring, top = 0.78, 1.55, 2.5           # half opening, springing line, underside of the lintel
+    rr = hw
+    masonry(mb, -L, -hw, -D, D, 0, h - 0.03, row=0.36, top=False, sides="sne")
+    masonry(mb, hw, L, -D, D, 0, h - 0.03, row=0.36, top=False, sides="snw")
+    masonry(mb, -hw, hw, -D, D, top, h - 0.03, row=0.36, top=False, sides="sn")
+    n = 10
+    for i in range(n):  # fill between the arch and the lintel, slice by slice
+        x0, x1 = -hw + 2 * hw * i / n, -hw + 2 * hw * (i + 1) / n
+        xe = max(abs(x0), abs(x1))
+        za = spring + math.sqrt(max(0.0, rr * rr - xe * xe))
+        if za < top:
+            mb.bx("mortar", x0, x1, -D + 0.05, D - 0.05, za, top + 0.02)
+            for y0, y1 in ((-D, -D + 0.05), (D - 0.05, D)):
+                mb.bx("stone2" if i % 2 else "stone", x0 + 0.01, x1 - 0.01, y0, y1, za, top + 0.02)
+    # voussoirs on both faces
+    for k in range(9):
+        a = math.pi * (k + 0.5) / 9
+        cx, cz = -math.cos(a) * (rr + 0.14), spring + math.sin(a) * (rr + 0.14)
+        for y in (-D - 0.02, D + 0.02):
+            mb.box("stone_top", (cx, y, cz), (0.2, 0.06, 0.3), rot=(0, math.degrees(a) - 90, 0))
+    # passage floor
+    mb.bx("dirt", -hw, hw, -D, D, 0, 0.02)
+    # gate leaves (closed: in the middle of the passage; open: swung back towards +y)
+    def leaf(mb_, w, h_):
+        mb_.bx("door", 0, w, -0.05, 0.05, 0, h_)
+        for zz in (0.35, h_ * 0.5, h_ - 0.35):
+            mb_.bx("iron", 0.02, w - 0.02, -0.08, 0.08, zz - 0.04, zz + 0.04)
+        mb_.bx("timber", 0, 0.08, -0.07, 0.07, 0, h_)
+    if var == 0:
+        for i in range(n):
+            x0, x1 = -hw + 2 * hw * i / n, -hw + 2 * hw * (i + 1) / n
+            xe = max(abs(x0), abs(x1))
+            za = spring + math.sqrt(max(0.0, rr * rr - xe * xe))
+            mb.bx("door", x0, x1, -0.05, 0.05, 0.02, za)
+        for zz in (0.4, 1.1, 1.8):
+            mb.bx("iron", -hw, hw, -0.08, 0.08, zz - 0.04, zz + 0.04)
+        mb.bx("timber", -0.04, 0.04, -0.07, 0.07, 0.02, spring + rr - 0.02)
+    else:
+        with mb.at((-hw + 0.02, 0.1, 0.02), 88):
+            leaf(mb, hw - 0.04, spring + 0.25)
+        with mb.at((hw - 0.02, 0.1, 0.02), 180 - 88):
+            leaf(mb, hw - 0.04, spring + 0.25)
+    wall_top(mb, {"e", "w"})
+    wall_ghosts(mb, {"e", "w"})
+
+
+def b_baum_liegt(mb, var):
+    """Felled broadleaf trunk along model +x, cut into sections: variant 0 three sections and the crown, 1 two, 2 one.
+    The foot end points to -x (towards the stump on the neighbouring tile), the crown reaches into the tile at +x."""
+    r = mb.rnd
+    secs = [(-1.3, -0.44), (-0.4, 0.46), (0.5, 1.36)]
+    keep = 3 - var
+    draws = [(r.uniform(-0.1, 0.1), r.uniform(0.2, 0.5), r.uniform(-50, 50)) for _ in range(40)]
+    for i, (a, b) in enumerate(secs[:keep]):
+        rad = 0.3 - 0.03 * i
+        mb.cyl("bark", ((a + b) / 2, 0, rad), rad, b - a, n=9, rot=(0, 90, 0))
+        for x in (a - 0.004, b + 0.004):  # cut faces
+            mb.cyl("wood_hi", (x, 0, rad), rad * 0.88, 0.02, n=9, rot=(0, 90, 0))
+            mb.cyl("wood", (x + (0.006 if x > a else -0.006), 0, rad), rad * 0.4, 0.02, n=7, rot=(0, 90, 0))
+    if var == 0:
+        # crown: branches spreading on the ground, leaves still on them
+        for j in range(7):
+            dy, ln, ang = draws[j]
+            yaw = -55 + j * 18
+            c = (1.45 + 0.4 * math.cos(math.radians(yaw)) + ln, 0.45 * math.sin(math.radians(yaw)) * 1.6, 0.28 + dy)
+            mb.box("bark", c, (1.1 + ln, 0.1, 0.1), rot=(0, -8, yaw * 0.6))
+        for j in range(26):
+            u = r.uniform(0, 2 * math.pi)
+            rr = r.uniform(0.2, 1.0)
+            x = 2.15 + rr * math.cos(u) * 0.75
+            y = rr * math.sin(u) * 1.0
+            s_ = r.uniform(0.28, 0.42)
+            m = "leaf_hi" if math.sin(u) > 0.4 else ("leaf" if j % 3 else "leaf_dk")
+            mb.blob(m, (x, y, 0.3 + r.uniform(-0.05, 0.25)), (s_, s_, s_ * 0.7), seg=5, rings=4, jitter=0.3)
+    else:
+        # stubs of lopped branches and a few twigs on the ground
+        for j in range(3 + var):
+            dy, ln, ang = draws[10 + j]
+            x = r.uniform(-1.2, 1.3 - 0.9 * var)
+            mb.box("bark", (x, r.choice((-1, 1)) * 0.55, 0.05), (0.5 * ln + 0.2, 0.06, 0.06), rot=(0, 0, ang))
+        for j in range(5):
+            mb.box("leaf_dk", (r.uniform(-1.0, 1.6), r.uniform(-0.8, 0.8), 0.03), (0.18, 0.12, 0.04), rot=(0, 0, r.uniform(0, 90)))
+
+
+def b_baum_stumpf(mb, var):
+    r = mb.rnd
+    if var == 0:  # broadleaf stump: wide, low, roots
+        rad, h = 0.32, 0.5
+        mb.cyl("bark", (0, 0, h / 2), rad, h, n=9, r2=rad * 0.92)
+        mb.cyl("wood_hi", (0, 0, h + 0.005), rad * 0.85, 0.02, n=9)
+        mb.cyl("wood", (0, 0, h + 0.012), rad * 0.45, 0.02, n=8)
+        mb.cyl("wood", (0, 0, h + 0.018), rad * 0.12, 0.02, n=6)
+        for a in (20, 110, 200, 290):
+            ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+            mb.box("bark", (0.38 * ca, 0.38 * sa, 0.09), (0.45, 0.16, 0.16), rot=(0, 18, a))
+        for j in range(6):  # chips
+            mb.box("wood_hi", (r.uniform(-0.8, 0.8), r.uniform(-0.8, 0.8), 0.02), (0.12, 0.06, 0.03), rot=(0, 0, r.uniform(0, 180)))
+    else:  # fir stump: narrower, slanted cut, needle litter
+        rad, h = 0.25, 0.38
+        mb.cyl("bark", (0, 0, h / 2), rad, h, n=8, r2=rad * 0.95)
+        mb.cyl("wood_hi", (0, 0, h + 0.03), rad * 0.9, 0.04, n=8, rot=(9, 0, 0))
+        mb.cyl("wood", (0, 0, h + 0.05), rad * 0.3, 0.02, n=6, rot=(9, 0, 0))
+        for a in (60, 180, 300):
+            ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+            mb.box("bark", (0.3 * ca, 0.3 * sa, 0.07), (0.32, 0.12, 0.12), rot=(0, 15, a))
+        for j in range(10):
+            mb.box("needle", (r.uniform(-0.9, 0.9), r.uniform(-0.9, 0.9), 0.02), (0.2, 0.05, 0.03), rot=(0, 0, r.uniform(0, 180)))
+
+
+def b_fels(mb, var):
+    """Single boulder as a quarry target; variants from untouched to almost mined out (fresh cut faces, rubble)."""
+    r = mb.rnd
+    s = [1.0, 0.76, 0.54, 0.3][var]
+    parts = [((0, 0.05), (0.95, 0.85, 0.9), "rock"), ((-0.45, 0.35), (0.6, 0.55, 0.65), "rock_dk"),
+             ((0.5, 0.4), (0.55, 0.5, 0.55), "rock"), ((0.15, -0.45), (0.55, 0.5, 0.5), "rock_dk"),
+             ((-0.2, 0.15), (0.5, 0.5, 0.45), "rock")]
+    jit = [(r.uniform(-0.05, 0.05), r.uniform(-0.05, 0.05), r.uniform(0.9, 1.1)) for _ in parts]
+    rubble = [(r.uniform(-1.0, 1.0), r.uniform(-1.0, 1.0), r.uniform(0.08, 0.16)) for _ in range(14)]
+    zs = [0.0, 0.0, 0.0, 0.0, 0.75]
+    for i, ((x, y), (rx, ry, rz), m) in enumerate(parts):
+        if var >= 3 and i >= 3:
+            continue
+        jx, jy, k = jit[i]
+        rz_ = rz * s * k
+        mb.blob(m, ((x + jx) * (0.6 + 0.4 * s), (y + jy) * (0.6 + 0.4 * s), rz_ * 0.85 + zs[i] * s),
+                (rx * (0.55 + 0.45 * s), ry * (0.55 + 0.45 * s), rz_), seg=8, rings=6, jitter=0.18)
+    if var >= 1:
+        # fresh flat cut on the front and on top, with chisel lines
+        hh = 1.3 * s
+        mb.bx("rock_cut", -0.55 * s - 0.1, 0.45 * s + 0.1, -0.62 * s - 0.08, -0.1, 0, hh)
+        for zz in (hh * 0.33, hh * 0.66):
+            mb.bx("stone2", -0.55 * s - 0.12, 0.45 * s + 0.12, -0.62 * s - 0.1, -0.6 * s - 0.06, zz - 0.03, zz)
+    n_rub = [3, 6, 10, 14][var]
+    for (x, y, rr) in rubble[:n_rub]:
+        if abs(x) < 0.45 * s + 0.2 and abs(y) < 0.45 * s + 0.2:
+            x = math.copysign(0.45 * s + 0.3, x)
+        mb.blob("rock" if rr > 0.12 else "gravel", (x, y, rr * 0.5), (rr, rr * 0.9, rr * 0.7), seg=5, rings=3, jitter=0.25)
+
+
+STACK_Z = 0.06  # stacks stand on the planks of lager_boden
+
+
+def b_stapel_holz(mb, var):
+    log_pile(mb, 0, 0, STACK_Z, var, length=1.8, r=0.16, axis="x")
+
+
+def b_stapel_stein(mb, var):
+    block_stack(mb, 0, 0, STACK_Z, var, size=0.52, grid=3)
+
+
+def b_stapel_eisen(mb, var):
+    if not var:
+        return
+    pallet(mb, 0, 0, STACK_Z, 1.5, 1.2)
+    for k in range(var):
+        for q in range(4 - (k % 2)):
+            xx = (q - 1.5 + 0.5 * (k % 2)) * 0.32
+            # ingots: narrow bars with a lighter top
+            mb.box("iron", (xx, 0, 0.18 + 0.075 + k * 0.13), (0.22, 1.0, 0.12))
+            mb.box("steel", (xx, 0, 0.18 + 0.14 + k * 0.13), (0.14, 0.92, 0.02))
+
+
+def b_stapel_speer(mb, var):
+    """Tall upright rack, three more spears per level."""
+    if not var:
+        return
+    for k in (-1, 1):
+        mb.box("wood", (k * 0.8, 0.3, 0.75), (0.1, 0.1, 1.5))
+    mb.box("wood", (0, 0.3, 1.4), (1.7, 0.08, 0.08))
+    mb.box("wood", (0, 0.3, 0.35), (1.7, 0.08, 0.08))
+    mb.bx("wood_hi", -0.85, 0.85, -0.05, 0.35, STACK_Z, STACK_Z + 0.08)  # foot board
+    for q in range(var * 3):
+        xx = -0.66 + q * 0.12
+        mb.box("wood_hi", (xx, 0.18, 1.06), (0.045, 0.045, 2.0), rot=(-12, 0, 0))
+        mb.cyl("steel", (xx, -0.03, 2.09), 0.055, 0.24, n=4, rot=(-12, 0, 0), r2=0)
+
+
+def b_stapel_schwert(mb, var):
+    """Low sword rack: swords stand point down in a slotted board, hilts with cross guards and gold pommels up."""
+    if not var:
+        return
+    for k in (-1, 1):
+        mb.bx("wood", k * 0.78 - 0.06, k * 0.78 + 0.06, -0.3, 0.3, STACK_Z, STACK_Z + 0.8)
+    mb.bx("wood", -0.84, 0.84, -0.12, 0.12, STACK_Z + 0.62, STACK_Z + 0.72)      # slotted top board
+    mb.bx("wood_hi", -0.84, 0.84, -0.32, 0.32, STACK_Z, STACK_Z + 0.1)           # base
+    n = var * 2 + (2 if var >= 2 else 0)
+    for q in range(n):
+        xx = -0.65 + q * (1.3 / max(1, 9))
+        z0 = STACK_Z + 0.1
+        mb.bx("steel_hi", xx - 0.035, xx + 0.035, -0.012, 0.012, z0, z0 + 0.85)          # blade
+        mb.bx("steel", xx - 0.12, xx + 0.12, -0.03, 0.03, z0 + 0.85, z0 + 0.9)           # cross guard
+        mb.bx("leather", xx - 0.025, xx + 0.025, -0.025, 0.025, z0 + 0.9, z0 + 1.05)     # grip
+        mb.box("gold", (xx, 0, z0 + 1.08), (0.07, 0.07, 0.06))                           # pommel
+    if var >= 3:  # an open crate of spare blades in front
+        crate(mb, 0.35, -0.6, 0, s=0.45)
+
+
+def b_stapel_bogen(mb, var):
+    """Frame with strung bows hanging from the top bar, an arrow barrel from level 2."""
+    if not var:
+        return
+    for k in (-1, 1):
+        mb.box("wood", (k * 0.8, 0.25, 0.85), (0.1, 0.1, 1.7))
+        mb.box("wood", (k * 0.8, 0.25, 0.08), (0.12, 0.6, 0.1))
+    mb.box("wood", (0, 0.25, 1.62), (1.7, 0.08, 0.08))
+    for q in range(var * 2):
+        xx = -0.62 + q * 0.18
+        with mb.at((xx, 0.18, 0.95)):
+            for i, (z, rx) in enumerate(((0.36, 16), (0, 0), (-0.36, -16))):
+                mb.box("bow", (0, -0.08 if i == 1 else -0.06 * (1 if i == 0 else 1), z * 1.05), (0.05, 0.06, 0.42), rot=(rx, 0, 0))
+            mb.box("string", (0, 0.03, 0), (0.02, 0.02, 1.1))
+            mb.box("rope", (0, 0.05, 0.62), (0.03, 0.03, 0.08))
+    if var >= 2:
+        barrel(mb, 0.5, -0.55, 0, r=0.24, h=0.6)
+        for q in range(9 if var >= 4 else 5):
+            a = q * 2.4
+            px, py = 0.5 + 0.12 * math.cos(a), -0.55 + 0.12 * math.sin(a)
+            mb.box("wood_hi", (px, py, 0.75), (0.025, 0.025, 0.45))
+            mb.box("cloth", (px, py, 0.98), (0.06, 0.02, 0.1))
+
+
+def b_lager_boden(mb, var):
+    """Storage yard without goods: fence (front parts in the _front mask) and eight plank floors (slots as in b_lager)."""
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    e = S - 0.15
+    fence(mb, [(-0.8, -e), (-e, -e), (-e, e), (e, e), (e, -e), (0.8, -e)],
+          groups=["f:0:-1", "f:-1:0", "f:0:1", "f:1:0", "f:0:-1"])
+    c = 2 * S / 3
+    for (i, j) in ((-1, 1), (0, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (1, -1), (0, 0)):
+        x, y = i * c, j * c
+        for q in range(5):
+            y_ = y - 0.95 + q * 0.38
+            mb.bx("wood" if q % 2 else "wood_hi", x - 0.95, x + 0.95, y_ + 0.02, y_ + 0.36, 0.03, 0.06)
+
+
 BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruch, "lager": b_lager, "kaserne": b_kaserne,
-         "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne}
+         "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne,
+         "baum_liegt": b_baum_liegt, "baum_stumpf": b_baum_stumpf, "fels": b_fels,
+         "stapel_holz": b_stapel_holz, "stapel_stein": b_stapel_stein, "stapel_eisen": b_stapel_eisen,
+         "stapel_speer": b_stapel_speer, "stapel_schwert": b_stapel_schwert, "stapel_bogen": b_stapel_bogen,
+         "lager_boden": b_lager_boden, "tor": b_tor}
+BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 
 
 # ---------------------------------------------------------------- scene and render
@@ -809,6 +1165,7 @@ def realize(mb, root):
         o.color = col(PAL[mat])
         o["mat"] = mat
         o["group"] = group or ""
+        o.hide_render = group == "ghost"  # neighbour stand-ins: only in the neighbour mask pass
         objs.append(o)
     return objs
 
@@ -878,6 +1235,16 @@ def main():
                     for o in objs:
                         o.color = (1, 1, 1, 1) if is_front(o["group"], d) else (0, 0, 0, 1)
                     render(sc, base + "_m.png")
+                # 5 neighbour mask: where connected neighbours stand (their bodies hide this piece's ground shadow)
+                ghosts = [o for o in objs if o["group"] == "ghost"]
+                if ghosts:
+                    sh.color_type = "OBJECT"
+                    for o in objs:
+                        o.hide_render = o["group"] != "ghost"
+                        o.color = (1, 1, 1, 1)
+                    render(sc, base + "_n.png")
+                    for o in objs:
+                        o.hide_render = o["group"] == "ghost"
                 for o in objs:
                     o.color = cols[o.name]
                 sh.color_type = "OBJECT"

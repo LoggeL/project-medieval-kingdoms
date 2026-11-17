@@ -77,7 +77,9 @@
   "log": "#7a4f28",
   "wood_hi": "#b88444",
   "string": "#f4ecd0",
-  "bow": "#d8a85a"
+  "bow": "#d8a85a",
+  "stone": "#b9a58a",
+  "crate": "#b08450"
  },
  "knee_bend": 42,
  "foot_margin_px": 7

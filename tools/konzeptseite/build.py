@@ -25,17 +25,18 @@ for k in ORDER:
     d = os.path.join(ROOT, "assets/figures", k)
     meta = json.load(open(os.path.join(d, "sheet.json")))
     style = json.load(open(os.path.join(ROOT, "tools/blender/styles", k + ".json")))
-    c, F = meta["cell"], meta["frames"]
+    # the page shows standing and walking only (columns 0..8); assets/figures/<style>/atlas.png with every unit and
+    # all columns (actions, dying) is written by tools/blender/pixelize.py for the game
+    c, F = meta["cell"], 9
     shown = [u for u in meta["units"] if u.get("showcase", True)]
     extra = [u for u in meta["units"] if not u.get("showcase", True)]  # helpers for the building scene only
 
     def stack(units):
         at = Image.new("RGBA", (c * F, c * 8 * max(1, len(units))), (0, 0, 0, 0))
         for i, u in enumerate(units):
-            at.paste(Image.open(os.path.join(d, u["key"] + ".png")), (0, i * 8 * c))
+            at.paste(Image.open(os.path.join(d, u["key"] + ".png")).crop((0, 0, c * F, c * 8)), (0, i * 8 * c))
         return at
     at = stack(shown)
-    at.save(os.path.join(d, "atlas.png"), optimize=True)
     total += len(shown) * 8 * F
     data["styles"][k] = {"label": style["label"], "desc": style["desc"], "height": style["height_px"],
                          "cell": c, "frames": F, "anchor": meta["anchor"], "units": [{"key": u["key"], "name": u["name"]} for u in shown],

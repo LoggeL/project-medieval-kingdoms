@@ -35,5 +35,8 @@
  "log": "#6a4826",
  "steel": "#9aa2a9",
  "steel_hi": "#dde3e7",
- "cloth": "#e4dcc4"
+ "cloth": "#e4dcc4",
+ "leather": "#8a5530",
+ "bow": "#b88a50",
+ "string": "#e9e2c8"
 }

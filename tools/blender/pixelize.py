@@ -400,6 +400,9 @@ for ui, u in enumerate(units):
             gsh = None
             if os.path.exists(p[:-4] + "_h.png"):
                 gsh, selfb = height_shadows(img, p[:-4] + "_h.png")
+                if os.path.exists(p[:-4] + "_n.png"):
+                    # no ground shadow where a connected neighbour stands (wall pieces)
+                    gsh = drop_small(gsh & ~front_mask(p[:-4] + "_n.png"), 12)
                 band = np.where(selfb & (mat >= 0), np.maximum(band - SELF_BANDS, 0), band)
             fr = render(mat, band, f=f, ground_shadow=gsh)
             used |= set(map(tuple, fr[fr[..., 3] == 255][:, :3]))
@@ -457,7 +460,17 @@ if PX.get("outline", "dark") == "dark":
     other.add(tuple(int(v) for v in DARK))
 clash = team_cols & other
 
-json.dump({"style": STYLE.get("label"), "cell": CELL, "frames": FRAMES, "dirs": META["dirs"],
+atlas = None
+if not BLD:
+    # figures: one atlas with every unit in sheet order, 8 direction rows each (unit i starts at row 8 i)
+    at = Image.new("RGBA", (CW * FRAMES, CH * ndirs * len(units)), (0, 0, 0, 0))
+    for ui, u in enumerate(units):
+        at.paste(Image.open(os.path.join(a.out, u + ".png")), (0, ui * ndirs * CH))
+        META["units"][ui]["row"] = ui * ndirs
+    at.save(os.path.join(a.out, "atlas.png"), optimize=True)
+    atlas = "atlas.png"
+
+json.dump({"style": STYLE.get("label"), "cell": CELL, "frames": FRAMES, "dirs": META["dirs"], "atlas": atlas,
            "anchor": META.get("anchor") or [CW // 2, CH - STYLE.get("foot_margin_px", 4)],
            "tile": META.get("tile"), "step_px": META.get("step_px"),
            "axes": {"u": "+x", "v": "-y", "views": "view d = model turned d x 90 deg counter-clockwise; posts and footprint in model axes"} if BLD else None,

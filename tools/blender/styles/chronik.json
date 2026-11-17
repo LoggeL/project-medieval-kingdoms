@@ -74,7 +74,9 @@
   "log": "#6b4a2b",
   "wood_hi": "#a07440",
   "string": "#e9e2c8",
-  "bow": "#c99a5a"
+  "bow": "#c99a5a",
+  "stone": "#b9a58a",
+  "crate": "#b08450"
  },
  "desc": "Natürliche Proportionen, erdige Palette, farbige Kontur, vier Lichtstufen. Historisch ernst, aber zurückhaltend im Kontrast.",
  "leg_swing": 30,
