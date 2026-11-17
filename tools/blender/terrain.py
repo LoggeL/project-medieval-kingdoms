@@ -12,6 +12,11 @@ Seamless tiling: ground tone and micro relief come from noise that is periodic o
 every variant of a type uses the same (shared) noise, inside each variant has its own, so variants can be laid next
 to each other in any order. Structured details (tufts, flowers, leaves, stones) stay inside the diamond, nothing
 crosses an edge. Water waves are periodic in space and over the four frames.
+
+Added later (rows after the first six, earlier rows unchanged): erz (rock with rusty ore veins), sumpf (boggy ground
+with murky puddles and reeds), acker (ploughed field with young crop). The acker furrows have a direction:
+variants 0 and 1 run along world x, variants 2 and 3 along world y. Terrain tiles are not turned with the camera,
+so a renderer swaps the pair (v xor 2) for the views r = 1 and r = 3.
 """
 import json
 import math
@@ -28,7 +33,8 @@ SS = 4
 TW, TH = 64, 32
 ANCHOR = (32, 16)
 # key, variants, frames (row order in the sheet)
-TYPES = [("gras", 4, 1), ("wiese", 4, 1), ("waldboden", 4, 1), ("erde", 4, 1), ("fels", 4, 1), ("wasser", 1, 4)]
+TYPES = [("gras", 4, 1), ("wiese", 4, 1), ("waldboden", 4, 1), ("erde", 4, 1), ("fels", 4, 1), ("wasser", 1, 4),
+         ("erz", 4, 1), ("sumpf", 4, 1), ("acker", 4, 1)]
 # ground tones (low, mid, high noise value) with their thresholds, relief amplitude (m), relief noise frequency limit
 GROUND = {
     "gras": (("gras2", "gras1", "gras3"), (-0.45, 0.5), 0.035, 5),
@@ -36,7 +42,11 @@ GROUND = {
     "waldboden": (("humus1", "humus2", "moos"), (-0.2, 1.05), 0.04, 6),
     "erde": (("erde2", "erde1", "erde3"), (-0.45, 0.5), 0.025, 6),
     "fels": (("fels3", "fels1", "fels2"), (-0.45, 0.5), 0.06, 4),
+    "erz": (("erzboden3", "erzboden1", "erzboden2"), (-0.45, 0.5), 0.06, 4),
+    "sumpf": (("sumpfwasser", "sumpf1", "sumpf2"), (-0.5, 0.55), 0.02, 4),
+    "acker": (("acker_dk", "acker1", "acker_hell"), (-0.45, 0.5), 0.05, 5),   # tone and relief: furrows, see ground()
 }
+FURROWS = 4                                     # furrows per tile edge (integer, so the tile stays seamless)
 
 
 def diamond(x, y):
@@ -145,15 +155,30 @@ def blender_main():
         relief = Field(key, var, 2, fmax + 2)
         n = 96
         g = 2 * T / n
-        Z = [[amp * relief(-T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
+        if key == "acker":
+            # furrows along world x (variants 0, 1) or world y (2, 3): a periodic ridge profile plus a little noise
+            along_y = var >= 2
+
+            def furrow(x, y):
+                w = (y if not along_y else x) / T + 0.5
+                return math.sin(2 * math.pi * FURROWS * w)
+
+            def relief_(x, y):
+                return furrow(x, y) + 0.25 * relief(x, y)
+
+            def tone_(x, y):
+                return furrow(x, y) + 0.3 * tone(x, y)
+        else:
+            relief_, tone_ = relief, tone
+        Z = [[amp * relief_(-T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
         for j in range(n):
             for i in range(n):
                 x0, y0 = -T + i * g, -T + j * g
-                f = tone(x0 + g / 2, y0 + g / 2)
+                f = tone_(x0 + g / 2, y0 + g / 2)
                 m = tones[0] if f < lo else (tones[2] if f > hi else tones[1])
                 mb.add(m, [(x0, y0, Z[j][i]), (x0 + g, y0, Z[j][i + 1]), (x0 + g, y0 + g, Z[j + 1][i + 1]), (x0, y0 + g, Z[j + 1][i])],
                        [(0, 1, 2, 3)])
-        return lambda x, y: amp * relief(x, y)
+        return lambda x, y: amp * relief_(x, y)
 
     def spots(rnd, count, margin, min_d=0.0, taken=None):
         """Random points inside the tile, at least `margin` m from every edge."""
@@ -228,6 +253,50 @@ def blender_main():
                     x, y = x + 2 * dx, y + 2 * dy
             for (x, y) in spots(rnd, 3, 0.4, 0.3):
                 mb.blob("flechte", (x, y, zf(x, y)), (0.08, 0.07, 0.012), rnd, seg=6, rings=3)
+        if key == "erz":
+            # rusty veins (zig-zag strips), ore lumps, a little scree; the colour is the tell, as in the concept
+            for (x, y) in spots(rnd, 2, 0.55, 0.6):
+                a = rnd.uniform(0, 180)
+                for k in range(4):
+                    a += rnd.uniform(-30, 30)
+                    dx, dy = math.cos(math.radians(a)) * 0.12, math.sin(math.radians(a)) * 0.12
+                    mb.box("erz_ader", (x, y, zf(x, y) + 0.006), (0.26, 0.07, 0.014), rot=(0, 0, a))
+                    x, y = x + 2 * dx, y + 2 * dy
+            for (x, y) in spots(rnd, 4, 0.5, 0.35):
+                rr = rnd.uniform(0.09, 0.16)
+                mb.blob(rnd.choice(["erz_brocken", "erz_brocken", "fels3"]), (x, y, zf(x, y) + rr * 0.35), (rr, rr * 0.8, rr * 0.65), rnd, seg=6, rings=4)
+            for (x, y) in spots(rnd, 6, 0.35, 0.2):
+                rr = rnd.uniform(0.04, 0.06)
+                mb.blob("erz_rost", (x, y, zf(x, y) + rr * 0.3), (rr, rr, rr * 0.6), rnd, seg=5, rings=3)
+            for (x, y) in spots(rnd, 8, 0.3, 0.1):
+                rr = rnd.uniform(0.035, 0.06)
+                mb.blob("geroell", (x, y, zf(x, y) + rr * 0.3), (rr, rr, rr * 0.6), rnd, seg=5, rings=3)
+        if key == "sumpf":
+            # reeds and a few cattails, low mossy humps
+            for (x, y) in spots(rnd, 5, 0.5, 0.4):
+                tuft(mb, rnd, x, y, zf(x, y), rnd.uniform(0.28, 0.42), mats=("schilf", "schilf_hi"))
+            for (x, y) in spots(rnd, 2, 0.6, 0.5):
+                hh = rnd.uniform(0.34, 0.44)
+                mb.box("schilf", (x, y, zf(x, y) + hh / 2), (0.03, 0.03, hh))
+                mb.box("rohrkolben", (x, y, zf(x, y) + hh + 0.05), (0.06, 0.06, 0.12))
+            for (x, y) in spots(rnd, 2, 0.55, 0.45):
+                mb.blob("moos", (x, y, zf(x, y)), (0.16, 0.13, 0.05), rnd, seg=7, rings=3)
+        if key == "acker":
+            # young crop in rows on the ridge crests, a few clods in the furrows
+            along_y = var >= 2
+            lim = T / 2 - 0.3
+            for i in range(FURROWS):
+                c = ((i + 0.25) / FURROWS - 0.5) * T          # crest of furrow i (sin maximum)
+                if abs(c) > lim:
+                    continue
+                t = -lim + rnd.uniform(0, 0.12)
+                while t < lim:
+                    x, y = (t, c) if not along_y else (c, t)
+                    tuft(mb, rnd, x, y, zf(x, y), rnd.uniform(0.09, 0.15), mats=("saat", "saat_hi"))
+                    t += rnd.uniform(0.2, 0.3)
+            for (x, y) in spots(rnd, 6, 0.3, 0.2):
+                rr = rnd.uniform(0.04, 0.07)
+                mb.blob("acker_dk", (x, y, zf(x, y) + rr * 0.4), (rr, rr * 0.8, rr * 0.6), rnd, seg=5, rings=3)
 
     def water(mb, frame):
         """Wave surface, periodic over the tile and over the four frames: a slow swell picks the base tone,
@@ -396,7 +465,8 @@ def pixel_main():
     mats = np.stack([hexrgb(style["colors"].get(n, PAL[n])) for n in names])
     if len({tuple(m) for m in mats.tolist()}) != len(names):
         sys.exit("terrain palette: two materials share a colour in style %s" % style.get("label"))
-    prio_names = ["bluete_w", "bluete_g", "bluete_v", "bluete_r", "schaum", "halm_hi", "laub_o", "laub_g"]
+    prio_names = ["bluete_w", "bluete_g", "bluete_v", "bluete_r", "schaum", "halm_hi", "laub_o", "laub_g",
+                  "erz_rost", "rohrkolben", "saat_hi"]   # appended later: the order of the earlier entries is unchanged
     prio = np.array([1000.0 * (len(prio_names) - prio_names.index(n)) if n in prio_names else 0.0 for n in names], np.float32)
 
     def shade(base, band):
