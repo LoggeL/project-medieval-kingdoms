@@ -10,6 +10,8 @@ import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from 
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
 import { fullMessage, hasStoreOf, reservePut, tidy } from "./storage";
 import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
+import { releasePlots, runFarm } from "./farm";
+import { runLeave } from "./food";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
 
@@ -24,6 +26,7 @@ export function runJob(w: World, u: SUnit): void {
     case "supply": return runSupply(w, u, j);
     case "build": return runBuild(w, u, j);
     case "recruit": return runRecruit(w, u, j);
+    case "leave": return runLeave(w, u);
   }
 }
 
@@ -70,6 +73,7 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
     }
     case "work": return runWork(w, u, j, step, home, next, restart);
     case "process": return runProcess(w, u, j, home);
+    case "farm": return runFarm(w, u, j, home);
     case "deposit": {
       if (!u.carry) { next(); return; }
       const out = home.output, cap = def.output?.capacity ?? 0;
@@ -470,7 +474,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
   if (u.ai.visit && !u.ai.visit.done) leaveBuilding(w, u);
   if (j) {
     switch (j.k) {
-      case "cycle": releaseTarget(w, u, j); break;
+      case "cycle": releaseTarget(w, u, j); releasePlots(w, u); break;
       case "employ": { const b = w.buildings.get(j.b); if (b) b.workers = b.workers.filter((id) => id !== u.id); break; }
       case "haul": {
         const src = w.buildings.get(j.from);
@@ -519,7 +523,7 @@ export function carryBack(w: World, u: SUnit): void {
 /** Arbeiter verliert seine Werkstatt: wird wieder Tagelöhner, getragene Ware geht ins Lager. */
 export function toPeasant(w: World, u: SUnit): void {
   const j = u.ai.job;
-  if (j?.k === "cycle") releaseTarget(w, u, j);
+  if (j?.k === "cycle") { releaseTarget(w, u, j); releasePlots(w, u); }
   u.ai.job = null;
   const frac = u.hp / u.maxHp;
   u.key = "tageloehner"; u.maxHp = UNITS.tageloehner.hp; u.hp = Math.max(1, Math.round(u.maxHp * frac));

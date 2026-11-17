@@ -300,6 +300,10 @@ kbd {
 .mk-res-gold .mk-num { color: #ffd979; }
 .mk-res.mk-warn .mk-num { color: var(--mk-red-light); }
 .mk-res-cap .mk-cap-col { display: flex; flex-direction: column; gap: 2px; }
+.mk-res-food .mk-cap-col { display: flex; flex-direction: column; gap: 1px; }
+.mk-res-food .mk-num { font-size: 14px; line-height: 1; }
+.mk-res-food .mk-food-rate { font-size: 11px; opacity: 0.8; }
+.mk-res-food.mk-food-hunger .mk-num { color: #ff8a70; }
 .mk-res-cap .mk-num { font-size: 14px; line-height: 1; }
 .mk-bar-cap { height: 6px; width: 64px; flex: none; }
 .mk-res-cap.mk-warn .mk-bar-fill { background: linear-gradient(#e2775f, #a3301f); }
@@ -940,7 +944,7 @@ kbd {
   .mk-events { flex: 0 1 auto; }
 }
 @media (max-width: 1100px) {
-  .mk-sep, .mk-res-cap .mk-icon { display: none; }
+  .mk-sep, .mk-res-cap .mk-icon, .mk-res-food .mk-icon { display: none; }
   .mk-btn { min-width: 26px; padding: 0 6px; }
   .mk-events { flex: 0 1 auto; }
 }
@@ -1170,6 +1174,7 @@ kbd {
   .mk-res .mk-num { font-size: 13px; min-width: 1.2em; }
   .mk-res-cap .mk-num { font-size: 12px; }
   .mk-bar-cap { width: 40px; }
+  .mk-res-food .mk-food-rate { display: none; }
   .mk-chron { max-width: calc(100vw - 24px); }
   .mk-events { flex: 1 1 100%; height: 32px; padding: 0 8px; gap: 8px; }
   .mk-ev-text { font-size: 13px; }
@@ -1204,3 +1209,10 @@ kbd {
 .mk-proc-goods .mk-row .mk-bar { flex: 1 1 auto; }
 .mk-proc-why { margin-top: 4px; }
 .mk-proc-why.mk-warn { color: var(--mk-red-ink); font-weight: 700; }
+/* Landwirtschaft und Ernährung (ADR 0013) */
+.mk-farm-stage { min-height: 20px; }
+.mk-farm-stage.mk-empty { opacity: 0.55; }
+.mk-farm-stage .mk-num { min-width: 1.5em; text-align: right; }
+.mk-actions.mk-rations { display: flex; gap: 4px; margin-top: 4px; }
+.mk-ration-btn { flex: 1 1 0; }
+.mk-row .mk-num.mk-warn { color: var(--mk-red-ink); font-weight: 700; }

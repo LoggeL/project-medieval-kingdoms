@@ -552,6 +552,172 @@
     ]
    },
    "row": 152
+  },
+  {
+   "key": "bauer",
+   "name": "Bauer",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "ernten": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 160
+  },
+  {
+   "key": "bauer_hacke",
+   "name": "Bauer mit Hacke",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "pfluegen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 168
+  },
+  {
+   "key": "bauer_saat",
+   "name": "Bauer beim Säen",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "saeen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 176
+  },
+  {
+   "key": "bauer_garbe",
+   "name": "Bauer mit Garbe",
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 184
+  },
+  {
+   "key": "obstbauer",
+   "name": "Obstbauer",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "pfluecken": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 192
+  },
+  {
+   "key": "traeger_apfel",
+   "name": "Tagelöhner mit Apfelkorb",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 200
   }
  ],
  "team_swap": {

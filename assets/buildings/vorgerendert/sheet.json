@@ -1276,6 +1276,139 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "bauernhof",
+   "name": "Getreidehof",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baustelle_bauernhof",
+   "name": "Baustelle Getreidehof",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_bauernhof",
+   "name": "Gerüst Getreidehof",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "obstgarten",
+   "name": "Obstgarten",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baustelle_obstgarten",
+   "name": "Baustelle Obstgarten",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "acker",
+   "name": "Getreidebeet",
+   "frames": 6,
+   "variants": [
+    "brach",
+    "umgegraben",
+    "gesät",
+    "keimt",
+    "wächst",
+    "reif"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "apfelbaum",
+   "name": "Apfelbaum",
+   "frames": 4,
+   "variants": [
+    "Setzling",
+    "belaubt",
+    "blüht",
+    "trägt Früchte"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_apfel",
+   "name": "Stapel Äpfel",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
   }
  ],
  "team_swap": {

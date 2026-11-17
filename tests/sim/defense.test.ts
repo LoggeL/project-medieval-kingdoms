@@ -272,7 +272,9 @@ describe("Steinwirtschaft vor der ersten Welle", () => {
       else if (step === 3 && s.buildings.find((b) => b.id === kas)!.built >= 1) {
         for (const u of ["speer", "schwert", "bogen"] as const) expect(g.dispatch({ t: "rekrutieren", building: kas, unit: u }).ok).toBe(true);
         step++;
-      } else if (step === 4 && t % TPS === 0 && s.stock.stein >= 17) {
+      } else if (step === 4 && t % TPS === 0 && s.stock.stein >= 17 && s.stock.holz >= (BUILDINGS.tor.cost.holz ?? 0)) {
+        // erst bauen, wenn auch das Holz für das Tor da ist (mit dem reihum wechselnden Disponenten, ADR 0013, kommt das
+        // Holz auf der Landschaftskarte, ADR 0012, wenige Sekunden nach dem Stein)
         expect(g.dispatch({ t: "mauer", x0: 48, y0: 32, x1: 48, y1: 33 }).ok).toBe(true);
         expect(g.dispatch({ t: "mauer", x0: 48, y0: 35, x1: 48, y1: 35 }).ok).toBe(true);
         expect(build("tor", 48, 34, 1).ok).toBe(true);

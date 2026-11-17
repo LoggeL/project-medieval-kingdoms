@@ -18,7 +18,7 @@ type Ev = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
 const BUILDING_FALLBACK: Record<string, string> = { tor: "mauer" };
 /** Waren ohne Stapel-Sprite: Figur, die sie trägt (nur Prüfstand). */
 const GOOD_FALLBACK: Partial<Record<Good, string>> = { holz: "traeger" };
-const GOOD_TINT: Record<Good, string> = { holz: "#8a5a2b", stein: "#9a958c", eisen: "#5c6670", speer: "#b08a50", schwert: "#c9ccd2", bogen: "#7a4a22", getreide: "#d0ae5c", mehl: "#e6ddc8", brot: "#b07a3e" };
+const GOOD_TINT: Record<Good, string> = { holz: "#8a5a2b", stein: "#9a958c", eisen: "#5c6670", speer: "#b08a50", schwert: "#c9ccd2", bogen: "#7a4a22", getreide: "#d0ae5c", mehl: "#e6ddc8", brot: "#b07a3e", apfel: "#c0412e" };
 
 export interface MockBridge {
   bridge: UiBridge; game: Game; log: (Command & { result: CommandResult })[]; onLog(fn: () => void): void;

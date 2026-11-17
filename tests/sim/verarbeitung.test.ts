@@ -99,7 +99,9 @@ describe("Kornkammer und Lagertypen", () => {
     expect(l.slots.every((s) => !s.good || storeOf(s.good) === "material")).toBe(true);
     expect(g.state.stock.getreide).toBe(START.stock.getreide);
     const st = BUILDINGS.kornkammer.storage!;
-    expect(g.state.stores?.nahrung).toEqual({ used: START.stock.getreide, cap: st.slots * st.perSlot });
+    // dazu das Startbrot (ADR 0013: die Siedlung isst ab Beginn)
+    expect(g.state.stock.brot).toBe(START.stock.brot);
+    expect(g.state.stores?.nahrung).toEqual({ used: START.stock.getreide! + START.stock.brot!, cap: st.slots * st.perSlot });
     expect(g.state.stores?.material.cap).toBe(BUILDINGS.lager.storage!.slots * BUILDINGS.lager.storage!.perSlot);
   });
 
@@ -139,10 +141,12 @@ describe("Kette Getreide → Mehl → Brot", () => {
     expect(m.proc!.done).toBeGreaterThan(5);
     expect(b.proc!.done).toBeGreaterThan(3);
     expect(stored(g, "brot")).toBeGreaterThan(0);
-    // Mengen nach Rezept: verbrauchtes Getreide = 2 × Mahlgänge, Mehl = Mahlgänge − Backgänge, Brot = 2 × Backgänge
+    // Mengen nach Rezept: verbrauchtes Getreide = 2 × Mahlgänge, Mehl = Mahlgänge − Backgänge,
+    // Brot = Startbrot + 2 × Backgänge − gegessen (ADR 0013: Brot ist die einzige essbare Ware im Spiel, 1 Portion je Stück)
     expect(getreide0 - everywhere(g, "getreide")).toBe(m.proc!.done * RECIPES.mahlen.inputs.getreide!);
     expect(everywhere(g, "mehl")).toBe(m.proc!.done * RECIPES.mahlen.outputs.mehl! - b.proc!.done * RECIPES.backen.inputs.mehl!);
-    expect(everywhere(g, "brot")).toBe(b.proc!.done * RECIPES.backen.outputs.brot!);
+    expect(g.state.food!.eaten).toBeGreaterThan(0);
+    expect(everywhere(g, "brot")).toBe(START.stock.brot! + b.proc!.done * RECIPES.backen.outputs.brot! - g.state.food!.eaten);
     // Puffer nie über die Datengrenze
     expect(m.proc!.in.getreide ?? 0).toBeLessThanOrEqual(inputCap(m, "getreide"));
   });

@@ -12,6 +12,7 @@ import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
 import { newProc, returnProcGoods } from "./production";
+import { fieldPlan, fieldReason, newFarm, plotAt } from "./farm";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
 
@@ -67,6 +68,7 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
     if (!(key === "tor" && b && b.key === "mauer" && b.team === 0)) return "Hier steht schon etwas";
   }
   if (key === "tor") { const r = gateReason(w, x, y); if (r) return r; }
+  if (plotAt(w.s, x, y)) return "Hier liegt ein Feld";
   // Nichts vor eine Tür setzen: Figuren betreten Gebäude nur dort, nicht durch die Wand
   const d = doorAt(w, x, y);
   if (d) return `Versperrt den Eingang: ${BUILDINGS[d.key].name}`;
@@ -125,6 +127,11 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
     const [ex, ey] = approach(key, x, y, o);
     if (!w.inMap(ex, ey) || !TERRAIN[w.s.tiles[w.idx(ex, ey)].terrain].walkable || w.s.tiles[w.idx(ex, ey)].building
       || w.s.rocks.some((r) => r.x === ex && r.y === ey && r.amount > 0)) reason = "Der Eingang ist versperrt";
+  }
+  if (def.fields) {
+    // Felder (ADR 0013): eigene Kacheln in der Vorschau, genug passende Beete nötig
+    tiles.push(...fieldPlan(w, key, x, y, o).tiles);
+    if (!reason) reason = fieldReason(w, key, x, y, o);
   }
   if (!reason && def.placement?.adjacentTerrain) {
     const want = def.placement.adjacentTerrain;
@@ -266,6 +273,7 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   for (const [g, n] of Object.entries(cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
   b.mat = total(b.needs);
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
+  if (def.fields) b.farm = newFarm(w, b); // Beete sind ab dem Setzen belegt
   if (!deferNav) refreshAfterPlace(w);
   return b;
 }
@@ -286,6 +294,7 @@ export function completeBuilding(w: World, b: SBuilding): void {
   if (def.storage && !b.slots.length) b.slots = Array.from({ length: def.storage.slots }, () => ({ good: null, amount: 0, reserved: 0, incoming: 0 }));
   if (def.output && !b.output) b.output = { good: def.output.good, amount: 0, reserved: 0 };
   if (def.production && !b.proc) b.proc = newProc(b.key);
+  if (def.fields && !b.farm) b.farm = newFarm(w, b);
   updateWallMasks(w);
   w.nav.rebuild();
   evictUnits(w);

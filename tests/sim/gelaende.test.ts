@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { FELD_BODEN, STEIN, TERRAIN, feldErlaubt, fruchtbarkeit, type TerrainKey } from "../../src/data";
 import { createGame, entrance, loadGame } from "../../src/sim";
-import { buildNow, run, spawn, worldOf } from "../../src/sim/debug";
+import { buildNow, run, spawn, stockUp, worldOf } from "../../src/sim/debug";
 import { slopeRocks, slopeTiles, updateSlides, wouldSplit } from "../../src/sim/gelaende";
 import { tidy, updateStock } from "../../src/sim/storage";
 import type { Simulation } from "../../src/sim/game";
@@ -290,8 +290,11 @@ describe("Langlauf", () => {
       if (t % 10 === 0) {
         for (const u of s.units) if (!u.dead && u.layer === 0 && terrainAt(w, Math.floor(u.x), Math.floor(u.y)) === "gebirge") onMountain++;
       }
-      // Stein wird verbaut (sonst ist das Lager bald voll und der Steinbruch hält an): freie Blöcke alle 30 s heraus
+      // Stein wird verbaut (sonst ist das Lager bald voll und der Steinbruch hält an): freie Blöcke alle 30 s heraus.
+      // Ohne Höfe wäre der Startvorrat Brot nach gut 10 min gegessen und die Tagelöhner gingen (ADR 0013); die Siedlung
+      // wird hier wie der Stein von außen versorgt, denn geprüft wird die Halde, nicht die Ernährung.
       if (t % (30 * TPS) === 0) {
+        if (s.stock.brot < 10) stockUp(g, "brot", 20);
         for (const b of s.buildings) for (const sl of b.slots) {
           if (sl.good !== "stein") continue;
           const n = sl.amount - sl.reserved;

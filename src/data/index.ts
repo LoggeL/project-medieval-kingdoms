@@ -9,6 +9,7 @@ import type { ProductionDef } from "./recipes";
 import type { TechKey } from "./research";
 import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
 import { GELAENDE, type GelaendeKey } from "./gelaende";
+import { LANDWIRTSCHAFT, type FieldDef, type LandwirtschaftKey } from "./landwirtschaft";
 
 export * from "./research";
 
@@ -42,6 +43,8 @@ export * from "./gelaende";
 // ---------------------------------------------------------------- Waren, Lagertypen, Rezepte (eigene Dateien)
 export * from "./goods";
 export * from "./recipes";
+export * from "./landwirtschaft";
+export * from "./nahrung";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 
@@ -57,13 +60,15 @@ export type CycleStep =
    * Verarbeiten nach Rezept (BuildingDef.production, src/data/recipes.ts): zum Arbeitsplatz im Gebäude gehen, Eingänge
    * aus dem Puffer nehmen, sichtbar arbeiten, Ausgänge auf den Ausgabestapel legen. Ein Zyklus aus nur diesem Schritt.
    */
-  | { do: "process" };
+  | { do: "process" }
+  /** Felder bestellen (BuildingDef.fields, src/data/landwirtschaft.ts): Beet wählen, hingehen, arbeiten, Ernte zum Hof tragen. */
+  | { do: "farm" };
 
 // ---------------------------------------------------------------- Gebäude
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey;
+  | VerarbeitungKey | LandwirtschaftKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -147,6 +152,8 @@ export interface BuildingDef {
    * Arbeiter kommen aus `workers` (Zyklus [{ do: "process" }]), die Rezepte nennen das Gebäude in RecipeDef.building.
    */
   production?: ProductionDef;
+  /** Felder neben dem Hof (src/data/landwirtschaft.ts, ADR 0013); die Ernte landet auf dem Hofstapel `output`. */
+  fields?: FieldDef;
   /**
    * Arbeitsanimation des Gebäudes (nur Darstellung): Die Varianten des Sprites laufen mit fps, solange ein Arbeitsgang
    * läuft (z. B. die Mühlenflügel), sonst bleibt das zuletzt gezeigte Bild stehen.
@@ -264,6 +271,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   // Verarbeitung und Kornkammer (src/data/verarbeitung.ts)
   ...VERARBEITUNG,
+  // Getreidehof und Obstgarten (src/data/landwirtschaft.ts)
+  ...LANDWIRTSCHAFT,
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
     category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],
@@ -296,10 +305,10 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 };
 
 // ---------------------------------------------------------------- Einheiten
-export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "speer" | "schwert" | "bogen";
+export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "bauer" | "obstbauer" | "speer" | "schwert" | "bogen";
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
-export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "angriff" | "schiessen" | "sterben" | "tot";
+export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "pfluegen" | "saeen" | "ernten" | "pfluecken" | "angriff" | "schiessen" | "sterben" | "tot";
 
 export type DamageType = "stich" | "hieb" | "pfeil";
 
@@ -326,6 +335,13 @@ export interface UnitDef {
   canStation?: boolean;
   /** Gesperrt, bis diese Forschung abgeschlossen ist. */
   tech?: TechKey;
+  /**
+   * Nur Darstellung: eigene Figur für einzelne Arbeitsanimationen (ein Figurenblatt kennt nur eine Aktion), z. B. der
+   * Bauer mit Hacke beim Umgraben und mit Saattuch beim Säen.
+   */
+  animSprite?: Partial<Record<AnimKey, string>>;
+  /** Nur Darstellung: eigene Figur beim Tragen einer Ware statt GOODS[ware].carrier (Bauer mit Garbe, Obstbauer mit Korb). */
+  carrySprite?: Partial<Record<Good, string>>;
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -334,6 +350,8 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   steinmetz: { name: "Steinmetz", sprite: "steinmetz", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
   mueller: { name: "Müller", sprite: "mueller", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
   baecker: { name: "Bäcker", sprite: "baecker", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
+  bauer: { name: "Bauer", sprite: "bauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, animSprite: { pfluegen: "bauer_hacke", saeen: "bauer_saat" }, carrySprite: { getreide: "bauer_garbe" } },
+  obstbauer: { name: "Obstbauer", sprite: "obstbauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, carrySprite: { apfel: "obstbauer" } },
   speer: {
     name: "Speerträger", sprite: "speer", role: "nahkampf", hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
     range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
@@ -365,10 +383,11 @@ export const START = {
    */
   buildings: [{ key: "lager", at: [0, 0], o: 0 }, { key: "bergfried", at: [-4, 0], o: 0 }, { key: "kornkammer", at: [-8, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
   /**
-   * Startbestand in den Lagern der Startaufstellung (jede Ware in ein Lager ihres Typs). Getreide liegt in der
-   * Kornkammer, bis es einen Bauernhof gibt, damit die Kette Mühle → Bäckerei spielbar ist.
+   * Startbestand in den Lagern der Startaufstellung (jede Ware in ein Lager ihres Typs). Brot und Getreide in der
+   * Kornkammer: Die Siedlung isst ab Beginn (src/data/nahrung.ts), der Vorrat reicht, bis Getreidehof und Obstgarten
+   * liefern (ADR 0013).
    */
-  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4, getreide: 40 } as Partial<Record<Good, number>>,
+  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4, getreide: 40, brot: 40 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
   raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
 };

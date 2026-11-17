@@ -299,6 +299,11 @@ def helmet(kind, hp, head, hw, team, unit):
         if STYLE.get("back_hair"):
             # hair down to the nape, so the back of the head reads differently from the face
             ball("hair", (hw * 0.5, hw * 0.5, head * 0.42), (0, hw * 0.12, 0), "hair", hp)
+    elif kind == "straw":
+        # farmer's straw hat: wide brim, low crown, a band in the team colour
+        cyl("brim", hw * 0.95, head * 0.07, (0, 0, head * 0.26), "slash2", hp, verts=12)
+        ball("crown", (hw * 0.5, hw * 0.5, head * 0.3), (0, 0, head * 0.36), "slash2", hp)
+        cyl("band", hw * 0.53, head * 0.1, (0, 0, head * 0.34), unit.get("band", team), hp, verts=10)
     elif kind == "kettle":
         cyl("brim", hw * 0.66, head * 0.06, (0, 0, head * 0.24), steel, hp, verts=10)
         ball("dome", (hw * 0.5, hw * 0.5, head * 0.36), (0, 0, head * 0.26), steel, hp)
@@ -477,6 +482,43 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         cyl("peelshaft", th(limb * 0.4) / 2, H * 1.0, (0, 0, H * 0.3), "wood_hi", hr)
         box("peelblade", (H * 0.16, th(limb * 0.2), H * 0.18), (0, 0, H * 0.86), "wood_hi", hr)
         ball("peelloaf", (H * 0.05, H * 0.045, H * 0.03), (0, -limb * 0.25, H * 0.86), "leather", hr, seg=6, rings=4)
+    # ---- farming (ADR 0013)
+    elif g == "sickle":
+        # short handle, the blade curves forward in a half circle
+        cyl("sicklehandle", th(limb * 0.45) / 2, H * 0.12, (0, 0, H * 0.04), "wood", hr)
+        r = H * 0.075
+        for i in range(6):
+            a = math.radians(i * 36)
+            box("sickle%d" % i, (th(limb * 0.25), th(limb * 0.5), r * 0.75), (0, -r * (1 - math.cos(a)), H * 0.1 + r * math.sin(a)),
+                "steel_hi", hr, rot=(-a, 0, 0))
+    elif g == "hoe":
+        # long haft, flat iron blade at right angles at the top
+        cyl("hoehaft", th(limb * 0.44) / 2, H * 0.62, (0, 0, H * 0.22), "wood", hr)
+        box("hoeblade", (limb * 2.2, th(limb * 0.35), limb * 1.9), (0, -limb * 0.7, H * 0.52), "steel", hr, rot=(math.radians(-70), 0, 0))
+    elif g == "seed_bag":
+        # linen seed bag at the left hip on a strap across the chest
+        ball("seedbag", (H * 0.09, H * 0.075, H * 0.1), (sw * 0.6, -depth * 0.4, torso * 0.12), "cloth", body, seg=8, rings=5)
+        ball("seedcorn", (H * 0.065, H * 0.055, H * 0.02), (sw * 0.6, -depth * 0.4, torso * 0.12 + H * 0.095), "gold", body, seg=6, rings=3)
+        box("seedstrap", (th(limb * 0.35), depth * 1.08, torso * 1.0), (0, 0, torso * 0.55), "belt", body, rot=(0, math.radians(-38), 0))
+    elif g == "sheaf":
+        # sheaf of grain on the right shoulder like the log, ears forward and up, tied in the middle
+        sf = empty("sheafpv", (-sw * 0.36, -H * 0.02, torso * 0.98 + limb * 0.55), hip)
+        sf.rotation_euler = (math.radians(58), 0, math.radians(-22.5))
+        cyl("sheafstraw", limb * 1.0, H * 0.6, (0, 0, -H * 0.08), "slash2", sf, verts=8)
+        cone("sheafears", limb * 1.05, limb * 1.35, H * 0.14, (0, 0, H * 0.28), "gold", sf, verts=8)
+        cyl("sheafband", limb * 1.12, limb * 0.4, (0, 0, H * 0.04), "belt", sf, verts=8)
+    elif g in ("apple_basket", "hip_basket"):
+        # wicker basket heaped with red apples: carried in front with both arms, or hanging at the left hip
+        if g == "apple_basket":
+            bk = empty("abasketpv", (0, -depth * 0.5 - H * 0.13, torso * 0.4), hip)
+            R = H * 0.13
+        else:
+            bk = empty("abasketpv", (sw * 0.62, -depth * 0.15, torso * 0.05), body)
+            R = H * 0.085
+        cyl("abasket", R, R * 0.92, (0, 0, 0), "bow", bk, verts=10)
+        cyl("arim", R * 1.04, th(limb * 0.35), (0, 0, R * 0.46), "wood_hi", bk, verts=10)
+        for k, (dx, dy) in enumerate(((-0.4, -0.25), (0.4, -0.2), (0.0, 0.4), (0.0, -0.02))):
+            ball("apple%d" % k, (R * 0.34, R * 0.34, R * 0.3), (dx * R, dy * R, R * (0.55 if k < 3 else 0.75)), "slash1", bk, seg=6, rings=4)
 
 
 # ---------------------------------------------------------------- camera
@@ -564,6 +606,34 @@ ACTIONS = {
         {"armR": (-130, 0, 4), "armL": (-50, 0, -12), "gripR": -10, "lean": 18, "legs": (-16, 10)},
         {"armR": (-85, 0, 2), "armL": (-48, 0, -12), "gripR": 55, "lean": 24, "legs": (-18, 12)},
         {"armR": (-52, 0, 2), "armL": (-46, 0, -12), "gripR": 95, "lean": 28, "legs": (-18, 12)},
+    ],
+    # farmer (ADR 0013): bent low, the left hand gathers the stalks, the sickle sweeps across in front
+    "maehen": [
+        {"armR": (-62, 0, 34), "armL": (-72, 0, -6), "gripR": 95, "lean": 30, "legs": (-16, 10)},
+        {"armR": (-72, 0, 12), "armL": (-74, 0, -10), "gripR": 100, "lean": 33, "legs": (-16, 10)},
+        {"armR": (-74, 0, -14), "armL": (-70, 0, -14), "gripR": 104, "lean": 35, "legs": (-18, 10)},
+        {"armR": (-58, 0, -32), "armL": (-60, 0, -8), "gripR": 96, "lean": 28, "legs": (-16, 10)},
+    ],
+    # hoeing the bed: hoe raised over the shoulder, chopped down into the soil in front, pulled back
+    "hacke": [
+        {"armR": (-170, 0, 6), "armL": (-165, 0, -6), "gripR": -30, "lean": -2},
+        {"armR": (-125, 0, 5), "armL": (-120, 0, -5), "gripR": 45, "lean": 10},
+        {"armR": (-80, 0, 4), "armL": (-76, 0, -4), "gripR": 110, "lean": 26, "legs": (-16, 10)},
+        {"armR": (-55, 0, 4), "armL": (-52, 0, -4), "gripR": 135, "lean": 30, "legs": (-16, 10)},
+    ],
+    # sowing by hand: the right hand takes seed from the bag and casts it out wide to the side
+    "saeen": [
+        {"armR": (-35, 0, -38), "armL": (-25, 0, 8), "lean": 6, "legs": (-10, 6)},
+        {"armR": (-70, 0, -10), "armL": (-25, 0, 8), "lean": 4, "legs": (-10, 6)},
+        {"armR": (-85, 0, 30), "armL": (-25, 0, 8), "lean": 2, "legs": (-6, 10)},
+        {"armR": (-65, 0, 60), "armL": (-25, 0, 8), "lean": 2, "legs": (-6, 10)},
+    ],
+    # picking apples: both arms reach up into the crown in turn
+    "pfluecken": [
+        {"armR": (-165, 0, -6), "armL": (-120, 0, 10), "lean": -8},
+        {"armR": (-150, 0, -10), "armL": (-140, 0, 8), "lean": -6},
+        {"armR": (-120, 0, -10), "armL": (-165, 0, 6), "lean": -8},
+        {"armR": (-140, 0, -8), "armL": (-150, 0, 10), "lean": -6},
     ],
 }
 # collapse: hit, knees buckle, topple backwards, lying on the back (corpse centred on the foot point)

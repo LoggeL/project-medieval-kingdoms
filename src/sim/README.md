@@ -13,6 +13,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `activity.ts` | Anzeige-Zustand: `Unit.activity`, `Building.recruits`, `Building.gateOpen` |
 | `storage.ts` | Lager-Slots je Lagertyp (`storagesNear(kind)`, Materiallager/Kornkammer): reservieren, einlagern, verplante Waren, Bestand und `stores` (Bestand/Kapazität je Typ) |
 | `production.ts` | Verarbeitung nach Rezept (ADR 0011): Eingangspuffer, Arbeitsgang, Ausgabestapel, Stillstandsgrund, Rezeptwahl, Anhalten, Rückgabe bei Abriss |
+| `farm.ts` | Landwirtschaft (ADR 0013): Beete eines Hofs aus `fields` (Platzierung, Vorschau), Wachstum (Ackerfrüchte nach Bodenfaktor `FELD_BODEN`, `plotGrowth`, `soilCounts`), Feldarbeit des Bauern (Zyklus `farm`), Ernte zum Hofstapel, Panel-Grund `farmReason` |
+| `food.ts` | Ernährung (ADR 0013): Verbrauch je Tick aus den Fächern der Kornkammer, Rationen, Vielfalt, Hunger (kein Zuzug, Fortgang untätiger Tagelöhner) |
 | `jobs.ts` | Aufträge ausführen: Arbeitszyklen aus den Daten (auch `process`), Tragen (Hofstapel und Ausgabestapel), Anliefern (Baustelle, Forschung, Eingangspuffer), Bauen, Rekrut holt Waffe |
 | `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
@@ -67,13 +69,20 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 
 **Tests**: Kette über echte Ticks, Drosselung, fehlende Eingänge, Abriss, Speichern/Laden und alle vier Ausrichtungen nach dem Muster `tests/sim/verarbeitung.test.ts`.
 
+## Landwirtschaft und Ernährung erweitern (ADR 0013)
+
+- **Neue Feldfrucht** (`src/data/landwirtschaft.ts`): Schlüssel in `CropKey`, Eintrag in `CROPS` mit `sprite` (1 × 1 im Gebäudeblatt, Varianten = Stufen), `stages` (je Stufe `frame` und entweder `grow` in Sekunden oder `work` mit Animation; genau eine Stufe mit `harvest`) und `after` (Stufe nach der Ernte). Die Animationen brauchen Figuren: entweder die Aktion der Arbeiterfigur oder eine eigene Figur über `UnitDef.animSprite`.
+- **Neuer Hof**: Gebäude mit `fields` (Feldfrucht, Rechteck in Modellachsen, erlaubtes Gelände, Mindestzahl), `workers.cycle: [{ do: "farm" }]` und `output` der Ernteware. Das Rechteck liegt außerhalb von Grundriss und Türvorplatz.
+- **Neue essbare Ware**: Ware wie in ADR 0011 (Lagertyp `nahrung`) und Eintrag in `FOOD.goods` (Portionen je Stück). Rationen sind Einträge in `RATIONS`.
+- Für die Oberfläche: `Building.farm` (`plots` mit `x`, `y`, `stage`, `t`, `by`; `harvested`), `stageCounts`, `farmReason`; `state.food` (`ration`, `perMinute`, `stock`, `kinds`, `hunger`, `eaten`), `foodSeconds`. Befehl `{ t: "rationen", ration }`.
+
 ## Grenzen (Stand Prototyp)
 
 - Kein echtes Ausweichen zwischen Figuren; nur stehende Soldaten schieben sich auseinander. Wartende Arbeiter einer Werkstatt stehen auf eigenen Feldern neben dem Eingang.
 - Angreifer kommen nicht durch Tore und Turmtüren, eigene Treppen dürfen sie aber benutzen: Wer durch eine Bresche im Hof steht, steigt auf den Wehrgang (und von dort auf Türme). Eine Treppe außen an der Mauer ist deshalb eine Schwachstelle.
 - Holzfäller und Steinmetze ohne Baum bzw. Fels in Reichweite warten an ihrer Hütte (Meldung „keine Bäume mehr“), bis der Spieler abreißt.
 - Abriss gibt die Hälfte der Kosten sofort ins Lager zurück (nicht als getragene Ware), bei Verarbeitungsgebäuden auch Puffer, Ausgabestapel und die Eingänge eines laufenden Arbeitsgangs (ebenso beim Rezeptwechsel); was nicht ins Lager passt, verfällt.
-- Getreide entsteht noch nirgends (kein Bauernhof): Die Brotkette läuft vom Startvorrat der Kornkammer (40 Getreide = 20 Mehl = 40 Brot). Brot wird noch nicht verbraucht.
+- Gegessen wird direkt aus den Fächern der Kornkammer, ohne dass Figuren dorthin gehen; sichtbar ist es am schrumpfenden Bestand. Hunger trifft nur untätige Tagelöhner, Arbeiter und Soldaten bleiben ungemindert (ADR 0013).
 - Arbeiter fliehen nicht, nur untätige Tagelöhner. Angreifer haben keine Leitern; sie reißen Mauern und Tore ein. Auf Arbeiter gehen sie nur aus der Nähe los (`TUNING.raiderWorkerReach`), flüchtenden Tagelöhnern laufen sie nicht über die Karte nach.
 - Fällt ein Tor, kann ein Mauerabschnitt vom Treppenzugang abgeschnitten sein: Die Wachen dort melden „Posten nicht erreichbar“ und werden untätig (kämpfen dann wie freie Soldaten).
 - Die Balance ist auf die Standardkarte (Seed 1) und die Furt abgestimmt; ab Welle 2 (6 Angreifer) reichen drei Verteidiger ohne Turm nicht mehr.

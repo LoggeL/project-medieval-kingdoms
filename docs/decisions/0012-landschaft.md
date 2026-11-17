@@ -29,7 +29,7 @@ Option 2.
 | `fruchtbar` | ja | ja | 1 | Auenboden, bester Ackerboden |
 
 - `cost` ist wie bisher zugleich Wegkosten und Gangart (`speedOf` = 1 / cost, begrenzt auf 0,55–1,45). Wege machen deshalb einen Bogen um Sumpf und Hügel, wenn er sich lohnt.
-- **Felder:** `FELD_BODEN = { fruchtbar: 1, wiese: 0,7 }` mit `feldErlaubt(t)` und `fruchtbarkeit(t)`. Der Ackerbau (Zweig nahrung) fragt je Feldkachel ab, ob ein Feld möglich ist und mit welchem Ertragsfaktor.
+- **Felder:** `FELD_BODEN = { fruchtbar: 1, wiese: 0,7 }` mit `feldErlaubt(t)` und `fruchtbarkeit(t)`. Der Ackerbau (ADR 0013, Nachtrag zur Zusammenführung) nutzt den Faktor als Wachstumsgeschwindigkeit der Ackerfrüchte; wo ein Beet liegen darf, bestimmt die Geländeliste des Hofs.
 - **Stein** (`STEIN`):
   - `field` 8–16 Blöcke je Brocken im Felsfeld an der Startsiedlung, wie vorher, damit der Spielbeginn gleich bleibt.
   - `amount` 20–36 je Brocken der neuen Vorkommen: Die reichen Lagerstätten liegen weiter draußen, an den Hügelkuppen und an der Geröllhalde.

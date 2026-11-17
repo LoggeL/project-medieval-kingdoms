@@ -10,7 +10,7 @@
  * (Rand, Hang, Gipfel nach mountainClass), Variante und Ansicht aus der Tile-Nummer, in jeder Drehung tiefensortiert.
  */
 import { Container, Rectangle, Texture } from "pixi.js";
-import { BUILDINGS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
+import { BUILDINGS, CROPS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import { mountainClass } from "../sim/mapgen";
 import type { Building, Rock, SimState, Tile, Tree, Unit } from "../sim/types";
@@ -396,7 +396,8 @@ export class ObjectLayer {
     if (!fs) return null;
     // Trägerbild nur beim Gehen und Stehen; bei Arbeit, Kampf und Tod bleibt die eigene Figur (z. B. Steinmetz beim Abbauen).
     const carrying = !!u.carry && (u.anim === "gehen" || u.anim === "stehen");
-    const want = carrying ? GOODS[u.carry!].carrier : UNITS[u.key].sprite;
+    const def = UNITS[u.key];
+    const want = carrying ? def.carrySprite?.[u.carry!] ?? GOODS[u.carry!].carrier : def.animSprite?.[u.anim as AnimKey] ?? def.sprite;
     if (fs.has(want)) return want;
     const chain = carrying ? ["traeger", UNITS[u.key].sprite, "tageloehner"] : ["tageloehner", "traeger"];
     for (const k of chain) if (fs.has(k)) { warnOnce(`Figur „${want}“ fehlt im Figurenblatt, Ersatz „${k}“`); return k; }
@@ -658,9 +659,39 @@ export class ObjectLayer {
     if (spr && b.built >= 1 && this.nItems === before && open < 0.5 && fire) this.chimneys(b, spr.keys[0][0], cx, cy);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
     if (def.storage && !spr) this.stackItems(b);
+    if (b.farm) this.plotItems(b);
     if (b.built < 1) this.siteItems(b);
     else if (b.upgrade) this.upgradeItems(b);
     else if (b.proc) this.procItems(b);
+  }
+
+  /**
+   * Felder eines Hofs (ADR 0013): je Beet das Sprite der Feldfrucht in der Bildvariante seiner Stufe (CROPS). Getreide
+   * liegt längs der Hofausrichtung (dreht mit), Apfelbäume stehen je Beet verschieden gedreht. Niedrige Stufen sind
+   * flach (Boden), hohe Halme und Bäume werden wie Bäume einsortiert. Ein Klick auf ein Beet wählt den Hof.
+   */
+  private plotItems(b: Building): void {
+    const bs = this.bs, farm = b.farm!, fields = BUILDINGS[b.key].fields;
+    if (!bs || !fields) return;
+    const crop = CROPS[farm.crop];
+    const key = this.bkey(crop.sprite);
+    if (!key) return;
+    const sp = bs.get(key)!;
+    const [ax, ay] = bs.anchor;
+    farm.plots.forEach((p, i) => {
+      const st = crop.stages[p.stage] ?? crop.stages[0];
+      const frame = Math.max(0, Math.min(sp.frames - 1, st.frame));
+      const view = farm.crop === "getreide" ? viewOf(b.o, this.r) : viewOf(hash4(b.id * 64 + i), this.r);
+      const tex = bs.texture(key, view, frame);
+      if (!tex) return;
+      const flat = farm.crop === "getreide" && frame <= 3;
+      const [u0, u1, v0, v1] = this.box(p.x, p.y, p.x + 1, p.y + 1);
+      const it = flat ? this.newItem(u0, u1, v0, v1, true) : this.newItem(u0 + 0.1, u1 - 0.1, v0 + 0.1, v1 - 0.1);
+      const [X, Y] = this.scr(p.x + 0.5, p.y + 0.5);
+      const part = this.part(it, tex, X, Y, ax, ay, { hit: this.hit("building", b.id, b.team, "b", key, view, frame, X - ax, Y - ay) });
+      if (!flat) this.occluder(part, key, view, frame);
+      this.closeItem(it);
+    });
   }
 
   /** Arbeitszeit der Werkstätten mit Arbeitsbild weiterzählen (nur bei laufendem Arbeitsgang). */
