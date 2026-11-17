@@ -40,6 +40,11 @@ export interface UiBridge {
   on(ev: "tick" | "selection" | "tool" | "view" | "assets", fn: () => void): () => void;
   /** Kurzer Hinweis am Mauszeiger oder in der Meldungsleiste (z. B. Grund, warum nicht gebaut werden kann). */
   notify(text: string, kind?: "info" | "warnung"): void;
+  /**
+   * Optional: Hinweise aus notify abonnieren (die Oberfläche zeigt sie am Mauszeiger). Bietet die Brücke das nicht an,
+   * leitet die Oberfläche bridge.notify beim Einhängen selbst auf ihre Anzeige um (Originalfunktion wird weiter aufgerufen).
+   */
+  onNotify?(fn: (text: string, kind?: "info" | "warnung") => void): () => void;
 }
 
 /** Wird von src/ui exportiert. */
