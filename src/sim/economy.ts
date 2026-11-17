@@ -226,7 +226,7 @@ export function updatePopulation(w: World): void {
   for (const u of s.units) if (u.team === 0 && !u.dead) pop++;
   for (const b of s.buildings) if (b.ai.inside) pop++;
   s.housing = housing; s.population = pop;
-  if (!w.meta.immigration || s.outcome || s.tick < w.meta.nextImmigrant) return; // nach der Niederlage kein Zuzug
+  if (!w.meta.immigration || s.outcome === "niederlage" || s.tick < w.meta.nextImmigrant) return; // nach der Niederlage kein Zuzug (nach dem Sieg schon)
   w.meta.nextImmigrant = s.tick + TUNING.immigrantSeconds * TPS;
   if (pop >= housing) {
     w.msg("Kein Wohnraum mehr: Baue Wohnhäuser, damit weitere Leute zuziehen.", "warnung", "wohnraum", 120, "wohnraum");

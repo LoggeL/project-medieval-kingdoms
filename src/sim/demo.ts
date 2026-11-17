@@ -5,6 +5,7 @@
  */
 import { BUILDINGS, type BuildingKey, type Good, type UnitKey } from "../data";
 import { NEIGHBOURS, footprintTiles } from "./geom";
+import { newMatch } from "./match";
 import type { Building, Command, CommandResult, Game, PlacementCheck, SimState, Unit } from "./types";
 
 export function createDemoGame(): Game {
@@ -14,7 +15,7 @@ export function createDemoGame(): Game {
     gold: 150, population: 8, housing: 12,
     stock: { holz: 40, stein: 30, eisen: 0, speer: 3, schwert: 2, bogen: 4, getreide: 0, mehl: 0, brot: 0 }, capacity: 64,
     raid: { next: 6000, wave: 0, active: false }, messages: [{ tick: 0, text: "Willkommen, Burgherr.", kind: "info" }],
-    research: { done: [], cur: null },
+    research: { done: [], cur: null }, match: newMatch(null),
   };
   let rnd = 7;
   const rand = () => ((rnd = (rnd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);

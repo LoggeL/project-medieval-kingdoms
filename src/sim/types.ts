@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, Good, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
+import type { AnimKey, BuildingKey, DifficultyKey, Good, RecipeKey, ScenarioKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -219,6 +219,11 @@ export interface SimState {
   population: number; housing: number;
   /** Summe über alle Lager, nur zur Anzeige. */
   stock: Record<Good, number>;
+  /**
+   * Davon frei verfügbar: Bestand minus verplante Waren (Baustellen, Forschung, Verarbeitung, wartende Rekruten), nie
+   * unter 0. Fehlt vor dem ersten Tick alter Spielstände.
+   */
+  free?: Record<Good, number>;
   /** Lagerkapazität gesamt. */
   capacity: number;
   /** Bestand und Kapazität je Lagertyp (Lagerhaus, Kornkammer); fehlt vor dem ersten Tick alter Spielstände. */
@@ -227,8 +232,40 @@ export interface SimState {
   messages: Message[];
   /** Forschung (seit Spielstand-Version 2 immer vorhanden). */
   research: ResearchState;
-  /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
-  outcome?: "niederlage";
+  /** Ausgang der Partie: Niederlage, wenn der Bergfried fällt; Sieg, wenn alle Ziele des Szenarios erreicht sind. */
+  outcome?: "niederlage" | "sieg";
+  /** Szenario, Schwierigkeitsgrad, Einführung und Statistik der Partie (src/sim/match.ts, ADR 0019). */
+  match: MatchState;
+}
+
+/** Partie: was gespielt wird und was bisher geschah. */
+export interface MatchState {
+  /** Szenario aus SCENARIOS (null = freies Spiel ohne Siegbedingung, z. B. die leere Testwiese). */
+  scenario: ScenarioKey | null;
+  difficulty: DifficultyKey;
+  /** Aktueller Schritt der Einführung (Index in TUTORIAL), null = keine Einführung. */
+  tutorial: number | null;
+  /** Tick, an dem die Partie entschieden wurde (Sieg oder Niederlage), sonst null. */
+  endTick: number | null;
+  stats: MatchStats;
+}
+
+/** Statistik für die Tafel am Ende (zählt die Simulation mit, src/sim/match.ts). */
+export interface MatchStats {
+  /** Abgewehrte Überfallwellen: alle Angreifer der Welle gefallen oder abgezogen. */
+  waves: number;
+  /** Besiegte Angreifer (gefallen, nicht abgezogen). */
+  kills: number;
+  /** Eigene Verluste: gefallene Soldaten und gefallene Arbeiter (Tagelöhner, Handwerker). */
+  lostSoldiers: number;
+  lostWorkers: number;
+  /** Zerstörte eigene Gebäude (Abriss zählt nicht). */
+  lostBuildings: number;
+  /** Fertiggestellte Gebäude (ohne Startaufstellung) und ausgebildete Soldaten. */
+  built: number;
+  trained: number;
+  /** Erzeugte Waren: von Hofstapel oder Ausgabestapel ins Lager getragen (Startbestand und Rückgaben zählen nicht). */
+  produced: Partial<Record<Good, number>>;
 }
 
 export type Command =
@@ -253,7 +290,12 @@ export type Command =
   /** Rezept eines Verarbeitungsgebäudes wählen (nicht passende Puffer-Waren gehen ins Lager zurück). */
   | { t: "rezept"; building: number; recipe: RecipeKey }
   /** Verarbeitung anhalten (an = false) oder fortsetzen. */
-  | { t: "produktion"; building: number; an: boolean };
+  | { t: "produktion"; building: number; an: boolean }
+  /**
+   * Ausbildung abbrechen: index = Platz in der Warteschlange (Building.queue), −1 = laufende Ausbildung. Gold kommt
+   * zurück, eine schon geholte Waffe trägt der Tagelöhner ins Lager zurück.
+   */
+  | { t: "ausbildung_abbrechen"; building: number; index: number };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }

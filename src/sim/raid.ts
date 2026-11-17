@@ -11,10 +11,11 @@
  * und verlässt die Karte. Er kämpft dabei nicht mehr. Ist der Rückweg versperrt, stellt er sich und kämpft bis zuletzt.
  * Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
  */
-import { BUILDINGS, START, TUNING, type BuildingKey } from "../data";
+import { BUILDINGS, TUNING, type BuildingKey } from "../data";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, strikeBuilding, strikeUnit, vanish } from "./combat";
 import { center } from "./geom";
 import { blockedNode, goalAround, lineClear, stepToward, stop, tileGoal, travel, type TravelResult } from "./move";
+import { noteWaveRepelled, raidParams, toughen } from "./match";
 import { TPS, setAnim, type SUnit, type World } from "./world";
 
 /** Vorwarnung vor einer Welle (Sekunden). */
@@ -22,19 +23,20 @@ export const RAID_WARNING_SECONDS = 30;
 
 export function raidTick(w: World): void {
   const s = w.s;
-  // Nach der Niederlage (Bergfried gefallen) keine Vorwarnung und keine neuen Wellen mehr
+  // Nach Sieg oder Niederlage keine Vorwarnung und keine neuen Wellen mehr; Abstand und Größe je Schwierigkeitsgrad
   const due = w.meta.raidsEnabled && !s.outcome;
   if (due && s.tick === s.raid.next - RAID_WARNING_SECONDS * TPS) {
     w.msg("Späher melden Krieger auf dem Weg. In 30 Sekunden sind sie hier.", "kampf", "ueberfall-bald", 20, "ueberfall_bald");
   }
   if (due && s.tick >= s.raid.next) {
     spawnWave(w);
-    s.raid.next = s.tick + START.raid.everySeconds * TPS;
+    s.raid.next = s.tick + raidParams(s).everySeconds * TPS;
   }
   let active = false;
   for (const u of s.units) if (u.team === 1 && !u.dead) { active = true; break; }
   if (w.meta.raidRunning && !active) {
     w.meta.raidRunning = false;
+    noteWaveRepelled(w);
     w.msg("Der Überfall ist abgewehrt!", "kampf", undefined, 20, "abgewehrt");
   }
   s.raid.active = active;
@@ -42,8 +44,9 @@ export function raidTick(w: World): void {
 
 export function spawnWave(w: World): number[] {
   const s = w.s, nav = w.nav;
-  const n = START.raid.baseSize + START.raid.growth * s.raid.wave;
-  const mix = START.raid.mix;
+  const p = raidParams(s);
+  const n = p.baseSize + p.growth * s.raid.wave;
+  const mix = p.mix;
   s.raid.wave++;
   w.meta.raidLosses = 0;
   const [sx, sy] = w.meta.raidSpawn;
@@ -55,6 +58,7 @@ export function spawnWave(w: World): number[] {
       const x = sx + dx, y = sy + dy;
       if (!w.inMap(x, y) || !nav.open(nav.node(0, x, y), 1)) continue;
       const u = w.addUnit(mix[k++ % mix.length], 1, x + 0.5, y + 0.5);
+      toughen(s, u);
       u.ai.think = ids.length % TPS;
       ids.push(u.id);
     }

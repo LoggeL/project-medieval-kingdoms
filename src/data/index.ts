@@ -38,6 +38,8 @@ export const TERRAIN: Record<TerrainKey, TerrainDef> = {
 // ---------------------------------------------------------------- Waren, Lagertypen, Rezepte (eigene Dateien)
 export * from "./goods";
 export * from "./recipes";
+// Spielziel, Schwierigkeitsgrade, Speicherplätze (ADR 0019)
+export * from "./spielziel";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 

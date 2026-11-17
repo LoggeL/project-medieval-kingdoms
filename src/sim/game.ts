@@ -4,8 +4,12 @@
  * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
  * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
+ * Nach den Überfällen prüft updateMatch den Sieg (ADR 0019).
  */
-import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
+import {
+  BUILDINGS, DEFAULT_DIFFICULTY, DEFAULT_SCENARIO, GOODS, START, TUNING, TUTORIAL,
+  type BuildingKey, type DifficultyKey, type Good, type ScenarioKey, type TutorialGoal,
+} from "../data";
 import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
@@ -14,7 +18,9 @@ import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
 import { emptyMap, generateMap } from "./mapgen";
-import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
+import { cmdAttack, cmdCancelTraining, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
+import { newMatch, raidParams, startGold, updateMatch } from "./match";
+import { migrate, type SaveData } from "./migrate";
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
 import { storeDirect, updateStock } from "./storage";
@@ -30,10 +36,18 @@ export interface GameOptions {
   scenario?: "standard" | "leer";
   /** Überfälle nach Zeitplan (Standard: an im Szenario "standard"). */
   raids?: boolean;
+  /** Spielziel aus SCENARIOS (Standard: DEFAULT_SCENARIO auf der Startkarte, kein Ziel auf der leeren Wiese). */
+  goal?: ScenarioKey | null;
+  /** Schwierigkeitsgrad aus DIFFICULTIES (Standard: normal = Werte aus START). */
+  difficulty?: DifficultyKey;
 }
 
 export class Simulation implements Game {
-  constructor(readonly world: World) {}
+  /** Innerer Zustand; restore() tauscht ihn gegen einen geladenen aus (alle, die die Simulation halten, bleiben gültig). */
+  world: World;
+  constructor(world: World) { this.world = world; }
+  /** Spielstand laden und an die Stelle der laufenden Partie setzen (Laden im laufenden Spiel). */
+  restore(json: string): void { this.world = loadGame(json).world; }
   get state(): SimState { return this.world.s; }
   tick(): void { step(this.world); }
   dispatch(cmd: Command): CommandResult { return runCommand(this.world, cmd); }
@@ -53,6 +67,8 @@ export function createGame(opts: GameOptions = {}): Simulation {
   const seed = opts.seed ?? 1;
   const size = Math.max(24, Math.floor(opts.size ?? START.mapSize));
   const scenario = opts.scenario ?? "standard";
+  const difficulty = opts.difficulty ?? DEFAULT_DIFFICULTY;
+  const match = newMatch(opts.goal !== undefined ? opts.goal : scenario === "standard" ? DEFAULT_SCENARIO : null, difficulty);
   const meta: Meta = {
     version: SAVE_VERSION, rng: seedState(seed), nextId: 1, navVersion: 0,
     nextImmigrant: TUNING.immigrantSeconds * TPS, throttle: {},
@@ -65,10 +81,11 @@ export function createGame(opts: GameOptions = {}): Simulation {
   const stock = Object.fromEntries(Object.keys(GOODS).map((g) => [g, 0])) as Record<Good, number>;
   const s: SState = {
     tick: 0, seed, w: size, h: size, tiles: map.tiles, trees: map.trees, rocks: map.rocks,
-    buildings: [], units: [], projectiles: [], gold: START.gold, population: 0, housing: 0, stock, capacity: 0,
-    raid: { next: START.raid.firstSeconds * TPS, wave: 0, active: false }, messages: [],
-    research: { done: [], cur: null },
+    buildings: [], units: [], projectiles: [], gold: startGold(difficulty), population: 0, housing: 0, stock, capacity: 0,
+    raid: { next: 0, wave: 0, active: false }, messages: [],
+    research: { done: [], cur: null }, match,
   };
+  s.raid.next = raidParams(s).firstSeconds * TPS;
   const w = new World(s, meta);
   if (scenario === "standard") {
     for (const sb of START.buildings) spawnBuilt(w, sb.key, map.lager[0] + sb.at[0], map.lager[1] + sb.at[1], sb.o);
@@ -79,6 +96,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     }
     s.messages = [];
     meta.tutorial = 0;
+    match.tutorial = 0;
     w.msg(TUTORIAL[0].text, "info", undefined, 20, TUTORIAL[0].voice);
   }
   updatePopulation(w);
@@ -88,13 +106,14 @@ export function createGame(opts: GameOptions = {}): Simulation {
   return new Simulation(w);
 }
 
-/** Spielstand laden (aus Simulation.save()). Folge-Ticks sind identisch mit dem gespeicherten Spiel. */
+/**
+ * Spielstand laden (aus Simulation.save()). Folge-Ticks sind identisch mit dem gespeicherten Spiel. Ältere Versionen ab
+ * OLDEST_LOADABLE werden über MIGRATIONS (migrate.ts) angehoben, andere mit einer Fehlermeldung abgelehnt.
+ */
 export function loadGame(json: string): Simulation {
-  const d = JSON.parse(json) as { v: number; state: SState; meta: Meta };
-  if (typeof d.v === "number" && d.v < SAVE_VERSION) {
-    throw new Error(`Spielstand aus einer älteren Version (${d.v}, ohne Bergfried) kann nicht geladen werden`);
-  }
-  if (d.v !== SAVE_VERSION) throw new Error(`Unbekannte Spielstand-Version ${d.v}`);
+  let d: SaveData;
+  try { d = JSON.parse(json) as SaveData; } catch { throw new Error("Spielstand ist beschädigt (kein JSON)"); }
+  migrate(d, SAVE_VERSION);
   return new Simulation(new World(d.state, d.meta, false));
 }
 
@@ -121,6 +140,7 @@ export function step(w: World): void {
   if (s.tick % DISPATCH_EVERY === 0) { pruneWorkers(w); dispatcher(w); }
   updatePopulation(w);
   raidTick(w);
+  updateMatch(w);
   if (s.tick % TPS === 0) updateTutorial(w);
   updateTraining(w);
   updateResearch(w);
@@ -161,6 +181,7 @@ function updateTutorial(w: World): void {
   while (k < TUTORIAL.length && TUTORIAL[k].done && goalReached(w, TUTORIAL[k].done!)) k++;
   if (k === m.tutorial) return;
   m.tutorial = k;
+  w.s.match.tutorial = k;
   if (k < TUTORIAL.length) w.msg(TUTORIAL[k].text, "info", undefined, 20, TUTORIAL[k].voice);
 }
 
@@ -209,6 +230,7 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "ausbauen": return startUpgrade(w, c.building);
     case "rezept": return setRecipe(w, c.building, c.recipe);
     case "produktion": return setPaused(w, c.building, c.an);
+    case "ausbildung_abbrechen": return cmdCancelTraining(w, c.building, c.index);
   }
   return { ok: false, reason: "Unbekannter Befehl" };
 }

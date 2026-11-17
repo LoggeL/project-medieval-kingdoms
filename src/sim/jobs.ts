@@ -9,6 +9,7 @@ import { buildCap, canWork, completeBuilding, refreshAfterPlace, useMaterial } f
 import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
 import { fullMessage, hasStoreOf, reservePut, tidy } from "./storage";
+import { noteBuilt, noteProduced } from "./match";
 import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
@@ -231,6 +232,7 @@ function runHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void {
   const s = dst.slots[j.slot];
   s.incoming--; s.amount++;
   if (s.good !== j.good) s.good = j.good;
+  if (j.from) noteProduced(w, j.good); // Erzeugnis vom Hof- oder Ausgabestapel (from 0 = Rücktrag, zählt nicht)
   u.carry = null; u.ai.job = null; u.order = { t: "idle" };
 }
 
@@ -327,6 +329,7 @@ function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
   if (j.t >= SPOT_TICKS) { j.t = 0; j.spot = (j.spot ?? 0) + 1; } // nächste Seite
   if (site.built >= 1) {
     completeBuilding(w, site);
+    noteBuilt(w, site);
     u.ai.job = null; u.order = { t: "idle" };
     setAnim(u, "stehen");
   }

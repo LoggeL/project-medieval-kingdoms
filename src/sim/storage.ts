@@ -119,7 +119,7 @@ export function stockOf(w: World, good: Good): number {
 /** Frei verfügbare Menge (Bestand minus verplant). */
 export function available(w: World, good: Good): number { return stockOf(w, good) - committed(w, good); }
 
-/** state.stock, state.capacity und state.stores (je Lagertyp) aktualisieren. */
+/** state.stock, state.free (Bestand minus verplant), state.capacity und state.stores (je Lagertyp) aktualisieren. */
 export function updateStock(w: World): void {
   const stock = Object.fromEntries(ALL_GOODS.map((g) => [g, 0])) as Record<Good, number>;
   const stores = Object.fromEntries(STORE_KEYS.map((k) => [k, { used: 0, cap: 0 }])) as Record<StoreKey, { used: number; cap: number }>;
@@ -134,6 +134,9 @@ export function updateStock(w: World): void {
     for (const s of b.slots) if (s.good) { stock[s.good] += s.amount; kind.used += s.amount; }
   }
   w.s.stock = stock;
+  const free = {} as Record<Good, number>;
+  for (const g of ALL_GOODS) free[g] = stock[g] > 0 ? Math.max(0, stock[g] - committed(w, g)) : 0;
+  w.s.free = free;
   w.s.capacity = cap;
   w.s.stores = stores;
 }

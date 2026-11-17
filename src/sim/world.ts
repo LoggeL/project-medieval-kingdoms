@@ -17,10 +17,11 @@ export const TPS = TICKS_PER_SECOND;
 /** Pfadsuchen pro Tick (gestaffelt, damit 300 Einheiten nicht im selben Tick rechnen). */
 export const PATH_BUDGET = 24;
 /**
- * Version der Spielstände. 2: mit Bergfried (Sitz, Forschung, Niederlage) und der neuen Einführung. Stände der
- * Version 1 hatten keinen Bergfried und werden abgelehnt (die Oberfläche speichert noch nicht, es gibt keine zu retten).
+ * Version der Spielstände. 2: mit Bergfried (Sitz, Forschung, Niederlage) und der neuen Einführung. 3: mit Partie
+ * (`state.match`: Szenario, Schwierigkeitsgrad, Statistik; ADR 0019). Ältere Stände hebt migrate.ts an, Version 1
+ * (ohne Bergfried) wird abgelehnt.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // ---------------------------------------------------------------- Aufträge der Arbeiter
 export type Job =
