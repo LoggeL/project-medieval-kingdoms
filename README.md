@@ -6,7 +6,13 @@ Idee und Anforderungen: Sebastian (Auftraggeber). Das vollständige Briefing ste
 
 ## Stand
 
-Phase 0: kreatives und technisches Konzept. Noch kein Code. Aktueller Stand: [docs/STATUS.md](docs/STATUS.md).
+Erster spielbarer Prototyp nach Briefing §14 (Browser, TypeScript + PixiJS). Aktueller Stand: [docs/STATUS.md](docs/STATUS.md).
+
+```bash
+npm install
+npm run dev      # Spiel unter http://localhost:5173/
+npm test         # Vitest
+```
 
 ## Aufbau
 
@@ -19,10 +25,10 @@ Phase 0: kreatives und technisches Konzept. Noch kein Code. Aktueller Stand: [do
 | [docs/STATUS.md](docs/STATUS.md) | Laufender Projektstand |
 | `art/prompts/` | Prompts für generierte Bilder |
 | `art/reference/` | Referenz- und Stimmungsbilder |
-| `assets/` | Generierte bzw. fertige Grafiken |
-| [tools/](tools/IMAGEGEN.md) | Hilfsskripte, u. a. Bildgenerierung über Codex |
-
-Der Code-Ordner wird angelegt, sobald die Engine entschieden ist ([ADR 0001](docs/decisions/0001-engine.md)).
+| `src/` | Spielcode: `data` (Definitionen), `sim` (Simulation ohne DOM), `render` (PixiJS), `ui`, `app` |
+| `tests/` | Automatisierte Tests (Vitest) |
+| `assets/` | Grafiken aus der Blender-Pipeline, UI-Texturen, Audio |
+| [tools/](tools/IMAGEGEN.md) | Hilfsskripte: Blender-Pipeline, Audio ([tools/audio/](tools/audio/README.md)), Bildgenerierung über Codex, kopfloser Testbrowser |
 
 ## Lizenz
 

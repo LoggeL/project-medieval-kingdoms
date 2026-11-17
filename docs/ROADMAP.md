@@ -10,3 +10,5 @@
 | M5 – Militär | Kampf, Formationen, Belagerung, KI-Gegner (Phase 4) | |
 | M6 – Forschung | Forschungsbaum, Freischaltungen (Phase 5) | |
 | M7 – Polishing | Animationen, Sound, Atmosphäre, Performance (Phase 6) | |
+
+**Stand 17.11.2026:** M1–M3 sind als erster spielbarer Prototyp umgesetzt (siehe [STATUS.md](STATUS.md)). Das Konzept aus M0 ist noch nicht mit Sebastian abgestimmt.

@@ -29,4 +29,4 @@ Braucht Python 3 mit Pillow. Vorher müssen Figuren und Gebäude gebaut sein (`t
 mkdir -p .local/vorschau && { printf '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>'; cat docs/konzept-seite.html; printf '</body></html>'; } > .local/vorschau/index.html
 ```
 
-Veröffentlicht ist die Seite als Artifact (Link in [docs/STATUS.md](../../docs/STATUS.md)), neu veröffentlicht wird von Hand.
+Veröffentlicht ist die Seite als Artifact (Link in [docs/STATUS.md](../../docs/STATUS.md)), neu veröffentlicht wird von Hand. Die Seite im Repo bindet selbst gehostete Schriften ein (Block `<!-- SCHRIFTEN -->` am Anfang); für das Artifact diesen Block durch den Google-Fonts-Link ersetzen und den Link „Prototyp spielen“ auf die Live-Adresse zeigen lassen, siehe Abschnitt „Konzeptseite als Artifact“ in [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
