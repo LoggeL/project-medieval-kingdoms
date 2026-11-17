@@ -499,8 +499,8 @@ export class ObjectLayer {
       const ft = b.built >= 1 ? bs.texture(key, view, 0, b.team, "front") : null;
       if (ft) {
         const fit = this.newItem(u0, u1, v0, v1, false, false, 0, true);
-        const p = this.part(fit, ft, X, Y, ax, ay, { tint });
-        this.occluder(p, key, view, 0);
+        // kein Verdecker: der Zaun ist niedrig (und seine Alphadaten wären die des Bodens)
+        this.part(fit, ft, X, Y, ax, ay, { tint });
         this.closeItem(fit);
       }
     }

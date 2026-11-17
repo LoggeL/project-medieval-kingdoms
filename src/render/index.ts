@@ -98,7 +98,7 @@ export class GameRenderer {
     // Welt-Container: Bildmitte auf ganze Bildschirmpixel
     const z = cam.zoom;
     this.world.scale.set(z);
-    this.world.position.set(Math.round(cam.sw / 2 - cam.x * z), Math.round(cam.sh / 2 - cam.y * z));
+    this.world.position.set(...this.origin());
     const view = cam.viewRect(48);
     this.terrain.update(state, view, time);
     const ghosts = this.overlays.ghosts(state, input.preview);
@@ -132,9 +132,15 @@ export class GameRenderer {
 
   /** Bildschirm → Welt-Pixel (Zoom 1). */
   worldPx(sx: number, sy: number): [number, number] {
-    // dieselbe Rundung wie world.position
+    const [ox, oy] = this.origin();
     const z = this.camera.zoom;
-    return [(sx - this.world.position.x) / z, (sy - this.world.position.y) / z];
+    return [(sx - ox) / z, (sy - oy) / z];
+  }
+
+  /** Bildschirmlage des Welt-Ursprungs (wie world.position, aber immer aus der aktuellen Kamera, auch vor dem nächsten Bild). */
+  private origin(): [number, number] {
+    const c = this.camera, z = c.zoom;
+    return [Math.round(c.sw / 2 - c.x * z), Math.round(c.sh / 2 - c.y * z)];
   }
 
   /** Bildschirm → Weltpunkt auf Höhe z. */
@@ -174,8 +180,8 @@ export class GameRenderer {
   /** Bildschirmposition (CSS-Pixel) eines Weltpunkts, z. B. für Hinweise. */
   screenOf(wx: number, wy: number, z = 0): [number, number] {
     const [X, Y] = worldToScreen(wx, wy, z, this.camera.r, this.camera.W, this.camera.H);
-    const zz = this.camera.zoom;
-    return [X * zz + this.world.position.x, Y * zz + this.world.position.y];
+    const zz = this.camera.zoom, [ox, oy] = this.origin();
+    return [X * zz + ox, Y * zz + oy];
   }
 
   /**
