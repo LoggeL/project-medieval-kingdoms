@@ -17,7 +17,9 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
 | `military.ts` | Soldatenverhalten je Befehl, Befehle bewegen/angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
 | `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Rückzug) |
-| `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden |
+| `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden, Laden an Ort und Stelle (`restore`) |
+| `match.ts` | Partie (ADR 0019): Szenario, Schwierigkeit (`raidParams`, `startGold`, `toughen`), Statistik (`note…`-Haken), Sieg (`updateMatch`), Niederlage (`noteDefeat`), Zielfortschritt (`goalProgress`, auch für die Oberfläche) |
+| `migrate.ts` | Spielstand-Migrationen `MIGRATIONS[v]` (v → v+1) bis `SAVE_VERSION`, Ablehnung mit Spielertext |
 | `debug.ts` | Hilfen für Tests (fertig bauen, Einheiten setzen, Lager füllen) |
 | `demo.ts` | alte Platzhalter-Welt (für Darstellungsversuche) |
 
@@ -41,6 +43,16 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 - Nahkampf gegen Gebäude nur aus dem Nachbarfeld (nicht durch eine Mauer hindurch); wer auf einer Treppe steht, trifft sie in jeder Höhe.
 - Einführung: `TUTORIAL` in `src/data` ist eine Zielkette; jeder Schritt erscheint als Meldung (`kind` „info“), sobald der vorige erreicht ist, erledigte Schritte werden übersprungen.
 - Ein Tor in einem fertigen Mauerstück übernimmt dessen Steine (`costAt` in `build.ts`); die Vorschau prüft dieselben Kosten.
+- Partie (`state.match`, ADR 0019): `scenario` (null = freies Spiel), `difficulty`, `tutorial` (Schritt der Einführung, null = keine), `endTick` (Tick von Sieg oder Niederlage), `stats`. `state.outcome` ist `"sieg"` oder `"niederlage"`; nach dem Sieg kommen keine Wellen mehr, Wirtschaft und Zuzug laufen weiter. `goalProgress(s, goal)` liefert `{ have, need, done, label }`.
+- Freie Bestände: `state.free[g]` = Bestand minus verplant (`committed`: Baustellen, Forschung, Anlieferungen an Werkstätten, wartende Rekruten), dieselbe Rechnung wie beim Bauen. Die Oberfläche zeigt und prüft `free`, nicht `stock`.
+- Ausbildung abbrechen: `{ t: "ausbildung_abbrechen", building, index }`, `index` −1 = laufende Ausbildung, sonst Platz der Warteschlange (0 = der Rekrut, der gerade die Waffe holt). Gold zurück; eine schon geholte Waffe trägt der Tagelöhner sichtbar zurück.
+
+## Neue Zustandsfelder und Spielstand (ADR 0019)
+
+- Alles in `state` und `meta` muss reines JSON sein (keine Map, kein Set, keine Klasse, kein NaN, keine geteilten Objekte). `tests/sim/speicher.test.ts` prüft das über den ganzen Baum und spielt dazu alle Gebäude, Rezepte, Techniken und Einheiten aus den Daten durch; neue Felder brauchen keine Testanpassung.
+- Abgeleitete Strukturen an `World` (Nachschlagetabellen, Raster) gehören in `DERIVED` des Tests und werden in `World` aus dem Zustand neu aufgebaut.
+- Formatänderung: `SAVE_VERSION` erhöhen, Schritt in `MIGRATIONS` (`migrate.ts`) ergänzen, Test für den Schritt.
+- Statistik: Waren zählen als erzeugt, wenn ein Träger sie von einem Hof- oder Ausgabestapel ins Lager bringt. Wer Waren direkt bucht, ruft `noteProduced` auf.
 
 ## Verarbeitung erweitern (ADR 0011)
 

@@ -63,14 +63,40 @@
 .mk-tasks.mk-task-lost .mk-task-sum { color: var(--mk-red-ink); }
 
 /* ------------------------------------------------------------------ Kopfleiste: verplante Bestände, Menüknopf */
-.mk-res-verplant {
-  align-self: flex-start;
-  margin: 3px 0 0 -2px;
-  font-size: 10.5px;
+/* Als kleines Schild an der Ecke der Zelle: nimmt der knappen Kopfleiste keine Breite (sonst fiele bei 1440 px
+   die Überfall-Anzeige weg) */
+.mk-top .mk-res { position: relative; }
+.mk-top .mk-res .mk-res-verplant {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  z-index: 1;
+  min-width: 0;
+  height: 13px;
+  padding: 0 3px;
+  border: 1px solid rgba(224, 185, 85, 0.55);
+  border-radius: 7px;
+  background: #2a1a0c;
   color: var(--mk-light-soft);
-  opacity: 0.85;
+  font-size: 10px;
+  line-height: 11px;
+  text-shadow: none;
+  pointer-events: none;
 }
+.mk-top .mk-res .mk-res-verplant[hidden] { display: none; }
 .mk-btn-menu { width: 30px; font-size: 17px; }
+/* Platz für den Menüknopf und die Überfall-Anzeige (gemessen: bei 1440 px blieben 93 px für 152 px Text, bei 1366 px
+   24 px für 87 px, bei 1600 px mit Nahrungsvorrat 24 px): bis 1919 px die kurze Form „Überfall 4:59“ und keine Zoomzahl (die Zoomknöpfe bleiben),
+   Waffenvorrat erst ab 1440 px (er steht auch in der Kaserne). Ergänzt die Breiten-Regeln in ui.css. */
+@media (max-width: 1919px) {
+  .mk-raid-label { display: none; }
+  .mk-raid-time::before { content: "Überfall "; font-family: var(--mk-f-text); font-weight: 700; }
+  .mk-raid-active .mk-raid-time::before { content: none; }
+  .mk-top-ctl .mk-zoom-val { display: none; }
+}
+@media (max-width: 1439px) {
+  .mk-res-group:nth-of-type(2), .mk-res-group + .mk-sep { display: none; }
+}
 
 /* ------------------------------------------------------------------ Ausbildung abbrechen */
 .mk-q-stop {
@@ -153,3 +179,11 @@
 @media (max-width: 599px) {
   .mk-task-auftrag { display: none; }
 }
+/* Nahrungsvorrat (ui.css: ab 1600 px) erst ab 1700 px: bei 1600 px blieben sonst 59 px für die Überfall-Anzeige */
+@media (max-width: 1699px) {
+  .mk-top .mk-res-group-nahrung, .mk-top .mk-res-group-nahrung + .mk-sep { display: none; }
+}
+/* Partie entschieden: „Tal gesichert“ / „Burg gefallen“ ohne den Vorsatz „Überfall “ der schmalen Form */
+.mk-top .mk-raid.mk-raid-ende .mk-raid-time::before { content: none; }
+.mk-top .mk-raid.mk-raid-ende { font-family: var(--mk-f-text); color: var(--mk-red-light); border-color: rgba(255, 140, 120, 0.5); }
+.mk-top .mk-raid.mk-raid-ende.mk-raid-sieg { color: #b9e08a; border-color: rgba(150, 200, 110, 0.55); }

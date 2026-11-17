@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { AUTOSAVE_SECONDS, SAVE_SLOTS, SAVE_SLOT_KEYS, TICKS_PER_SECOND } from "../../src/data";
-import { LocalBackend, MemoryBackend, latest, saveInfo, sortInfos, type SaveInfo } from "../../src/app/saves";
+import { LocalBackend, MemoryBackend, adoptSaves, latest, saveInfo, sortInfos, type SaveInfo } from "../../src/app/saves";
 import { SaveSession } from "../../src/app/spielstand";
 import { createGame } from "../../src/sim";
 import { run } from "../../src/sim/debug";
@@ -95,6 +95,33 @@ describe("Ablagen", () => {
     expect(latest([])).toBeNull();
     expect(latest([info("platz1", 5), info("auto", 9), info("schnell", 7)])!.slot).toBe("auto");
     expect(sortInfos([info("platz3", 1), info("schnell", 2)]).map((i) => i.slot)).toEqual(["schnell", "platz3"]);
+  });
+
+  it("Stände aus der Ausweich-Ablage werden übernommen, der neuere Stand je Platz gewinnt", async () => {
+    // Sitzung 1 fand IndexedDB nicht rechtzeitig und schrieb nach localStorage; Sitzung 2 hat IndexedDB wieder
+    const main = new MemoryBackend();
+    await main.write(info("platz1", 50), "neu-haupt");
+    await main.write(info("auto", 10), "alt-haupt");
+    const ls = new FakeStorage();
+    const fb = new LocalBackend(ls);
+    await fb.write(info("platz1", 20), "alt-ausweich");
+    await fb.write(info("auto", 30), "neu-ausweich");
+    await fb.write(info("platz2", 40), "nur-ausweich");
+    expect(await adoptSaves(main, fb)).toBe(2);
+    expect(await main.read("platz1")).toBe("neu-haupt");
+    expect(await main.read("auto")).toBe("neu-ausweich");
+    expect(await main.read("platz2")).toBe("nur-ausweich");
+    expect(await fb.list()).toEqual([]);
+    expect(latest(await main.list())!.slot).toBe("platz1");
+    expect(await adoptSaves(main, fb)).toBe(0);
+  });
+
+  it("Übernahme: ein Platz, der sich nicht schreiben lässt, bleibt in der Ausweich-Ablage", async () => {
+    const main = new LocalBackend(new FakeStorage(60));
+    const fb = new MemoryBackend();
+    await fb.write(info("platz3", 5), "x".repeat(200));
+    expect(await adoptSaves(main, fb)).toBe(0);
+    expect((await fb.list()).map((i) => i.slot)).toEqual(["platz3"]);
   });
 });
 

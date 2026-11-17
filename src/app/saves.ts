@@ -144,17 +144,28 @@ export class IdbBackend implements SaveBackend {
   private constructor(private db: IDBDatabase) {}
 
   /** Datenbank öffnen; wirft, wenn IndexedDB fehlt oder gesperrt ist. */
-  static async open(idb: IDBFactory = indexedDB, timeoutMs = 3000): Promise<IdbBackend> {
+  static async open(idb: IDBFactory = indexedDB, timeoutMs = 30000): Promise<IdbBackend> {
+    const t0 = performance.now();
     const r = idb.open(DB, DB_VERSION);
     r.onupgradeneeded = () => {
       const db = r.result;
       if (!db.objectStoreNames.contains("info")) db.createObjectStore("info", { keyPath: "slot" });
       if (!db.objectStoreNames.contains("daten")) db.createObjectStore("daten");
     };
+    // Die Zeitgrenze gilt nur für eine wirklich hängende Datenbank: Das Spiel wartet nicht darauf (die Sitzung hält
+    // ein Promise), nur Speichern und Laden. Sie ist großzügig, weil ein Ausweichen auf localStorage die Stände auf
+    // zwei Ablagen verteilt (adoptSaves führt sie beim nächsten Start wieder zusammen). Ist der Hauptthread beim
+    // Laden lange belegt (im Test: 15 bis 25 s bis zum Spiel), kommt der Zeitgeber womöglich vor dem längst
+    // eingereihten Erfolg an die Reihe: Deshalb erst nach einer weiteren Runde der Ereignisschleife aufgeben.
+    let settled = false;
     const db = await Promise.race([
-      req(r),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("IndexedDB antwortet nicht")), timeoutMs)),
+      req(r).finally(() => { settled = true; }),
+      new Promise<IDBDatabase>((_, rej) => setTimeout(() => setTimeout(() => {
+        if (!settled) rej(new Error(`IndexedDB antwortet nicht (${Math.round(performance.now() - t0)} ms)`));
+      }, 100), timeoutMs)),
     ]);
+    const ms = performance.now() - t0;
+    if (ms > 2000) console.info(`[Spielstände] IndexedDB geöffnet nach ${Math.round(ms)} ms`);
     return new IdbBackend(db);
   }
 
@@ -192,7 +203,12 @@ export class IdbBackend implements SaveBackend {
 /** Beste verfügbare Ablage: IndexedDB, sonst localStorage, sonst Arbeitsspeicher. */
 export async function openSaveBackend(): Promise<SaveBackend> {
   try {
-    if (typeof indexedDB !== "undefined") return await IdbBackend.open();
+    if (typeof indexedDB !== "undefined") {
+      const idb = await IdbBackend.open();
+      // Stände, die eine frühere Sitzung mangels IndexedDB in localStorage abgelegt hat, nicht verlieren
+      try { await adoptSaves(idb, new LocalBackend(window.localStorage)); } catch (e) { console.warn("[Spielstände] Übernahme aus localStorage:", e); }
+      return idb;
+    }
   } catch (e) { console.warn("[Spielstände] IndexedDB nicht verfügbar:", e); }
   try {
     const ls = window.localStorage;
@@ -201,6 +217,28 @@ export async function openSaveBackend(): Promise<SaveBackend> {
     return new LocalBackend(ls);
   } catch (e) { console.warn("[Spielstände] localStorage nicht verfügbar:", e); }
   return new MemoryBackend();
+}
+
+/**
+ * Stände aus einer Ausweich-Ablage in die Hauptablage übernehmen: je Platz gewinnt der neuere Stand, die
+ * Ausweich-Ablage ist danach leer. Ein Platz, der sich nicht schreiben lässt, bleibt in der Ausweich-Ablage.
+ * Gibt die Zahl der übernommenen Plätze zurück.
+ */
+export async function adoptSaves(main: SaveBackend, fallback: SaveBackend): Promise<number> {
+  const old = await fallback.list();
+  if (!old.length) return 0;
+  const have = new Map((await main.list()).map((i) => [i.slot, i]));
+  let n = 0;
+  for (const info of old) {
+    const cur = have.get(info.slot);
+    if (!cur || cur.time < info.time) {
+      const data = await fallback.read(info.slot);
+      if (data === null) { await fallback.remove(info.slot); continue; }
+      try { await main.write(info, data); n++; } catch { continue; }
+    }
+    await fallback.remove(info.slot);
+  }
+  return n;
 }
 
 /** Anzeigename eines Platzes. */

@@ -39,11 +39,13 @@ export function producedRows(s: SimState): [string, number][] {
 
 export function createEnde(ctx: UiCtx): Ende {
   let seen: number | null = null;
+  /** Tempo vor der Tafel: „Weiterbauen“ setzt es fort (die Tafel pausiert). */
+  let resume = 1;
   const title = h("h2.mk-title", { id: "mk-ende-titel" });
   const text = h("p.mk-ende-text");
   const stats = h("dl.mk-ende-stats");
   const goods = h("div.mk-ende-waren");
-  const weiter = h("button.mk-btn.mk-btn-wide", { type: "button", onclick: () => { el.hidden = true; } });
+  const weiter = h("button.mk-btn.mk-btn-wide", { type: "button", onclick: () => { el.hidden = true; ctx.bridge.setSpeed(resume); } });
   const menue = h("button.mk-btn.mk-btn-wide", {
     type: "button", text: "Hauptmenü",
     onclick: () => { menue.disabled = true; ctx.bridge.toTitle().catch((e: Error) => { menue.disabled = false; ctx.toast(e.message, "warnung"); }); },
@@ -71,6 +73,8 @@ export function createEnde(ctx: UiCtx): Ende {
     else goods.append(h("ul", null, ...rows.map(([n, v]) => h("li", null, h("span", { text: n }), h("span.mk-num", { text: num(v) })))));
     weiter.textContent = win ? "Weiterbauen" : "Weiter zusehen";
     menue.disabled = false;
+    const sp = ctx.bridge.speed();
+    if (el.hidden) resume = sp > 0 ? sp : 1;
     ctx.bridge.setSpeed(0);
     el.hidden = false;
     weiter.focus();
@@ -85,6 +89,8 @@ export function createEnde(ctx: UiCtx): Ende {
     },
     loaded(s) {
       seen = s.outcome ? s.match.endTick : null;
+      // Die Tafel hatte pausiert: Die geladene Partie läuft im Tempo davor weiter
+      if (!el.hidden) ctx.bridge.setSpeed(resume);
       el.hidden = true;
     },
   };

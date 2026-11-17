@@ -1,7 +1,7 @@
 /**
  * Kopfleiste (dunkles Eichenholz mit Eisenbeschlägen): Waren nach Gruppen (GOOD_GROUPS: Rohstoffe, Waffen, Nahrung),
  * je Ware die frei verfügbare Menge (state.free, wie die Simulation beim Bauen rechnet) und, falls etwas verplant ist,
- * klein daneben „+n“ verplant (Tooltip: Bestand, verplant, frei); dazu
+ * als kleines Schild an der Zelle „+n“ verplant (Tooltip: Bestand, verplant, frei); dazu
  * Gold, Bevölkerung, Bestand und Kapazität je Lagertyp (STORES: Lagerhaus, Kornkammer), aktuelle Ereignisse mit
  * Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe. Neue Waren und Lagertypen erscheinen
  * hier aus den Daten, ohne Änderung an dieser Datei.
@@ -115,9 +115,9 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
       // Überfall: raid.next ist der Tick der nächsten Welle, auch während eine Welle läuft.
       const secs = (s.raid.next - s.tick) / TICKS_PER_SECOND;
       if (s.outcome && !s.raid.active) {
-        // Partie entschieden: keine Wellen mehr (ADR 0019)
-        setText(raidLabel, s.outcome === "sieg" ? "Das Tal ist sicher" : "Die Burg ist gefallen");
-        setText(raidTime, "");
+        // Partie entschieden: keine Wellen mehr (ADR 0019). Kurz und im Zeitfeld, das in jeder Breite sichtbar ist
+        setText(raidLabel, "");
+        setText(raidTime, s.outcome === "sieg" ? "Tal gesichert" : "Burg gefallen");
         raidNext.hidden = true;
         setAttr(raidText, "title", s.outcome === "sieg" ? "Alle Ziele erreicht: Es kommen keine Überfälle mehr." : "Der Bergfried ist gefallen.");
         setClass(raidText, "mk-raid-active", false);
@@ -136,6 +136,8 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
         setClass(raidText, "mk-raid-active", false);
       }
       setClass(raidText, "mk-raid-soon", !s.outcome && secs < 30);
+      setClass(raidText, "mk-raid-ende", !!s.outcome && !s.raid.active);
+      setClass(raidText, "mk-raid-sieg", s.outcome === "sieg");
       const m = s.messages[s.messages.length - 1];
       const key = m ? m.tick * 31 + s.messages.length : -1;
       if (key !== lastMsg) {
