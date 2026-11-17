@@ -165,6 +165,12 @@ export class AudioDirector {
   private seen = new WeakSet<Message>();
   private lastNow = 0;
 
+  /** Gerade laufendes Musikstück (null in der Pause zwischen zwei Stücken). */
+  current(): MusicKey | null {
+    const t = this.tracks.find((x) => x.target > 0 && !x.ended);
+    return t ? t.key : null;
+  }
+
   constructor(private settings: () => AudioSettings, private state: () => SimState, private speed: () => number) {
     const unlock = () => {
       if (this.unlocked) return;

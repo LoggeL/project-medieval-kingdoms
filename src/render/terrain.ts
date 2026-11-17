@@ -268,7 +268,7 @@ export class TerrainLayer {
         let sp = this.waterSprites[n];
         if (!sp) { sp = new Sprite(); this.waterSprites.push(sp); this.water.addChild(sp); }
         sp.visible = true;
-        sp.texture = this.tex("wasser", tile.variant, frame + ((iu * 3 + iv * 5) % 2));
+        sp.texture = this.tex("wasser", tile.variant, frame);
         sp.position.set(Math.round(X - a[0]), Math.round(Y - a[1]));
         n++;
       }

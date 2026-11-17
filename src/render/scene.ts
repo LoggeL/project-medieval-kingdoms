@@ -8,7 +8,7 @@
  */
 import { Container, type Texture } from "pixi.js";
 import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
-import { center, entrance, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { center, entrance, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -260,9 +260,11 @@ export class ObjectLayer {
   private figKey(u: Unit): string | null {
     const fs = this.fs;
     if (!fs) return null;
-    const want = u.carry ? GOODS[u.carry].carrier : UNITS[u.key].sprite;
+    // Trägerbild nur beim Gehen und Stehen; bei Arbeit, Kampf und Tod bleibt die eigene Figur (z. B. Steinmetz beim Abbauen).
+    const carrying = !!u.carry && (u.anim === "gehen" || u.anim === "stehen");
+    const want = carrying ? GOODS[u.carry!].carrier : UNITS[u.key].sprite;
     if (fs.has(want)) return want;
-    const chain = u.carry ? ["traeger", UNITS[u.key].sprite, "tageloehner"] : ["tageloehner", "traeger"];
+    const chain = carrying ? ["traeger", UNITS[u.key].sprite, "tageloehner"] : ["tageloehner", "traeger"];
     for (const k of chain) if (fs.has(k)) { warnOnce(`Figur „${want}“ fehlt im Figurenblatt, Ersatz „${k}“`); return k; }
     return null;
   }
@@ -392,8 +394,9 @@ export class ObjectLayer {
 
   // ---------------------------------------------------------------- Gebäude
 
-  /** Tor offen: eine eigene Bodenfigur steht auf dem Tor oder direkt daneben. */
+  /** Tor offen: Simulationsfeld gateOpen, sonst eine eigene Bodenfigur auf dem Tor oder direkt daneben. */
   private gateOpen(b: Building, state: SimState): boolean {
+    if (typeof b.gateOpen === "boolean") return b.gateOpen;
     const cx = b.x + 0.5, cy = b.y + 0.5;
     for (const u of state.units) {
       if (u.team !== b.team || u.dead || u.layer > 0 || u.z > 0.2) continue;
@@ -669,10 +672,5 @@ export class ObjectLayer {
   }
 }
 
-/**
- * Ausrichtung eines Tors aus der Mauer-Nachbarschaft (wie placeSite in sim/build.ts): Nachbarn in O/W → o = 0,
- * in N/S → o = 1, sonst die gewünschte Ausrichtung.
- */
-export function gateOrientation(mask: number, o: number): number {
-  return mask & 0b1010 ? 0 : mask & 0b0101 ? 1 : o;
-}
+/** Ausrichtung eines Tors: gemeinsame Regel aus src/sim/geom.ts (auch von der Simulation benutzt). */
+export { gateOrientation };

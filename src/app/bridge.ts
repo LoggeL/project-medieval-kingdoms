@@ -4,7 +4,7 @@
 import type { Game } from "../sim/types";
 import type { GameRenderer } from "../render";
 import { makeIcon } from "../render/icons";
-import type { VoiceKey } from "../data/audio";
+import type { MusicKey, VoiceKey } from "../data/audio";
 import type { AudioSettings } from "./audio";
 import type { IconKind, Selection, Tool, UiBridge } from "./contract";
 import type { NotifyHub } from "./notify";
@@ -19,6 +19,8 @@ export interface BridgeContext {
   afterDispatch: () => void;
   /** Sprecheransage zu einem Befehlsergebnis. */
   say: (key: VoiceKey | undefined) => void;
+  /** Laufendes Musikstück für die Anzeige in der Oberfläche. */
+  track: () => MusicKey | null;
 }
 
 const AUDIO_KEY = "mk-audio";
@@ -93,7 +95,7 @@ export function createBridge(ctx: BridgeContext, audio: AudioSettings): UiBridge
       r.camera.lookAt(x, y);
       store.emit("view");
     },
-    audio: () => ({ ...audio }),
+    audio: () => ({ ...audio, track: ctx.track() }),
     setAudio(a) {
       const num = (x: number | undefined, d: number) => (typeof x === "number" && isFinite(x) ? Math.max(0, Math.min(1, x)) : d);
       audio.music = num(a.music, audio.music);

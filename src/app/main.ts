@@ -36,6 +36,7 @@ async function start(): Promise<void> {
   let audio: AudioDirector | null = null;
   const bridge = createBridge({
     game, store, hub, renderer: () => renderer, afterDispatch: emitTick, say: (k) => audio?.say(k),
+    track: () => audio?.current() ?? null,
   }, audioSettings);
   audio = new AudioDirector(() => audioSettings, () => game.state, () => store.speed);
   mountUi(uiRoot, bridge);
@@ -74,6 +75,7 @@ async function start(): Promise<void> {
   let last = performance.now(), fps = 60;
   const t0 = last;
   let viewKey = "", lastViewEmit = 0;
+  let lastTrack: string | null = null;
   const selected = new Set<number>();
   let selRef = store.selection;
   let soft = false, frameStart = 0, jsMs = 0;
@@ -95,6 +97,8 @@ async function start(): Promise<void> {
     const vk = `${Math.round(cam.x)},${Math.round(cam.y)},${cam.r},${cam.zoom},${cam.sw},${cam.sh}`;
     if (vk !== viewKey && now - lastViewEmit >= VIEW_EVENT_MS) { viewKey = vk; lastViewEmit = now; store.emit("view"); }
     audio!.update();
+    const tr = audio!.current();
+    if (tr !== lastTrack) { lastTrack = tr; store.emit("audio"); }
     // Bildschirmauflösung folgt der Zoomstufe: Übersicht (0,5×) darf weich sein
     const weich = cam.zoom < 1;
     if (weich !== soft) { soft = weich; app.canvas.classList.toggle("mk-weich", weich); }
