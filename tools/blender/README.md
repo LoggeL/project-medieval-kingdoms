@@ -71,7 +71,7 @@ tools/blender/build_buildings.sh wappen
 
 **Vorderteil:** `<bau>_front.png` enthält nur die Pixel der Brüstung (und der Turmfahne, beim Lagerboden des Zauns), die zur Kamera zeigt, samt Kontur. Gezeichnet wird Gebäude, dann Figuren auf den Posten (bzw. Stapel und Figuren im Lager), dann das Vorderteil.
 
-**Nachbarmaske:** Mauerteile und Tor rendern zusätzlich `_n.png`, die Stellen der angeschlossenen Nachbarn (unsichtbare Platzhalter, Gruppe `ghost`). Dort entfällt der Bodenschatten des Teils, sonst läge er im Spiel über der Wand des Nachbarn.
+**Nachbarmaske:** Mauerteile und Tor rendern zusätzlich `_n.png`, die Stellen der angeschlossenen Nachbarn (unsichtbare Platzhalter, Gruppe `ghost`). Dort entfällt der Bodenschatten des Teils, sonst läge er im Spiel über der Wand des Nachbarn. Ebenso entfallen dort Randabdunklung (`rim`) und Konturring: Zum Nachbarn hin läuft die Mauer weiter, die Kante ist keine Silhouette. Vorher lag in den Ansichten 1 und 3 an jeder Kachelgrenze eine senkrechte dunkle Naht (der abgedunkelte rechte Rand des vorderen Stücks über der Wand des hinteren).
 
 ### Objekte für den Prototyp
 
@@ -83,7 +83,7 @@ tools/blender/build_buildings.sh wappen
 | `stapel_holz`, `stapel_stein`, `stapel_eisen`, `stapel_speer`, `stapel_schwert`, `stapel_bogen` | Füllstufe 0–4 | 1 × 1, Stufe 0 leer (transparent), stehen auf den Bohlen von `lager_boden` (Höhe 0,06 m); Speere im hohen Gestell, Schwerter im niedrigen Ständer mit Parierstange und Goldknauf (ab Stufe 3 Kiste), Bögen hängend mit Pfeilfass ab Stufe 2 |
 | `lager_boden` | 1 | Lagerplatz 3 × 3 ohne Waren: Zaun (Einfahrt bei Modell (0, −1)), acht Bohlenflächen an den Slots von `b_lager` bzw. `STORAGE_SLOTS` in `src/sim/geom.ts`; `front` = Zaun zur Kamera. Ist ein Boden: zuerst zeichnen, dann Stapel und Figuren darin, dann `lager_boden_front.png` |
 | `mauer_gerade`, `mauer_ende`, `mauer_ecke`, `mauer_t`, `mauer_kreuz`, `mauer_einzel` | 1 | Verbindungen bei Ausrichtung 0 (Modell +x = Welt Ost, Modell +y = Welt Nord): gerade O+W, ende O, ecke O+N, t O+W+N, kreuz alle, einzel keine (wie `wallPiece` in `src/sim/geom.ts`). Wehrgang auf Stufe 3, Zinnen auf beiden Außenseiten, Posten `[0, 0, 3]`, `front` |
-| `tor` | geschlossen, offen | gerades Mauerstück O+W mit Torbogen, Durchgang entlang Modell ±y, Torflügel öffnen nach +y, Wehrgang oben, Posten `[0, 0, 3]` |
+| `tor` | geschlossen, offen | gerades Mauerstück O+W mit Torbogen, Durchgang entlang Modell ±y, Wehrgang oben, Posten `[0, 0, 3]`. Hinter jeder der beiden Bogenseiten ein Fallgatter aus Bohlen mit Querriegeln und Eisenspitzen, beide Seiten gleich (das Spiel kennt kein Innen und Außen eines Tors, `gateOrientation` liefert nur 0 oder 1). Geschlossen: Gatter unten, das Gitter füllt den Bogen bündig. Offen: Gatter hochgezogen (`GATE_UP`), nur Unterriegel und Spitzen unter dem Bogenscheitel, der Durchgang ist frei. Torflügel gibt es bewusst nicht: In der Iso-Ansicht deckt ein an die sichtbare Laibung geklappter Flügel die halbe Öffnung und sieht wie geschlossen aus |
 
 Die Mauerteile verbinden sich nahtlos: Wandkörper 2,2 m breit bis an die Tile-Kante, Zinnenrhythmus mit halber Lücke an jeder offenen Kante. Der Mauerturm füllt seinen 2 × 2-Grundriss jetzt ganz aus (vorher 0,15 m eingerückt), damit angesetzte Mauern ohne Spalt anschließen; die oberste Treppenstufe reicht 0,17 m über den Grundriss bis an die Mauerfront.
 

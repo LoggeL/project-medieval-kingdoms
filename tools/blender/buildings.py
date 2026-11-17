@@ -852,8 +852,27 @@ def b_wallpiece(key):
     return build
 
 
+GATE_DOWN, GATE_UP = 0.18, 1.8   # underside of the portcullis grid: lowered (spikes in the ground) / raised
+
+
+def portcullis(mb, sgn, z0, hw, wall_h):
+    """Heavy timber portcullis in a slot just behind the face y = sgn * WALL_D; z0 = underside of the grid
+    (spikes reach 0.18 m lower). Parts above the arch are hidden in the masonry."""
+    D = WALL_D
+    ya, yb = sorted((sgn * (D - 0.30), sgn * (D - 0.16)))
+    yf0, yf1 = sorted((sgn * (D - 0.16), sgn * (D - 0.12)))       # cross bars, towards the face
+    zt = wall_h - 0.12
+    for x in (-0.62, -0.31, 0.0, 0.31, 0.62):
+        mb.bx("door", x - 0.075, x + 0.075, ya, yb, z0, zt)
+        mb.cyl("iron", (x, (ya + yb) / 2, z0 - 0.09), 0.065, 0.18, n=4, r2=0, rot=(180, 0, 45))
+    zz = z0 + 0.05
+    while zz < zt - 0.1:
+        mb.bx("timber", -hw - 0.05, hw + 0.05, yf0, yf1, zz, zz + 0.13)
+        zz += 0.48
+
+
 def b_tor(mb, var):
-    """Straight wall piece (e + w) with an arched gateway through the wall (model +-y) and a wooden gate."""
+    """Straight wall piece (e + w) with an arched gateway through the wall (model +-y), closed by two portcullises."""
     L, D, h = T / 2, WALL_D, WALL_H
     hw, spring, top = 0.78, 1.55, 2.5           # half opening, springing line, underside of the lintel
     rr = hw
@@ -877,26 +896,10 @@ def b_tor(mb, var):
             mb.box("stone_top", (cx, y, cz), (0.2, 0.06, 0.3), rot=(0, math.degrees(a) - 90, 0))
     # passage floor
     mb.bx("dirt", -hw, hw, -D, D, 0, 0.02)
-    # gate leaves (closed: in the middle of the passage; open: swung back towards +y)
-    def leaf(mb_, w, h_):
-        mb_.bx("door", 0, w, -0.05, 0.05, 0, h_)
-        for zz in (0.35, h_ * 0.5, h_ - 0.35):
-            mb_.bx("iron", 0.02, w - 0.02, -0.08, 0.08, zz - 0.04, zz + 0.04)
-        mb_.bx("timber", 0, 0.08, -0.07, 0.07, 0, h_)
-    if var == 0:
-        for i in range(n):
-            x0, x1 = -hw + 2 * hw * i / n, -hw + 2 * hw * (i + 1) / n
-            xe = max(abs(x0), abs(x1))
-            za = spring + math.sqrt(max(0.0, rr * rr - xe * xe))
-            mb.bx("door", x0, x1, -0.05, 0.05, 0.02, za)
-        for zz in (0.4, 1.1, 1.8):
-            mb.bx("iron", -hw, hw, -0.08, 0.08, zz - 0.04, zz + 0.04)
-        mb.bx("timber", -0.04, 0.04, -0.07, 0.07, 0.02, spring + rr - 0.02)
-    else:
-        with mb.at((-hw + 0.02, 0.1, 0.02), 88):
-            leaf(mb, hw - 0.04, spring + 0.25)
-        with mb.at((hw - 0.02, 0.1, 0.02), 180 - 88):
-            leaf(mb, hw - 0.04, spring + 0.25)
+    # one portcullis behind each face, the same on both sides (the game knows no inside or outside of a gate):
+    # closed = lowered, the grid fills the arch; open = raised, only the bottom bar and the spikes show under the arch
+    for sgn in (-1, 1):
+        portcullis(mb, sgn, GATE_DOWN if var == 0 else GATE_UP, hw, h)
     wall_top(mb, {"e", "w"})
     wall_ghosts(mb, {"e", "w"})
 
