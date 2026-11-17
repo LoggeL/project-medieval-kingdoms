@@ -138,8 +138,36 @@ page = put(page, "BAUTEN", bsec, r"<!-- /FIGLAB -->\n", before=False)
 page = put(page, "BAUTEN-CSS", open(os.path.join(SP, "bauten.css")).read(), r"/\* /FIGLAB-CSS \*/\n", before=False, cm=("/* ", " */"))
 page = put(page, "BAUTEN-JS", '<script type="application/json" id="bauData">' + bblob + "</script>\n<script>\n" + open(os.path.join(SP, "bauten.js")).read() + "</script>",
            r"<!-- /FIGLAB-JS -->\n?", before=False)
+# ---------------------------------------------------------------- page pictures from the real sprites (welt.js)
+# terrain sheet, action frames of woodcutter and stone mason, screenshot and minimap of the prototype
+tmeta = json.load(open(os.path.join(ROOT, "assets/terrain/vorgerendert/sheet.json")))
+tim = Image.open(os.path.join(ROOT, "assets/terrain/vorgerendert", tmeta.get("image", "terrain.png"))).convert("RGBA")
+fmeta = json.load(open(os.path.join(ROOT, "assets/figures/vorgerendert/sheet.json")))
+fc = fmeta["cell"]
+ACT = [("holzfaeller", "hacken"), ("steinmetz", "abbauen")]
+act = Image.new("RGBA", (fc * 4, fc * 8 * len(ACT)), (0, 0, 0, 0))
+for i, (k, anim) in enumerate(ACT):
+    u = next(x for x in fmeta["units"] if x["key"] == k)
+    a0, n = u["anims"][anim]
+    assert n == 4, (k, anim, n)
+    sh = Image.open(os.path.join(ROOT, "assets/figures/vorgerendert", k + ".png")).convert("RGBA")
+    act.paste(sh.crop((a0 * fc, 0, (a0 + 4) * fc, 8 * fc)), (0, i * 8 * fc))
+BILD = os.path.join(SP, "bilder")
+
+
+def datauri(path, mime):
+    return "data:%s;base64,%s" % (mime, base64.b64encode(open(path, "rb").read()).decode())
+
+
+wdata = {"terrain": {"src": b64(tim), "keys": tmeta["keys"]},
+         "act": {"src": b64(act), "units": [k for k, _ in ACT], "frames": 4},
+         "shot": datauri(os.path.join(BILD, "prototyp_welt.webp"), "image/webp"),
+         "mini": datauri(os.path.join(BILD, "prototyp_karte.png"), "image/png")}
+wblob = json.dumps(wdata, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+page = put(page, "WELT-JS", '<script type="application/json" id="weltData">' + wblob + "</script>\n<script>\n" + open(os.path.join(SP, "welt.js")).read() + "</script>",
+           r"<!-- /BAUTEN-JS -->\n?", before=False)
 if '<a href="#bauten">' not in page:
     page = page.replace('<a href="#figuren"><span>07b</span>Figurentests</a>', '<a href="#figuren"><span>07b</span>Figurentests</a>\n    <a href="#bauten"><span>07c</span>Gebäudetests</a>', 1)
     assert '<a href="#bauten">' in page, "toc link"
 open(PAGE, "w").write(page)
-print("bytes", len(page), "sprites", total, "building sprites", bdata["count"])
+print("bytes", len(page.encode()), "sprites", total, "building sprites", bdata["count"])
