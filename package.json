@@ -1,0 +1,22 @@
+{
+  "name": "project-medieval-kingdoms",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Isometrisches 2D-Pixelart-RTS mit sichtbarer Wirtschaft und begehbaren Mauern",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pixi.js": "8.23.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.8",
+    "vitest": "4.0.18"
+  }
+}
