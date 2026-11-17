@@ -1,15 +1,15 @@
 /**
  * Hilfsebenen über und unter den Objekten: Bodenmarkierungen (Grundriss grün/rot, Mauerweg, Auswahl, Ziel),
- * Bauvorschau (halbtransparente Sprites), Pfeile in der Luft, Lebensbalken.
+ * Pfeile in der Luft, Lebensbalken. Die Bauvorschau (halbtransparente Sprites) wird hier nur berechnet (ghosts) und
+ * von der Objektebene mit einsortiert, damit Figuren davor nicht eingefärbt werden.
  */
-import { Container, Graphics } from "pixi.js";
-import { BUILDINGS, type BuildingKey } from "../data";
-import { NEIGHBOURS, center, footprintTiles, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { Graphics } from "pixi.js";
+import { BUILDINGS, TICKS_PER_SECOND, TUNING, type BuildingKey } from "../data";
+import { NEIGHBOURS, center, footprint, footprintTiles, toView, wallPiece, type Rot } from "../sim/geom";
 import type { PlacementCheck, Projectile, SimState } from "../sim/types";
 import type { BuildingSheet } from "./assets";
 import { viewToScreen } from "./iso";
-import { SpritePool } from "./pool";
-import type { UnitOnScreen } from "./scene";
+import { gateOrientation, type Ghost, type UnitOnScreen } from "./scene";
 
 export type Preview =
   | { kind: "bauen"; key: BuildingKey; x: number; y: number; o: number; check: PlacementCheck }
@@ -18,17 +18,24 @@ export type Preview =
 
 export interface Marker { x: number; y: number; z: number; t0: number; color: number }
 
+const OK_FILL = 0x6fdc5a, OK_LINE = 0x9cf08a;
+const BAD_FILL = 0xe0503c, BAD_LINE = 0xff8a70;
+/** Regelverstoß, der nicht an einer Kachel hängt (z. B. „Zu wenige Bäume“): alle Rauten orange. */
+const RULE_FILL = 0xe89a3a, RULE_LINE = 0xffc070;
+const FORT = new Set<string>(["mauer", "tor", "turm"]);
+
 export class Overlays {
   /** Unter den Objekten (Boden). */
   readonly ground = new Graphics();
-  /** Bauvorschau über den Objekten. */
-  readonly ghost = new Container();
-  /** Ganz oben: Pfeile, Lebensbalken. */
+  /** Ganz oben: Pfeile, Lebensbalken, Zielmarken auf dem Wehrgang. */
   readonly top = new Graphics();
-  private ghostPool = new SpritePool(this.ghost);
   private r: Rot = 0;
   private W = 0;
   private H = 0;
+  private ghostList: Ghost[] = [];
+  private ghostPool: Ghost[] = [];
+  /** Letzter gesehener Stand je Pfeil (für die Schrittweite zwischen zwei Ticks). */
+  private seen = new Map<number, { t: number; tick: number; dt: number }>();
 
   constructor(private bs: BuildingSheet | null) {}
 
@@ -49,7 +56,55 @@ export class Overlays {
     g.poly(pts).stroke({ width: 2, color, alpha: 0.95, alignment: 0.5 });
   }
 
-  update(state: SimState, r: Rot, time: number, o: {
+  private fort(state: SimState, x: number, y: number): boolean {
+    const id = state.tiles[y * state.w + x]?.building;
+    if (!id) return false;
+    const b = state.buildings.find((q) => q.id === id);
+    return !!b && FORT.has(b.key);
+  }
+
+  /** Bauvorschau als Sprites (für die Objektebene). Gilt bis zum nächsten Aufruf. */
+  ghosts(state: SimState, preview: Preview | null): readonly Ghost[] {
+    this.ghostList.length = 0;
+    const bs = this.bs;
+    if (!bs || !preview) return this.ghostList;
+    if (preview.kind === "bauen") {
+      const { key, x, y, check } = preview;
+      let o = preview.o;
+      let sk = BUILDINGS[key].sprite;
+      if (!bs.has(sk)) sk = key === "lager" ? "lager" : key === "tor" ? "mauer" : sk;
+      if (key === "tor") {
+        // dieselbe Regel wie beim Setzen in eine Mauer und in der Darstellung des fertigen Tors
+        let mask = 0;
+        NEIGHBOURS.forEach(([dx, dy], bit) => { if (this.fort(state, x + dx, y + dy)) mask |= 1 << bit; });
+        o = gateOrientation(mask, o);
+      }
+      const [w, h] = footprint(key, o);
+      const [cx, cy] = center(key, x, y, o);
+      this.addGhost(sk, o, 0, x, y, x + w, y + h, cx, cy, 0.62, check.ok ? 0xffffff : 0xff7a6a);
+    } else if (preview.kind === "mauer") {
+      const set = new Set(preview.check.tiles.map((q) => q.x + "," + q.y));
+      const fort = (x: number, y: number) => set.has(x + "," + y) || this.fort(state, x, y);
+      for (const tl of preview.check.tiles) {
+        let mask = 0;
+        NEIGHBOURS.forEach(([dx, dy], bit) => { if (fort(tl.x + dx, tl.y + dy)) mask |= 1 << bit; });
+        const { piece, o } = wallPiece(mask);
+        const keys: [string, number][] = bs.has(piece) ? [[piece, o]]
+          : piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz" ? [["mauer", o], ["mauer", o + 1]] : [["mauer", o]];
+        for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, 0.55, tl.ok ? 0xffffff : 0xff7a6a);
+      }
+    }
+    return this.ghostList;
+  }
+
+  private addGhost(key: string, o: number, frame: number, x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, alpha: number, tint: number): void {
+    let g = this.ghostPool[this.ghostList.length];
+    if (!g) { g = { key, o, frame, x0, y0, x1, y1, cx, cy, alpha, tint }; this.ghostPool.push(g); }
+    g.key = key; g.o = o; g.frame = frame; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.cx = cx; g.cy = cy; g.alpha = alpha; g.tint = tint;
+    this.ghostList.push(g);
+  }
+
+  update(state: SimState, r: Rot, time: number, alpha: number, o: {
     preview: Preview | null;
     selectedBuilding: number | null;
     markers: Marker[];
@@ -58,7 +113,6 @@ export class Overlays {
     this.r = r; this.W = state.w; this.H = state.h;
     const g = this.ground, t = this.top;
     g.clear(); t.clear();
-    this.ghostPool.reset();
 
     // ausgewähltes Gebäude
     if (o.selectedBuilding) {
@@ -70,30 +124,17 @@ export class Overlays {
       }
     }
 
-    // Vorschau
+    // Vorschau (Rauten; die Sprites zeichnet die Objektebene)
     const p = o.preview;
-    if (p?.kind === "bauen") {
-      for (const tl of p.check.tiles) this.diamond(g, tl.x, tl.y, 0, tl.ok ? 0x6fdc5a : 0xe0503c, 0.38, tl.ok ? 0x9cf08a : 0xff8a70);
-      this.ghostBuilding(p.key, p.x, p.y, p.o, p.check.ok);
-    } else if (p?.kind === "mauer") {
-      const set = new Set(p.check.tiles.map((q) => q.x + "," + q.y));
-      const fort = (x: number, y: number) => {
-        if (set.has(x + "," + y)) return true;
-        const id = state.tiles[y * state.w + x]?.building;
-        if (!id) return false;
-        const b = state.buildings.find((q) => q.id === id);
-        return !!b && (b.key === "mauer" || b.key === "tor" || b.key === "turm");
-      };
-      // hinten zuerst, damit sich die Vorschau-Stücke richtig überdecken
-      const depth = (q: { x: number; y: number }) => { const [u, v] = toView(q.x + 0.5, q.y + 0.5, this.r, this.W, this.H); return u + v; };
-      for (const tl of [...p.check.tiles].sort((a, b) => depth(a) - depth(b))) {
-        this.diamond(g, tl.x, tl.y, 0, tl.ok ? 0x6fdc5a : 0xe0503c, 0.38, tl.ok ? 0x9cf08a : 0xff8a70);
-        let mask = 0;
-        NEIGHBOURS.forEach(([dx, dy], bit) => { if (fort(tl.x + dx, tl.y + dy)) mask |= 1 << bit; });
-        this.ghostWall(tl.x, tl.y, mask, tl.ok);
+    if (p?.kind === "bauen" || p?.kind === "mauer") {
+      const rule = !p.check.ok && p.check.tiles.every((q) => q.ok);
+      for (const tl of p.check.tiles) {
+        const [fill, line] = rule ? [RULE_FILL, RULE_LINE] : tl.ok ? [OK_FILL, OK_LINE] : [BAD_FILL, BAD_LINE];
+        this.diamond(g, tl.x, tl.y, 0, fill, 0.38, line);
       }
     } else if (p?.kind === "kachel") {
-      this.diamond(g, p.x, p.y, p.z, p.color, 0.22, p.color);
+      // Ziel auf dem Wehrgang: über den Objekten, sonst verdeckt es die Mauer
+      this.diamond(p.z > 0 ? t : g, p.x, p.y, p.z, p.color, 0.3, p.color);
     }
 
     // Zielmarken (Bewegungsbefehl)
@@ -106,48 +147,31 @@ export class Overlays {
       (m.z > 0 ? t : g).ellipse(X, Y, rx, rx / 2).stroke({ width: 1.5, color: m.color, alpha: k });
     }
 
-    this.projectiles(state.projectiles);
+    this.projectiles(state, alpha);
     this.healthBars(o.units);
-    this.ghostPool.finish();
   }
 
-  private ghostBuilding(key: BuildingKey, x: number, y: number, o: number, ok: boolean): void {
-    const bs = this.bs;
-    if (!bs) return;
-    let sk = BUILDINGS[key].sprite;
-    if (!bs.has(sk)) sk = key === "lager" ? "lager" : key === "tor" ? "mauer" : sk;
-    const tex = bs.texture(sk, viewOf(o, this.r), 0);
-    if (!tex) return;
-    const [cx, cy] = center(key, x, y, o);
-    const [X, Y] = this.scr(cx, cy);
-    const s = this.ghostPool.next(tex);
-    s.pivot.set(bs.anchor[0], bs.anchor[1]);
-    s.position.set(Math.round(X), Math.round(Y));
-    s.alpha = 0.62;
-    s.tint = ok ? 0xffffff : 0xff7a6a;
-  }
-
-  private ghostWall(x: number, y: number, mask: number, ok: boolean): void {
-    const bs = this.bs;
-    if (!bs) return;
-    const { piece, o } = wallPiece(mask);
-    const keys: [string, number][] = bs.has(piece) ? [[piece, o]]
-      : piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz" ? [["mauer", o], ["mauer", o + 1]] : [["mauer", o]];
-    const [X, Y] = this.scr(x + 0.5, y + 0.5);
-    for (const [k, ko] of keys) {
-      const tex = bs.texture(k, viewOf(ko, this.r), 0);
-      if (!tex) continue;
-      const s = this.ghostPool.next(tex);
-      s.pivot.set(bs.anchor[0], bs.anchor[1]);
-      s.position.set(Math.round(X), Math.round(Y));
-      s.alpha = 0.55;
-      s.tint = ok ? 0xffffff : 0xff7a6a;
+  /** Flugfortschritt zwischen zwei Ticks fortschreiben (Schrittweite aus der Beobachtung, sonst wie in der Simulation). */
+  private progress(p: Projectile, tick: number, alpha: number): number {
+    let s = this.seen.get(p.id);
+    if (!s) {
+      const d = Math.hypot(p.x1 - p.x0, p.y1 - p.y0);
+      s = { t: p.t, tick, dt: 1 / Math.max(3, Math.round((d / TUNING.projectileSpeed) * TICKS_PER_SECOND)) };
+      this.seen.set(p.id, s);
+    } else if (tick > s.tick) {
+      if (p.t > s.t) s.dt = (p.t - s.t) / (tick - s.tick);
+      s.t = p.t; s.tick = tick;
     }
+    return Math.min(1, p.t + alpha * s.dt);
   }
 
   /** Pfeile als kurze Linie entlang der Flugbahn (Bogen nach t), kurz vor dem Ziel ein Funke. */
-  private projectiles(list: Projectile[]): void {
-    const g = this.top;
+  private projectiles(state: SimState, alpha: number): void {
+    const g = this.top, list = state.projectiles;
+    if (this.seen.size > list.length * 2 + 16) {
+      const live = new Set(list.map((q) => q.id));
+      for (const id of this.seen.keys()) if (!live.has(id)) this.seen.delete(id);
+    }
     for (const p of list) {
       const dist = Math.hypot(p.x1 - p.x0, p.y1 - p.y0);
       const arc = Math.min(4, dist * 0.3);
@@ -157,14 +181,18 @@ export class Overlays {
         const z = p.z0 + (p.z1 - p.z0) * tt + arc * 4 * tt * (1 - tt);
         return this.scr(x, y, z);
       };
-      const [x1, y1] = at(p.t), [x0, y0] = at(p.t - 0.07);
+      const pt = this.progress(p, state.tick, alpha);
+      const dt = this.seen.get(p.id)!.dt;
+      const [x1, y1] = at(pt), [x0, y0] = at(pt - 0.07);
       const len = Math.hypot(x1 - x0, y1 - y0) || 1;
       const k = Math.min(1, 10 / len); // feste Länge von etwa 10 Pixeln
       const xs = x1 - (x1 - x0) * k, ys = y1 - (y1 - y0) * k;
       g.moveTo(xs, ys).lineTo(x1, y1).stroke({ width: 1.5, color: 0x3a2a1a, alpha: 0.95 });
       g.rect(Math.round(x1) - 1, Math.round(y1) - 1, 2, 2).fill({ color: 0xd8d8d0 });
-      if (p.t > 0.92) {
-        const k2 = (p.t - 0.92) / 0.08;
+      // Funke im letzten Tick vor dem Einschlag (das Geschoss verschwindet mit t = 1 im selben Tick)
+      const s0 = 1 - Math.max(0.08, dt);
+      if (pt > s0) {
+        const k2 = Math.min(1, (pt - s0) / (1 - s0));
         for (let i = 0; i < 4; i++) {
           const a = i * 1.7 + p.id;
           g.rect(Math.round(x1 + Math.cos(a) * 4 * k2), Math.round(y1 + Math.sin(a) * 3 * k2), 1, 1).fill({ color: 0xffe08a, alpha: 1 - k2 * 0.6 });

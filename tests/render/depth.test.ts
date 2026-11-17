@@ -49,6 +49,23 @@ describe("Tiefensortierung", () => {
     expect(relation(floor, stack)).toBe(1);
   });
 
+  it("vorderer Lagerzaun (cover) kommt nach Boden, Stapeln und Figuren im Hof, aber vor Objekten davor", () => {
+    for (const r of [0, 1, 2, 3] as Rot[]) {
+      const floor = item(5, 5, 3, 3, r, { flat: true });
+      const stack = item(7, 7, 1, 1, r);
+      const fig = item(7.3, 7.6, 0.4, 0.4, r, { fig: true });
+      const front = item(5, 5, 3, 3, r, { cover: true });
+      const before = item(5, 9, 1, 1, r); // ganz außerhalb des Lagers
+      const order = new DepthSorter().sort([front, stack, fig, floor, before]);
+      const pos = (i: number) => order.indexOf(i);
+      expect(pos(3)).toBeLessThan(pos(1));
+      expect(pos(1)).toBeLessThan(pos(0));
+      expect(pos(2)).toBeLessThan(pos(0));
+      const behind = (p: DepthItem, q: DepthItem) => p.u1 <= q.u0 || p.v1 <= q.v0;
+      if (behind(front, before)) expect(pos(0)).toBeLessThan(pos(4)); else expect(pos(4)).toBeLessThan(pos(0));
+    }
+  });
+
   it("bleibt bei vielen Objekten schnell und vollständig", () => {
     const items: DepthItem[] = [];
     for (let i = 0; i < 600; i++) items.push(item((i * 7) % 30, (i * 13) % 30, 0.4, 0.4, 0, { fig: i % 2 === 0 }));

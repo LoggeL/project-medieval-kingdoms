@@ -11,3 +11,8 @@
 !tests/
 !assets/
 assets/ui/quelle/
+# Nur Spieldaten in den Build-Kontext: andere Stilrichtungen und Rohbilder lädt das Spiel nie (der Vite-Build dünnt zusätzlich aus).
+assets/*/chronik/
+assets/*/holzschnitt/
+assets/*/miniatur/
+assets/*/wappen/

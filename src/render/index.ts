@@ -3,7 +3,9 @@
  * Liest den Simulationszustand nur. Bildschirmkoordinaten sind CSS-Pixel relativ zum Canvas.
  */
 import { Container, Graphics, RenderTexture, Sprite, type Application } from "pixi.js";
+import { UNITS } from "../data";
 import type { Rot } from "../sim/geom";
+import { LAYER_Z } from "../sim/nav";
 import type { SimState } from "../sim/types";
 import { setSmoothing, type Sheets } from "./assets";
 import { Camera } from "./camera";
@@ -14,6 +16,7 @@ import { TerrainLayer } from "./terrain";
 
 export type { Preview, Marker, Hit };
 export { Camera, ZOOMS } from "./camera";
+export { LAYER_Z };
 
 export interface FrameInput {
   selectedUnits: ReadonlySet<number>;
@@ -25,9 +28,6 @@ export interface FrameInput {
   /** Auswahlrahmen in Bildschirmkoordinaten. */
   dragRect: { x0: number; y0: number; x1: number; y1: number } | null;
 }
-
-/** Höhenstufe einer Laufebene. */
-export const LAYER_Z = [0, 3, 5];
 
 const FADE_MS = 150;
 
@@ -43,19 +43,21 @@ export class GameRenderer {
   private fadeT = 0;
   private builtR: Rot | -1 = -1;
   private smooth = false;
-  stats = { items: 0, sprites: 0, pairs: 0, chunks: 0 };
+  stats = { items: 0, sprites: 0, pairs: 0, chunks: 0, silhouettes: 0 };
 
   constructor(private app: Application, readonly sheets: Sheets, state: SimState) {
     this.camera = new Camera(state.w, state.h);
     this.terrain = new TerrainLayer(app.renderer, sheets.terrain);
     this.objects = new ObjectLayer(sheets.buildings, sheets.figures);
     this.overlays = new Overlays(sheets.buildings);
-    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.overlays.ghost, this.overlays.top);
+    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.objects.silhouettes, this.overlays.top);
     this.screen.addChild(this.rect);
     app.stage.addChild(this.world, this.screen);
     app.stage.eventMode = "none";
     this.camera.sw = app.screen.width;
     this.camera.sh = app.screen.height;
+    // Teamfarbe der Gegner und Silhouetten vorab im Leerlauf (kein Hänger beim ersten Überfall)
+    sheets.figures?.prewarm(Object.values(UNITS).map((u) => u.sprite));
   }
 
   get r(): Rot { return this.camera.r; }
@@ -69,6 +71,9 @@ export class GameRenderer {
   zoom(dir: 1 | -1, sx?: number, sy?: number): boolean {
     return this.camera.zoomAt(dir, sx, sy);
   }
+
+  /** Gelände neu zeichnen (z. B. nachdem Übergangsmasken gesetzt wurden). */
+  invalidateTerrain(): void { this.terrain.invalidate(); }
 
   private snapshot(): void {
     const { app } = this;
@@ -93,13 +98,14 @@ export class GameRenderer {
     // Welt-Container: Bildmitte auf ganze Bildschirmpixel
     const z = cam.zoom;
     this.world.scale.set(z);
-    this.world.position.set(Math.round(cam.sw / 2 - cam.x * z), Math.round(cam.sh / 2 - cam.y * z));
+    this.world.position.set(...this.origin());
     const view = cam.viewRect(48);
     this.terrain.update(state, view, time);
+    const ghosts = this.overlays.ghosts(state, input.preview);
     this.objects.update(state, cam.r, alpha, cam.viewRect(160), {
-      selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight,
+      selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight, ghosts,
     });
-    this.overlays.update(state, cam.r, time, {
+    this.overlays.update(state, cam.r, time, alpha, {
       preview: input.preview, selectedBuilding: input.selectedBuilding, markers: input.markers, units: this.objects.units,
     });
 
@@ -116,17 +122,25 @@ export class GameRenderer {
       if (k >= 1) { this.fade.texture.destroy(true); this.fade.destroy(); this.fade = null; }
       else this.fade.alpha = 1 - k;
     }
-    this.stats.items = this.objects.stats.items;
-    this.stats.sprites = this.objects.stats.sprites;
-    this.stats.pairs = this.objects.stats.pairs;
+    const os = this.objects.stats;
+    this.stats.items = os.items;
+    this.stats.sprites = os.sprites;
+    this.stats.pairs = os.pairs;
+    this.stats.silhouettes = os.silhouettes;
     this.stats.chunks = this.terrain.visibleChunks();
   }
 
   /** Bildschirm → Welt-Pixel (Zoom 1). */
   worldPx(sx: number, sy: number): [number, number] {
-    // dieselbe Rundung wie world.position
+    const [ox, oy] = this.origin();
     const z = this.camera.zoom;
-    return [(sx - this.world.position.x) / z, (sy - this.world.position.y) / z];
+    return [(sx - ox) / z, (sy - oy) / z];
+  }
+
+  /** Bildschirmlage des Welt-Ursprungs (wie world.position, aber immer aus der aktuellen Kamera, auch vor dem nächsten Bild). */
+  private origin(): [number, number] {
+    const c = this.camera, z = c.zoom;
+    return [Math.round(c.sw / 2 - c.x * z), Math.round(c.sh / 2 - c.y * z)];
   }
 
   /** Bildschirm → Weltpunkt auf Höhe z. */
@@ -150,7 +164,7 @@ export class GameRenderer {
     return { x: Math.floor(wx), y: Math.floor(wy), layer: 0, z: 0 };
   }
 
-  /** Oberstes Objekt (Figur oder Gebäude) unter der Maus, pixelgenau. */
+  /** Oberstes Objekt (Figur oder Gebäude) unter der Maus, pixelgenau. Der Treffer gilt nur bis zum nächsten Bild. */
   pick(sx: number, sy: number, filter?: (h: Hit) => boolean): Hit | null {
     const [X, Y] = this.worldPx(sx, sy);
     return this.objects.pick(X, Y, filter);
@@ -166,8 +180,18 @@ export class GameRenderer {
   /** Bildschirmposition (CSS-Pixel) eines Weltpunkts, z. B. für Hinweise. */
   screenOf(wx: number, wy: number, z = 0): [number, number] {
     const [X, Y] = worldToScreen(wx, wy, z, this.camera.r, this.camera.W, this.camera.H);
-    const zz = this.camera.zoom;
-    return [X * zz + this.world.position.x, Y * zz + this.world.position.y];
+    const zz = this.camera.zoom, [ox, oy] = this.origin();
+    return [X * zz + ox, Y * zz + oy];
+  }
+
+  /**
+   * Sichtbarer Bodenbereich: die vier Bildschirmecken auf Höhe 0 in Welt-Tiles, im Uhrzeigersinn ab oben links.
+   * Bildmitte in Welt-Tiles dazu (für die Übersichtskarte).
+   */
+  visibleGround(): { x: number; y: number; corners: [number, number][] } {
+    const { sw, sh } = this.camera;
+    const corners: [number, number][] = [this.worldAt(0, 0), this.worldAt(sw, 0), this.worldAt(sw, sh), this.worldAt(0, sh)];
+    const [x, y] = this.worldAt(sw / 2, sh / 2);
+    return { x, y, corners };
   }
 }
-
