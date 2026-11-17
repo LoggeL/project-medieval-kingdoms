@@ -6,7 +6,7 @@
  * Ein Gebäude mit Ausrichtung o wird um o · 90° gedreht; angezeigt wird die Sprite-Ansicht (o − r) mod 4
  * (siehe docs/decisions/0002-koordinaten-und-drehung.md, Referenz: tools/konzeptseite/bauten.js).
  */
-import { BUILDINGS, type BuildingKey } from "../data";
+import { BUILDINGS, levelDef, type BuildingKey } from "../data";
 
 export type Rot = 0 | 1 | 2 | 3;
 
@@ -104,9 +104,9 @@ export function polyAt(pts: [number, number][], s: number): { x: number; y: numb
   return { x, y, dx: 0, dy: 0 };
 }
 
-/** Posten eines Gebäudes in Welt-Koordinaten (Bruchteile von Tiles) mit Höhenstufe. */
-export function postWorld(key: BuildingKey, x: number, y: number, o: number, k: number): [number, number, number] {
-  const p = BUILDINGS[key].posts![k];
+/** Posten eines Gebäudes (auf Ausbaustufe level) in Welt-Koordinaten (Bruchteile von Tiles) mit Höhenstufe. */
+export function postWorld(key: BuildingKey, x: number, y: number, o: number, k: number, level = 1): [number, number, number] {
+  const p = levelDef(key, level).posts![k];
   const [cx, cy] = center(key, x, y, o);
   const [dx, dy] = modelToWorld(p[0], p[1], o);
   return [cx + dx, cy + dy, p[2]];

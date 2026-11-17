@@ -7,7 +7,7 @@
  * in Teamfarbe über allem (und bleiben dort anklickbar).
  */
 import { Container, type Texture } from "pixi.js";
-import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
+import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type Good } from "../data";
 import { center, entrance, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
@@ -128,6 +128,8 @@ export class ObjectLayer {
   private attached = new Map<number, { u: Unit; x: number; y: number; z: number }[]>();
   /** Figuren im Inneren (Unit.inside) je Gebäude, nur in der Innenansicht sichtbar. */
   private insideUnits = new Map<number, { u: Unit; x: number; y: number; z: number }[]>();
+  /** Im Bergfried wird gerade geforscht (Schnittbild mit dem Gelehrten am Pult). */
+  private researching = false;
   /** Bewohner je Wohnhaus (Bevölkerung der Reihe nach auf die Häuser verteilt), für das Schnittbild. */
   readonly residents = new Map<number, number>();
   private contents: { d: number; draw: () => void }[] = [];
@@ -162,6 +164,8 @@ export class ObjectLayer {
     for (const list of this.attached.values()) list.length = 0;
     for (const list of this.insideUnits.values()) list.length = 0;
     this.countResidents(state);
+    const cur = state.research?.cur;
+    this.researching = !!cur && !Object.keys(cur.needs).length;
 
     // Figuren: interpolieren, auf Gebäuden einhängen oder als eigenes Objekt
     for (const u of state.units) {
@@ -493,7 +497,9 @@ export class ObjectLayer {
       if (!k) return null;
       return { keys: [[k, b.o]], frame: fillFrame(b, this.bs!.get(k)!.frames) };
     }
-    const k = this.bkey(def.sprite);
+    // Ausbaustufen (Bergfried): eigenes Sprite je Stufe, Ersatz die niedrigere Stufe
+    const lv = BUILDINGS[b.key].levels;
+    const k = lv ? this.bkey(levelDef(b.key, b.level ?? 1).sprite, ...lv.slice(0, (b.level ?? 1) - 1).reverse().map((x) => x.sprite)) : this.bkey(def.sprite);
     if (!k) return null;
     let frame = 0;
     const sp = this.bs!.get(k)!;
@@ -557,6 +563,23 @@ export class ObjectLayer {
         }
       }
     }
+    // Ausbau: die nächste Stufe wächst wie eine Baustelle über dem stehenden Gebäude (Umriss im Gerüstton, von unten
+    // nach oben aufgedeckt); das Material liegt vor der Tür (siteItems)
+    if (b.upgrade && b.built >= 1 && open < 0.5) {
+      const key = this.bs?.has(levelDef(b.key, b.upgrade.level).sprite) ? levelDef(b.key, b.upgrade.level).sprite : null;
+      if (key) {
+        const view = viewOf(b.o, this.r);
+        const tex = bs.texture(key, view, 0, b.team);
+        const bb = bs.get(key)!.bbox[view]?.[0];
+        if (tex) this.part(it, tex, X, Y, ax, ay, { alpha: 0.32, tint: SITE_TINT });
+        if (bb && b.upgrade.t > 0) {
+          const q = Math.round(b.upgrade.t * 48) / 48;
+          const cut = Math.round(bb.y1 - q * (bb.y1 - bb.y0));
+          const crop = bs.crop(key, view, 0, b.team, cut, bs.cell[1]);
+          if (crop) this.part(it, crop, X, Y, ax, ay - cut, { tint });
+        }
+      }
+    }
     // Figuren auf Wehrgang, Turm und Treppe, dann das Vorderteil
     const on = this.attached.get(b.id);
     if (on && on.length) {
@@ -576,16 +599,18 @@ export class ObjectLayer {
     if (spr && b.built >= 1 && this.nItems === before && open < 0.5) this.chimneys(b, spr.keys[0][0], cx, cy);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
     if (def.storage && !spr) this.stackItems(b);
-    if (b.built < 1) this.siteItems(b);
+    if (b.built < 1 || b.upgrade) this.siteItems(b);
   }
 
   /** Schnittbild und Variante: Wohnhaus nach Bewohnern, sonst wie das Außenbild (Hof, Füllstand vor dem Tor). */
   private interiorFrame(b: Building, outer: number): { key: string; frame: number } | null {
-    const def = BUILDINGS[b.key];
+    const def = levelDef(b.key, b.level ?? 1);
     const key = def.interior?.sprite;
     if (!key || !this.bs!.has(key)) return null;
     const frames = this.bs!.get(key)!.frames;
-    const want = def.housing ? this.residents.get(b.id) ?? 0 : def.storage ? fillFrame(b, frames) : outer;
+    // Bergfried: Variante 1 = der Gelehrte sitzt am Pult, solange geforscht wird (Waren angeliefert, Zeit läuft)
+    const want = def.seat ? (this.researching ? 1 : 0)
+      : def.housing ? this.residents.get(b.id) ?? 0 : def.storage ? fillFrame(b, frames) : outer;
     return { key, frame: Math.max(0, Math.min(frames - 1, want)) };
   }
 
@@ -594,7 +619,8 @@ export class ObjectLayer {
     this.residents.clear();
     let left = state.population;
     for (const b of state.buildings) {
-      const cap = BUILDINGS[b.key].housing;
+      // Der Bergfried bringt eigenen Wohnraum (Burgherr, Gesinde); verteilt wird auf die Wohnhäuser
+      const cap = BUILDINGS[b.key].seat ? 0 : BUILDINGS[b.key].housing;
       if (!cap || b.team !== 0 || b.built < 1) continue;
       const n = Math.max(0, Math.min(cap, left));
       this.residents.set(b.id, n);

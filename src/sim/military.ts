@@ -7,12 +7,13 @@
  * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
  * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, GOODS, TUNING, UNITS, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
 import { walkLayerAt } from "./build";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
 import { goalAround, lineClear, stepToward, stop, tileGoal, travel, unitNode } from "./move";
 import { available } from "./storage";
+import { applyBoost, levelOf, lockedBy } from "./research";
 import type { CommandResult, UnitOrder } from "./types";
 import { TPS, distToRect, newUnitAI, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -142,9 +143,9 @@ function guardSection(w: World, u: SUnit, px: number, py: number): boolean {
 
 function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>): void {
   const b = w.buildings.get(o.building);
-  const def = b && BUILDINGS[b.key];
+  const def = b && levelDef(b.key, levelOf(b));
   if (!b || !def || b.built < 1 || !def.posts?.[o.post]) { u.order = { t: "idle" }; return; }
-  const [px, py, pz] = postWorld(b.key, b.x, b.y, b.o, o.post);
+  const [px, py, pz] = postWorld(b.key, b.x, b.y, b.o, o.post, levelOf(b));
   const layer = def.walkway ?? 0;
   // Nahkämpfer verteidigen Tor, Treppe und Wehrgang in der Nähe; danach zurück auf den Posten
   if (!isRanged(u.key) && guardSection(w, u, px, py)) return;
@@ -248,7 +249,7 @@ export function listPosts(w: World): Post[] {
   };
   for (const b of w.s.buildings) {
     if (b.team !== 0 || b.built < 1) continue;
-    const def = BUILDINGS[b.key];
+    const def = levelDef(b.key, levelOf(b));
     if (def.stairs) { const e = stairEnds(b.x, b.y, b.o); seed(e.wall[0], e.wall[1]); }
     else if (def.gate) seed(b.x, b.y);
     else if (def.walkway === 2) {
@@ -272,10 +273,10 @@ export function listPosts(w: World): Post[] {
   const [tx0, ty0] = threatPoint(w);
   const posts: Post[] = [];
   for (const b of w.s.buildings) {
-    const def = BUILDINGS[b.key];
+    const def = levelDef(b.key, levelOf(b));
     if (b.team !== 0 || b.built < 1 || !def.posts || !def.walkway) continue;
     def.posts.forEach((_, k) => {
-      const [px, py] = postWorld(b.key, b.x, b.y, b.o, k);
+      const [px, py] = postWorld(b.key, b.x, b.y, b.o, k, levelOf(b));
       const tx = Math.floor(px), ty = Math.floor(py);
       if (!w.inMap(tx, ty)) return;
       const tower = def.walkway === 2;
@@ -358,6 +359,8 @@ export function cmdRecruit(w: World, id: number, unit: UnitKey): CommandResult {
   const def = BUILDINGS[b.key];
   if (!def.trains?.includes(unit)) return { ok: false, reason: `${def.name} bildet das nicht aus` };
   if (b.built < 1) return { ok: false, reason: `${def.name} ist noch nicht fertig` };
+  const lock = lockedBy(w.s, UNITS[unit]);
+  if (lock) return { ok: false, reason: `Erst erforschen: ${TECHS[lock].name}` };
   const train = UNITS[unit].train!;
   if (w.s.gold < train.gold) return { ok: false, reason: "Nicht genug Gold", voice: "zu_teuer" };
   if (available(w, train.equipment) < 1) return { ok: false, reason: `Keine ${goodLabel(train.equipment)} im Lager`, voice: "keine_waffe" };
@@ -392,6 +395,7 @@ export function updateTraining(w: World): void {
     u.x = u.px = ex + 0.5; u.y = u.py = ey + 0.5; u.z = u.pz = 0; u.layer = 0;
     u.carry = null; u.home = 0; u.dead = false; u.order = { t: "idle" };
     u.ai = newUnitAI();
+    applyBoost(w, u);
     setAnim(u, "stehen", true);
     w.insertUnit(u);
     w.msg(`${def.name} ist ausgebildet.`, "info", undefined, 20, "ausgebildet");

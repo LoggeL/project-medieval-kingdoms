@@ -14,6 +14,7 @@ export function createDemoGame(): Game {
     gold: 150, population: 8, housing: 12,
     stock: { holz: 40, stein: 30, eisen: 0, speer: 3, schwert: 2, bogen: 4 }, capacity: 64,
     raid: { next: 6000, wave: 0, active: false }, messages: [{ tick: 0, text: "Willkommen, Burgherr.", kind: "info" }],
+    research: { done: [], cur: null },
   };
   let rnd = 7;
   const rand = () => ((rnd = (rnd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);

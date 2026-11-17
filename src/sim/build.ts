@@ -3,12 +3,13 @@
  * Eine Baustelle belegt sofort ihren Grundriss. Gold wird sofort bezahlt, Waren bringen Tagelöhner Stück für
  * Stück aus dem Lager (economy.ts), danach baut einer die Baustelle fertig (jobs.ts).
  */
-import { BUILDINGS, GOODS, TERRAIN, type BuildingKey, type Cost, type Good } from "../data";
+import { BUILDINGS, GOODS, TECHS, TERRAIN, levelDef, type BuildingKey, type Cost, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
 import { NEIGHBOURS, center, entrance, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
 import { abortJobsAt } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
+import { lockedBy, levelOf } from "./research";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
 
@@ -82,13 +83,15 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
   const def = BUILDINGS[key];
   if (!def) return { ok: false, reason: "Unbekanntes Gebäude", tiles: [] };
   o = ((o % 4) + 4) % 4;
-  let reason: string | null = null;
+  let reason: string | null = def.seat ? `Den ${def.name} gibt es nur einmal, er steht seit Beginn` : null;
+  const lock = lockedBy(w.s, def);
+  if (!reason && lock) reason = `Erst erforschen: ${TECHS[lock].name}`;
   const tiles = footprintTiles(key, x, y, o).map(([tx, ty]) => {
     const r = tileReason(w, tx, ty, key);
     if (r && !reason) reason = r;
     return { x: tx, y: ty, ok: !r };
   });
-  if (!reason && (def.workers || def.trains || def.housing || def.storage)) {
+  if (!reason && (def.workers || def.trains || def.housing || def.storage || def.seat)) {
     const [ex, ey] = entrance(key, x, y, o);
     if (!w.inMap(ex, ey) || !TERRAIN[w.s.tiles[w.idx(ex, ey)].terrain].walkable || w.s.tiles[w.idx(ex, ey)].building
       || w.s.rocks.some((r) => r.x === ex && r.y === ey && r.amount > 0)) reason = "Der Eingang ist versperrt";
@@ -207,7 +210,7 @@ export function refreshAfterPlace(w: World): void {
 }
 
 export function completeBuilding(w: World, b: SBuilding): void {
-  const def = BUILDINGS[b.key];
+  const def = levelDef(b.key, levelOf(b));
   b.built = 1;
   b.hp = def.hp;
   b.needs = {}; b.site = {};
@@ -253,7 +256,12 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
     }
   }
   evictUnits(w);
-  if (why === "zerstoert" && b.team === 0) {
+  if (why === "zerstoert" && b.team === 0 && def.seat && !w.s.outcome) {
+    // Der Bergfried ist gefallen: Die Partie ist verloren, es kommen keine Wellen und keine Leute mehr
+    // Die Simulation läuft weiter (Tests, Zuschauen); die Oberfläche zeigt die Niederlage und hält das Spiel an.
+    w.s.outcome = "niederlage";
+    w.msg(`Der ${def.name} ist gefallen! Die Burg ist verloren.`, "kampf", undefined, 20, "zerstoert");
+  } else if (why === "zerstoert" && b.team === 0) {
     if (FORT.has(b.key)) w.msg(`${def.name} wurde zerstört! Die Mauer ist offen.`, "kampf", `zerstoert-${b.key}`, 5, "mauer_faellt");
     else w.msg(`${def.name} wurde zerstört!`, "kampf", `zerstoert-${b.key}`, 5, "zerstoert");
   }
@@ -277,5 +285,5 @@ export function updateWallMasks(w: World): void {
 export function walkLayerAt(w: World, x: number, y: number): number {
   const b = w.buildingAt(x, y);
   if (!b || b.built < 1) return 0;
-  return BUILDINGS[b.key].walkway ?? 0;
+  return levelDef(b.key, levelOf(b)).walkway ?? 0;
 }

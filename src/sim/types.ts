@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, Good, TerrainKey, UnitKey } from "../data";
+import type { AnimKey, BuildingKey, Good, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -70,6 +70,33 @@ export interface Building {
   recruits?: { unit: UnitKey; stage: "waffe" | "weg" }[];
   /** Nur Tor: offen, solange eigene Leute am Boden im Tor oder direkt davor stehen (Darstellung: Variante „offen“). */
   gateOpen?: boolean;
+  /** Ausbaustufe (BuildingDef.levels), fehlt = 1. */
+  level?: number;
+  /**
+   * Laufender Ausbau auf Stufe `level`: Waren kommen wie auf einer Baustelle (needs, site), dann baut ein Tagelöhner
+   * (t 0..1). Das Gebäude bleibt dabei in Betrieb.
+   */
+  upgrade?: { level: number; t: number };
+}
+
+/** Bedarf einer Lieferung: noch fehlende Waren, davon zugewiesen (unterwegs) und schon aus dem Lager genommen. */
+export interface Delivery {
+  needs: Partial<Record<Good, number>>;
+  enroute: Partial<Record<Good, number>>;
+  picked: Partial<Record<Good, number>>;
+}
+
+/** Forschung im Bergfried: erforschte Techniken und die laufende (Waren werden angeliefert, dann läuft t bis dur). */
+export interface ResearchState {
+  done: TechKey[];
+  cur: (Delivery & {
+    key: TechKey;
+    /** Fortschritt in Sekunden, läuft erst, wenn alle Waren angeliefert sind. */
+    t: number;
+    dur: number;
+    /** Schon angelieferte Waren (gehen beim Abbrechen ins Lager zurück). */
+    got: Partial<Record<Good, number>>;
+  }) | null;
 }
 
 export type UnitOrder =
@@ -112,6 +139,8 @@ export interface Unit {
   inside?: number;
   /** Was die Figur gerade tut (für Auswahl-Panel und Darstellung); von der Simulation gepflegt. */
   activity?: UnitActivity;
+  /** Boni aus der Forschung (Reichweite in Feldern, Rüstung), fehlt = keine. */
+  boost?: { range?: number; armor?: number };
 }
 
 export type UnitActivity =
@@ -150,6 +179,10 @@ export interface SimState {
   capacity: number;
   raid: { next: number; wave: number; active: boolean };
   messages: Message[];
+  /** Forschung (fehlt in alten Spielständen, loadGame ergänzt sie). */
+  research: ResearchState;
+  /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
+  outcome?: "niederlage";
 }
 
 export type Command =
@@ -164,7 +197,13 @@ export type Command =
   /** Automatisch auf freie Posten verteilen (zuerst Wehrgang, dann Türme). */
   | { t: "stationieren"; units: number[] }
   | { t: "halten"; units: number[] }
-  | { t: "ueberfall" };
+  | { t: "ueberfall" }
+  /** Forschung im Bergfried beginnen (Gold sofort, Waren bringen Träger). */
+  | { t: "forschen"; tech: TechKey }
+  /** Laufende Forschung abbrechen: Gold und angelieferte Waren kommen zurück. */
+  | { t: "forschung_abbrechen" }
+  /** Gebäude (Bergfried) auf die nächste Stufe ausbauen. */
+  | { t: "ausbauen"; building: number };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }

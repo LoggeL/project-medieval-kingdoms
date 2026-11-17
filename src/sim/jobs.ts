@@ -5,7 +5,8 @@
  */
 import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
 import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, storeWalk } from "./geom";
-import { completeBuilding } from "./build";
+import { completeBuilding, refreshAfterPlace } from "./build";
+import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal, type TravelResult } from "./move";
 import { reservePut, tidy } from "./storage";
 import type { Rock, Tree } from "./types";
@@ -95,7 +96,7 @@ function runWork(w: World, u: SUnit, j: CycleJob, step: Extract<CycleStep, { do:
     face(u, t.x + 0.5 - u.x, t.y + 0.5 - u.y);
   }
   setAnim(u, step.anim);
-  if (j.t < step.seconds * TPS) { j.t++; return; }
+  if (j.t < Math.round(step.seconds * workFactor(w.s, step.anim) * TPS)) { j.t++; return; }
   // Fertig: Ware erzeugen (getragen oder in den Hof); bei vollem Hof warten
   const produce = Object.entries(step.produce ?? {}) as [Good, number][];
   if (produce.length && !step.carry) {
@@ -237,35 +238,43 @@ function retargetHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void 
   if ((w.s.tick + u.id) % TPS !== 0) return;
   const ref = reservePut(w, j.good, u.x, u.y);
   if (ref) { j.to = ref.b.id; j.slot = ref.k; }
-  else w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
+  else if (!w.s.buildings.some((b) => b.team === 0 && BUILDINGS[b.key].storage)) {
+    // Kein Lagerhaus mehr, auch keines im Bau: Die Last bleibt liegen, der Träger ist wieder frei
+    u.carry = null; u.ai.job = null; u.order = { t: "idle" };
+    w.msg("Kein Lagerhaus mehr: Getragene Waren bleiben liegen.", "warnung", "keinlager", 60);
+  } else w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
 }
 
 function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   const site = w.buildings.get(j.site);
+  const rec = deliveryOf(w, site, j.rk);
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
-    if (!site || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
+    if (!site || !st || !st.slots[j.slot] || !rec) { releaseJob(w, u); return; }
     const r = storeVisit(w, u, st, j.slot);
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     const s = st.slots[j.slot];
     s.amount--; s.reserved--; tidy(s);
     u.carry = j.good; j.ph = 1;
-    site.ai.picked[j.good] = (site.ai.picked[j.good] ?? 0) + 1;
+    rec.picked[j.good] = (rec.picked[j.good] ?? 0) + 1;
     return;
   }
-  if (!site) { carryBack(w, u); return; }
-  const r = travel(w, u, goalAround(site));
+  if (!site || !rec) { carryBack(w, u); return; }
+  // Forschung: in den Bergfried durch die Tür; Baustelle und Ausbau: irgendwo an den Grundriss
+  const r = travel(w, u, j.rk ? goalEntrance(w, site) : goalAround(site));
   if (r === "unreachable") { releaseJob(w, u, true); carryBack(w, u); return; }
   if (r !== "arrived") return;
-  dec(site.needs, j.good); dec(site.ai.enroute, j.good); dec(site.ai.picked, j.good);
-  site.site[j.good] = (site.site[j.good] ?? 0) + 1;
+  dec(rec.needs, j.good); dec(rec.enroute, j.good); dec(rec.picked, j.good);
+  const cur = j.rk ? w.s.research.cur : null;
+  if (cur) cur.got[j.good] = (cur.got[j.good] ?? 0) + 1;
+  else site.site[j.good] = (site.site[j.good] ?? 0) + 1;
   u.carry = null; u.ai.job = null; u.order = { t: "idle" };
 }
 
 function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
   const site = w.buildings.get(j.site);
-  if (!site || site.built >= 1 || Object.keys(site.needs).length) { releaseJob(w, u); return; }
+  if (!site || !isSite(site) || Object.keys(site.needs).length) { releaseJob(w, u); return; }
   const r = travel(w, u, goalAround(site));
   if (r === "unreachable") { giveUp(w, u); return; }
   if (r !== "arrived") return;
@@ -273,6 +282,16 @@ function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
   const [cx, cy] = center(site.key, site.x, site.y, site.o);
   face(u, cx - u.x, cy - u.y);
   setAnim(u, "bauen");
+  if (site.upgrade) {
+    // Ausbau: das Gebäude steht und arbeitet weiter, der Tagelöhner baut die nächste Stufe auf
+    site.upgrade.t = Math.min(1, site.upgrade.t + 1 / (upgradeSeconds(site) * TPS));
+    if (site.upgrade.t >= 1) {
+      completeUpgrade(w, site, () => refreshAfterPlace(w));
+      u.ai.job = null; u.order = { t: "idle" };
+      setAnim(u, "stehen");
+    }
+    return;
+  }
   site.built = Math.min(1, site.built + 1 / (def.buildSeconds * TPS));
   site.hp = Math.max(site.hp, Math.round(def.hp * (0.2 + 0.8 * site.built)));
   if (site.built >= 1) {
@@ -408,8 +427,8 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
       case "supply": {
         const s = w.buildings.get(j.from)?.slots[j.slot];
         if (j.ph === 0 && s) { s.reserved--; tidy(s); }
-        const site = w.buildings.get(j.site);
-        if (site) { dec(site.ai.enroute, j.good); if (j.ph === 1) dec(site.ai.picked, j.good); }
+        const rec = deliveryOf(w, w.buildings.get(j.site), j.rk);
+        if (rec) { dec(rec.enroute, j.good); if (j.ph === 1) dec(rec.picked, j.good); }
         break;
       }
       case "build": { const site = w.buildings.get(j.site); if (site && site.ai.builder === u.id) site.ai.builder = 0; break; }
@@ -428,7 +447,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
 }
 
 /** Getragene Ware zurück ins Lager bringen (Auftrag ohne Ziel, wenn gerade kein Platz ist). */
-function carryBack(w: World, u: SUnit): void {
+export function carryBack(w: World, u: SUnit): void {
   const good = u.carry;
   u.ai.job = null;
   if (!good) return;

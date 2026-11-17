@@ -2,15 +2,16 @@
  * Die Simulation: Spielstart, Tick mit fester Systemreihenfolge, Befehle, Speichern und Laden.
  *
  * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
- * Überfälle → Ausbildung → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
+ * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
-import { GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
+import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
 import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
 import { footprintTiles } from "./geom";
-import { runJob, toPeasant, walkOut } from "./jobs";
+import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
+import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { emptyMap, generateMap } from "./mapgen";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
@@ -65,6 +66,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     tick: 0, seed, w: size, h: size, tiles: map.tiles, trees: map.trees, rocks: map.rocks,
     buildings: [], units: [], projectiles: [], gold: START.gold, population: 0, housing: 0, stock, capacity: 0,
     raid: { next: START.raid.firstSeconds * TPS, wave: 0, active: false }, messages: [],
+    research: { done: [], cur: null },
   };
   const w = new World(s, meta);
   if (scenario === "standard") {
@@ -89,6 +91,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
 export function loadGame(json: string): Simulation {
   const d = JSON.parse(json) as { v: number; state: SState; meta: Meta };
   if (d.v !== SAVE_VERSION) throw new Error(`Unbekannte Spielstand-Version ${d.v}`);
+  d.state.research ??= { done: [], cur: null }; // Spielstände von vor der Forschung
   return new Simulation(new World(d.state, d.meta, false));
 }
 
@@ -117,6 +120,8 @@ export function step(w: World): void {
   raidTick(w);
   if (s.tick % TPS === 0) updateTutorial(w);
   updateTraining(w);
+  updateResearch(w);
+  updateIncome(w);
   const list = s.units.slice(), n = list.length, off = n ? (s.tick * 7) % n : 0;
   for (let i = 0; i < n; i++) {
     const u = list[(i + off) % n];
@@ -139,6 +144,8 @@ function goalReached(w: World, g: TutorialGoal): boolean {
   if ("placed" in g) return s.buildings.some((b) => b.team === 0 && b.key === g.placed);
   if ("built" in g) return g.built.every((k) => s.buildings.some((b) => b.team === 0 && b.key === k && b.built >= 1));
   if ("soldiers" in g) return s.units.filter((u) => u.team === 0 && !u.dead && isSoldier(u.key)).length >= g.soldiers;
+  if ("researched" in g) return hasTech(s, g.researched) || s.research.cur?.key === g.researched;
+  if ("level" in g) { const seat = seatOf(s); return !!seat && (levelOf(seat) >= g.level || (seat.upgrade?.level ?? 0) >= g.level); }
   return s.units.filter((u) => u.team === 0 && !u.dead && u.order.t === "station").length >= g.stationed;
 }
 
@@ -183,6 +190,7 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "abreissen": {
       const b = w.buildings.get(c.id);
       if (!b || b.team !== 0) return { ok: false, reason: "Kein eigenes Gebäude" };
+      if (BUILDINGS[b.key].seat) return { ok: false, reason: `Den ${BUILDINGS[b.key].name} kann man nicht abreißen` };
       removeBuilding(w, b, "abriss");
       return { ok: true, ids: [c.id] };
     }
@@ -192,6 +200,9 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "stationieren": return cmdStation(w, c.units);
     case "halten": return cmdHold(w, c.units);
     case "ueberfall": return { ok: true, ids: spawnWave(w) };
+    case "forschen": return startResearch(w, c.tech);
+    case "forschung_abbrechen": return cancelResearch(w, (u, back) => { if (back) { u.ai.job = null; carryBack(w, u); } else releaseJob(w, u); });
+    case "ausbauen": return startUpgrade(w, c.building);
   }
   return { ok: false, reason: "Unbekannter Befehl" };
 }

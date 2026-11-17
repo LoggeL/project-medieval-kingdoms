@@ -11,7 +11,7 @@ import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { recruit } from "./unitgrid";
 
-const CAT_NAME = { wirtschaft: "Wirtschaft", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
+const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung" } as const;
 const LAYER_NAME = ["am Boden", "auf dem Wehrgang", "auf dem Turm"];
 
 export interface SidePanel { el: HTMLElement; update(s: SimState): void }

@@ -4,6 +4,9 @@
  * Zeiten in Sekunden, die Simulation rechnet sie in Ticks um (TICKS_PER_SECOND).
  */
 import type { VoiceKey } from "./audio";
+import type { TechKey } from "./research";
+
+export * from "./research";
 
 export const TICKS_PER_SECOND = 20;
 
@@ -62,14 +65,36 @@ export type CycleStep =
 
 // ---------------------------------------------------------------- Gebäude
 export type BuildingKey =
-  | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
+  | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm";
+
+/**
+ * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
+ * jede weitere Stufe überschreibt die genannten Werte. Ausbau: Gold sofort, Waren bringen Träger, dann baut ein
+ * Tagelöhner wie auf einer Baustelle; das Gebäude bleibt dabei in Betrieb.
+ */
+export interface BuildingLevel {
+  name: string;
+  desc: string;
+  sprite: string;
+  hp: number;
+  housing?: number;
+  /** Steuern des Bergfrieds: Gold je Spielminute. */
+  income?: number;
+  walkway?: 1 | 2;
+  posts?: [number, number, number][];
+  /** Höhe der Plattform (Laufebene 2) in Höhenstufen, Standard 5 wie beim Mauerturm. */
+  deck?: number;
+  interior?: { sprite: string; spots?: [number, number][] };
+  /** Voraussetzung und Kosten des Ausbaus auf diese Stufe. */
+  upgrade?: { cost: Cost; seconds: number; tech: TechKey };
+}
 
 export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
   desc: string;
-  category: "wirtschaft" | "wohnen" | "militaer" | "befestigung";
+  category: "zentrum" | "wirtschaft" | "wohnen" | "militaer" | "befestigung";
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
@@ -113,10 +138,45 @@ export interface BuildingDef {
   stairs?: boolean;
   /** Mit Ziehen bauen (Mauer). */
   drag?: boolean;
+  /** Höhe der Plattform (Laufebene 2) in Höhenstufen, Standard 5. */
+  deck?: number;
+  /** Steuern: Gold je Spielminute. */
+  income?: number;
+  /** Ausbaustufen (siehe BuildingLevel). */
+  levels?: BuildingLevel[];
+  /**
+   * Sitz des Burgherrn (Bergfried): Ort der Forschung, nur einer je Spieler, wird nicht gebaut, sondern steht ab Beginn.
+   * Fällt er, ist das Spiel verloren.
+   */
+  seat?: boolean;
+  /** Gesperrt, bis diese Forschung abgeschlossen ist. */
+  tech?: TechKey;
   hp: number;
 }
 
 export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
+  bergfried: {
+    name: "Bergfried", desc: "Wohnturm des Burgherrn und Herz der Siedlung: Hier wird geforscht, hier wohnen die ersten Leute, von hier kommen die Steuern. Fällt er, ist die Burg verloren.",
+    category: "zentrum", footprint: [3, 3], cost: {}, buildSeconds: 1, sprite: "bergfried_holz", seat: true,
+    housing: 10, income: 4, interior: { sprite: "bergfried_holz_innen" }, hp: 2500,
+    levels: [
+      { name: "Hölzerner Bergfried", desc: "Fachwerkturm auf Steinsockel mit Palisade. Noch ohne Wehrplattform.", sprite: "bergfried_holz", hp: 2500, housing: 10, income: 4, interior: { sprite: "bergfried_holz_innen" } },
+      {
+        name: "Steinerner Bergfried", desc: "Wohnturm aus Quadern mit Außentreppe und Wehrplattform: vier Posten für Schützen (Taste T).",
+        sprite: "bergfried_stein", hp: 5000, housing: 14, income: 8, walkway: 2, deck: 5,
+        posts: [[-0.8, -0.8, 5], [0.8, -0.8, 5], [-0.8, 0.8, 5], [0.8, 0.8, 5]],
+        interior: { sprite: "bergfried_stein_innen" },
+        upgrade: { cost: { gold: 20, stein: 30, holz: 10 }, seconds: 40, tech: "steinbau" },
+      },
+      {
+        name: "Burgfried", desc: "Hoher Turm mit Zinnenkranz, Ecktürmchen und Banner: sechs Posten hoch über dem Land.",
+        sprite: "bergfried_burg", hp: 8000, housing: 18, income: 12, walkway: 2, deck: 6,
+        posts: [[-0.8, -0.8, 6], [0.8, -0.8, 6], [-0.8, 0.8, 6], [0.8, 0.8, 6], [0, -0.85, 6], [0, 0.85, 6]],
+        interior: { sprite: "bergfried_burg_innen" },
+        upgrade: { cost: { gold: 40, stein: 50, holz: 15 }, seconds: 60, tech: "festungsbau" },
+      },
+    ],
+  },
   lager: {
     name: "Lagerhaus", desc: "Geschlossenes Lagerhaus mit acht Fächern für Holz, Stein, Eisen und Waffen. Träger kommen nur durch das Tor. Maus darüber zeigt die Fächer.",
     category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lagerhaus", access: [0, -2],
@@ -217,6 +277,8 @@ export interface UnitDef {
   train?: { gold: number; equipment: Good; seconds: number };
   /** Darf auf Mauerposten stehen. */
   canStation?: boolean;
+  /** Gesperrt, bis diese Forschung abgeschlossen ist. */
+  tech?: TechKey;
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -252,7 +314,7 @@ export const START = {
    * Startaufstellung: fertige Gebäude, linke obere Ecke relativ zum Siedlungsanker der Karte (MapResult.lager,
    * Eingang zur Straße) und Ausrichtung. Weitere Startgebäude kommen als Einträge hinzu.
    */
-  buildings: [{ key: "lager", at: [0, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
+  buildings: [{ key: "lager", at: [0, 0], o: 0 }, { key: "bergfried", at: [-4, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
   /** Startbestand in den Lagern der Startaufstellung. */
   stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
@@ -272,7 +334,11 @@ export type TutorialGoal =
   /** So viele eigene Soldaten. */
   | { soldiers: number }
   /** So viele Soldaten mit dem Befehl „Stationieren“. */
-  | { stationed: number };
+  | { stationed: number }
+  /** Diese Forschung läuft oder ist abgeschlossen. */
+  | { researched: TechKey }
+  /** Der Bergfried hat diese Stufe erreicht oder wird gerade darauf ausgebaut. */
+  | { level: number };
 
 /** voice: optionale Sprecheransage (nur vorhandene Schlüssel aus audio.ts). */
 export interface TutorialStep { text: string; done: TutorialGoal | null; voice?: VoiceKey }
@@ -281,11 +347,13 @@ export const TUTORIAL: TutorialStep[] = [
   { text: "Willkommen, Burgherr! Baue eine Holzfällerhütte am Waldrand und einen Steinbruch am Fels.", voice: "willkommen", done: { placed: "holzfaeller" } },
   { text: "Gut. Jetzt einen Steinbruch: Er muss an den Fels im Norden grenzen.", done: { placed: "steinbruch" } },
   { text: "Baue ein Wohnhaus. Mit mehr Wohnraum ziehen Tagelöhner zu, die tragen und bauen.", done: { placed: "haus" } },
+  { text: "Im Bergfried wird geforscht. Wähle ihn (oder drücke F) und beginne „Gehärtete Werkzeuge“: Träger bringen das Holz hinein, dann arbeiten Holzfäller und Steinmetze schneller.", done: { researched: "werkzeuge" } },
   { text: "Baue eine Kaserne für deine Soldaten. Sie braucht Holz und viel Stein.", done: { built: ["kaserne"] } },
   { text: "Die Kaserne steht. Wähle sie und bilde Speerträger, Schwertkämpfer und Bogenschützen aus.", done: { soldiers: 1 } },
   { text: "Angreifer kommen von Osten über die Furt. Zieh dort eine Mauer, setz ein Tor hinein und innen eine Treppe an (mit R drehen).", done: { built: ["mauer", "tor", "treppe"] } },
   { text: "Wähle deine Soldaten und stelle sie mit T auf die Mauer.", done: { stationed: 1 } },
-  { text: "Die Mauer ist besetzt. Schützen oben treffen härter, Nahkämpfer verteidigen Tor und Treppe. Ein Turm bietet vier weitere Posten.", done: null },
+  { text: "Die Mauer ist besetzt. Schützen oben treffen härter, Nahkämpfer verteidigen Tor und Treppe. Erforsche „Steinbaukunst“ und baue den Bergfried aus: Seine Wehrplattform trägt vier weitere Posten.", done: { level: 2 } },
+  { text: "Der Bergfried wird zu Stein. Mit „Festungsbau“ wächst er zum Burgfried mit sechs Posten. Du musst nicht alles erforschen: Wähle, was deine Burg braucht.", done: null },
 ];
 
 // ---------------------------------------------------------------- Simulationswerte (Balance)
@@ -298,8 +366,8 @@ export const DAMAGE_TYPES: Record<DamageType, { armor: number; building: number 
 
 /** Stellschrauben der Simulation (Sekunden, Tiles, Gold). */
 export const TUNING = {
-  /** Wohnraum ohne Häuser. */
-  baseHousing: 10,
+  /** Wohnraum ohne Häuser und ohne Bergfried (der Bergfried bringt seinen eigenen, BUILDINGS.bergfried.housing). */
+  baseHousing: 0,
   /** Abstand, in dem neue Tagelöhner zuziehen, solange Wohnraum frei ist. */
   immigrantSeconds: 20,
   /** Stämme pro gefälltem Baum. */
@@ -331,3 +399,23 @@ export const TUNING = {
   /** Wer als Letzter seiner Welle übrig ist, zieht erst unter diesem LP-Anteil ab (bei voller Kraft kämpft er weiter). */
   retreatLoneHp: 0.7,
 };
+
+// ---------------------------------------------------------------- Ausbaustufen
+const levelCache = new Map<string, BuildingDef>();
+
+/** Werte eines Gebäudes auf Stufe `level` (1 = Grundwerte); ohne Stufen immer die Grundwerte. */
+export function levelDef(key: BuildingKey, level = 1): BuildingDef {
+  const def = BUILDINGS[key];
+  if (!def.levels) return def;
+  const id = `${key}:${level}`;
+  let out = levelCache.get(id);
+  if (!out) {
+    const lv = def.levels[Math.max(1, Math.min(level, def.levels.length)) - 1];
+    out = { ...def, name: lv.name, sprite: lv.sprite, hp: lv.hp, housing: lv.housing, income: lv.income, walkway: lv.walkway, posts: lv.posts, deck: lv.deck, interior: lv.interior };
+    levelCache.set(id, out);
+  }
+  return out;
+}
+
+/** Höchste Stufe eines Gebäudes (1 ohne Ausbaustufen). */
+export const maxLevel = (key: BuildingKey): number => BUILDINGS[key].levels?.length ?? 1;

@@ -1,0 +1,18 @@
+Icon sheet for the research menu of an original isometric medieval strategy game (High to Late Middle Ages).
+
+Layout: exactly 8 separate icons arranged in a regular grid of 4 columns and 2 rows on a fully transparent background. Every icon sits centred in its own equal square cell, with wide empty transparent gaps between the cells so each icon can be cut out cleanly. Icons must not touch or overlap each other. No background plates, no frames, no circles behind the icons, no shadows on the background.
+
+Row 1, left to right:
+1. Stone masonry: a mason's iron chisel and a wooden mallet lying on a neatly cut light sandstone block.
+2. Fortification: the top of a square stone keep tower with crenellations (merlons) and a small blue pennant on a pole.
+3. Hardened tools: a woodcutter's axe and a stonemason's pick crossed, steel heads with a bright edge, wooden handles.
+4. Carrying yoke: a curved wooden shoulder yoke with a rope-tied bundle of logs hanging from one end and a sack from the other.
+Row 2, left to right:
+5. Longbow: a tall yew longbow with taut string standing upright, one arrow with white fletching crossed in front of it.
+6. Heavy armour: a chain mail shirt with a round steel helmet (kettle hat) resting on its shoulders.
+7. Market charter: a rolled parchment charter with a red wax seal on a ribbon and three small gold coins in front of it.
+8. Carpentry: a carpenter's saw and an adze crossed over two squared timber beams.
+
+Style: hand-crafted pixel art game icons in the same style as detailed isometric pixel-art buildings, crisp hard pixel edges, no anti-aliased blur, no gradients, limited warm earthy palette (oak and clay brown, sandstone beige, slate grey, steel blue-grey, muted green) with small saturated heraldic accents (royal blue, gold, wax red), dark brown 1-pixel outline around every object, light from the upper left in 3 to 4 hard steps. Objects seen slightly from above, in a three-quarter view, readable at 48 pixels. Consistent scale and line weight across all 8 icons.
+
+Strictly no text, no letters, no numbers, no runes, no labels, no watermark, no signature, no user interface, no frame. Original design, not resembling any existing game.

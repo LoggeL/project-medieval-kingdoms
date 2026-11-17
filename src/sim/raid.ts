@@ -2,7 +2,8 @@
  * Überfälle: Wellen von Angreifern (Team 1) vom Kartenrand und ihre einfache KI.
  *
  * Ein Angreifer sucht das nächste Ziel: eine erreichbare Einheit in Sichtweite, sonst das nächste Gebäude
- * (Wirtschaftsbauten zuerst, Befestigungen samt Treppen zuletzt). Er läuft im Belagerungsmodus der Pfadsuche:
+ * (Wirtschaftsbauten zuerst, dann der Bergfried, Befestigungen samt Treppen zuletzt). Fällt der Bergfried, ist die
+ * Partie verloren. Er läuft im Belagerungsmodus der Pfadsuche:
  * Mauern und Tore sind dort teuer, aber passierbar. Steht er vor einem solchen Hindernis, greift er es an, bis es fällt.
  *
  * Rückzug: Wer unter TUNING.retreatHp seiner Lebenspunkte fällt oder als Letzter seiner Welle übrig ist, nachdem
@@ -10,7 +11,7 @@
  * und verlässt die Karte. Er kämpft dabei nicht mehr. Ist der Rückweg versperrt, stellt er sich und kämpft bis zuletzt.
  * Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
  */
-import { BUILDINGS, START, TUNING } from "../data";
+import { BUILDINGS, START, TUNING, type BuildingKey } from "../data";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, strikeBuilding, strikeUnit, vanish } from "./combat";
 import { center } from "./geom";
 import { blockedNode, goalAround, lineClear, stepToward, stop, tileGoal, travel, type TravelResult } from "./move";
@@ -161,11 +162,13 @@ function chooseTarget(w: World, u: SUnit): void {
   ai.target = 0;
   const b = ai.targetB ? w.buildings.get(ai.targetB) : undefined;
   if (b) return;
-  // Nächstes Gebäude: Wirtschaft und Wohnen zuerst, Befestigungen (Mauer, Tor, Turm, Treppe) nur, wenn sonst nichts steht
+  // Nächstes Gebäude: Wirtschaft, Wohnen und Kaserne zuerst, dann der Bergfried, Befestigungen (Mauer, Tor, Turm,
+  // Treppe) nur, wenn sonst nichts steht
+  const rank = (key: BuildingKey) => BUILDINGS[key].seat ? 1 : BUILDINGS[key].category === "befestigung" ? 2 : 0;
   let best = 0, bd = Infinity;
-  for (const pass of [false, true]) {
+  for (const pass of [0, 1, 2]) {
     for (const x of w.s.buildings) {
-      if (x.team === u.team || (BUILDINGS[x.key].category === "befestigung") !== pass) continue;
+      if (x.team === u.team || rank(x.key) !== pass) continue;
       const [cx, cy] = center(x.key, x.x, x.y, x.o);
       const d = Math.hypot(cx - u.x, cy - u.y);
       if (d < bd) { bd = d; best = x.id; }

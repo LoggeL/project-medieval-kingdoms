@@ -6,14 +6,15 @@
  * Ebenen nur über Übergangskanten (links):
  *   Treppe:  unterer Tile (Boden) ↔ oberer Tile (nur über Kanten erreichbar) ↔ Mauer-Tile (Ebene 1);
  *            auf beiden Treppen-Tiles ergibt sich die Höhe aus der Lage entlang der Stufen (stairZ)
- *   Turm:    angrenzender Wehrgang ↔ Plattform; Eingangs-Tile am Boden ↔ Plattform (Turmtür)
+ *   Turm:    angrenzender Wehrgang ↔ Plattform; Eingangs-Tile am Boden ↔ Plattform (Turmtür). Ebenso der
+ *            Bergfried ab Stufe 2 (Wehrplattform); seine Plattform liegt auf der Höhe BuildingDef.deck.
  * Tore und Turmtüren sind nur für Team 0 offen: Angreifer kommen weder durchs Tor noch durch die Turmtür
  * hinauf, sie müssen Tor, Mauer oder Turm einreißen. Eigene Treppen dürfen sie benutzen, wenn sie davorstehen. Gebäude blockieren den Boden; im Belagerungsmodus (breach)
  * sind sie mit hohen Kosten passierbar: Der Weg zeigt dann, welches Gebäude ein Angreifer einreißen muss.
  * Erreichbarkeit wird über Zusammenhangskomponenten je Team vorab geprüft, damit unerreichbare Ziele
  * keine volle Suche auslösen. Ergebnisse werden bis zur nächsten Änderung des Rasters zwischengespeichert.
  */
-import { BUILDINGS, TERRAIN } from "../data";
+import { BUILDINGS, TERRAIN, levelDef } from "../data";
 import { center, entrance, footprintTiles, modelToWorld, stairEnds } from "./geom";
 import type { Team } from "./types";
 import type { World } from "./world";
@@ -112,7 +113,7 @@ export class Nav {
     }
     for (const r of s.rocks) if (r.amount > 0) w0[r.y * W + r.x] = BLOCKED;
     for (const b of s.buildings) {
-      const def = BUILDINGS[b.key], done = b.built >= 1;
+      const def = levelDef(b.key, b.level ?? 1), done = b.built >= 1;
       for (const [x, y] of footprintTiles(b.key, b.x, b.y, b.o)) {
         if (!this.w.inMap(x, y)) continue;
         const i = y * W + x;
@@ -120,7 +121,7 @@ export class Nav {
         if (!done) continue;
         if (def.gate) { w0[i] = GATE; w1[i] = 1; }
         else if (def.walkway === 1) w1[i] = 1;
-        else if (def.walkway === 2) w2[i] = 1;
+        else if (def.walkway === 2) { w2[i] = 1; this.z[2 * N + i] = def.deck ?? LAYER_Z[2]; }
       }
     }
     // Übergänge erst, wenn alle Wehrgänge stehen
@@ -138,7 +139,7 @@ export class Nav {
         this.stairs.set(bi, geo); this.stairs.set(top - N, geo);
         this.link(bi, top);
         if (this.w.inMap(...e.wall) && w1[e.wall[1] * W + e.wall[0]]) this.link(top, N + e.wall[1] * W + e.wall[0]);
-      } else if (BUILDINGS[b.key].walkway === 2) {
+      } else if (levelDef(b.key, b.level ?? 1).walkway === 2) {
         const tiles = footprintTiles(b.key, b.x, b.y, b.o);
         const inside = new Set(tiles.map(([x, y]) => y * W + x));
         for (const [x, y] of tiles) for (let d = 0; d < 4; d++) {

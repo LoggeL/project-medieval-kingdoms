@@ -5,11 +5,12 @@
  * Rekruten (Waffe holen), Baustellen fertig bauen, dann abwechselnd Baumaterial anliefern und Hofstapel
  * ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
-import { BUILDINGS, TUNING, UNITS, type Good } from "../data";
+import { BUILDINGS, TUNING, UNITS, levelDef, type Good, type TechKey } from "../data";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
 import { goalAround, goalEntrance, goalSlot, tileGoal, travel, unitNode, type TravelGoal } from "./move";
 import { hasRoom, reservePut, reserveTake, tidy } from "./storage";
+import { isSite, levelOf } from "./research";
 import type { StorageSlot } from "./types";
 import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -67,19 +68,26 @@ export function dispatcher(w: World): void {
   // 3. Baustellen mit vollständigem Material bauen
   for (const b of own) {
     if (!free.length) return;
-    if (b.built >= 1 || b.ai.builder || Object.keys(b.needs).length) continue;
+    if (!isSite(b) || b.ai.builder || Object.keys(b.needs).length) continue;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const u = take(cx, cy, goalAround(b));
     if (!u) { w.msg(`${BUILDINGS[b.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${b.id}`, 60); continue; }
     u.ai.job = { k: "build", site: b.id }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
-  // 4. Anliefern und Abholen abwechselnd
-  const supplies: { site: SBuilding; good: Good }[] = [];
+  // 4. Anliefern (Baustellen, Ausbau, dann Forschung im Bergfried) und Abholen abwechselnd
+  const supplies: { site: SBuilding; good: Good; rk?: TechKey }[] = [];
   for (const b of own) {
-    if (b.built >= 1) continue;
+    if (!isSite(b)) continue;
     for (const [g, n] of Object.entries(b.needs) as [Good, number][]) {
       for (let k = n - (b.ai.enroute[g] ?? 0); k > 0; k--) supplies.push({ site: b, good: g });
+    }
+  }
+  const cur = w.s.research.cur;
+  const seat = cur ? own.find((b) => b.built >= 1 && BUILDINGS[b.key].seat) : undefined;
+  if (cur && seat) {
+    for (const [g, n] of Object.entries(cur.needs) as [Good, number][]) {
+      for (let k = n - (cur.enroute[g] ?? 0); k > 0; k--) supplies.push({ site: seat, good: g, rk: cur.key });
     }
   }
   const hauls: SBuilding[] = [];
@@ -97,14 +105,15 @@ export function dispatcher(w: World): void {
       const ref = noReach.has(sp.site.id) ? null : reserveTake(w, sp.good, cx, cy);
       if (!ref) { if (!noReach.has(sp.site.id)) noStock.add(sp.good); }
       else {
-        const u = take(cx, cy, goalSlot(w, ref.b, ref.k), goalAround(sp.site));
+        const u = take(cx, cy, goalSlot(w, ref.b, ref.k), sp.rk ? goalEntrance(w, sp.site) : goalAround(sp.site));
         if (!u) {
           unreserveTake(ref.b.slots[ref.k]);
           noReach.add(sp.site.id);
           w.msg(`${BUILDINGS[sp.site.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
         } else {
           u.ai.job = { k: "supply", site: sp.site.id, from: ref.b.id, slot: ref.k, good: sp.good, ph: 0 }; u.order = { t: "job" };
-          sp.site.ai.enroute[sp.good] = (sp.site.ai.enroute[sp.good] ?? 0) + 1;
+          if (sp.rk && cur) { u.ai.job.rk = sp.rk; cur.enroute[sp.good] = (cur.enroute[sp.good] ?? 0) + 1; }
+          else sp.site.ai.enroute[sp.good] = (sp.site.ai.enroute[sp.good] ?? 0) + 1;
         }
       }
     }
@@ -191,7 +200,7 @@ export function updateTrees(w: World): void {
 export function updatePopulation(w: World): void {
   const s = w.s;
   let housing = TUNING.baseHousing;
-  for (const b of s.buildings) if (b.team === 0 && b.built >= 1) housing += BUILDINGS[b.key].housing ?? 0;
+  for (const b of s.buildings) if (b.team === 0 && b.built >= 1) housing += levelDef(b.key, levelOf(b)).housing ?? 0;
   let pop = 0;
   for (const u of s.units) if (u.team === 0 && !u.dead) pop++;
   for (const b of s.buildings) if (b.ai.inside) pop++;

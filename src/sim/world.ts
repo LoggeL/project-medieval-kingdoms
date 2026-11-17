@@ -6,7 +6,7 @@
  * Speichern und für identische Folge-Ticks nötig ist, in einem JSON-Baum (state + meta).
  * Abgeleitete Strukturen (Laufraster, Pfad-Cache, Nachschlagetabellen, Raum-Raster) baut World neu auf.
  */
-import { BUILDINGS, TICKS_PER_SECOND, UNITS, type AnimKey, type BuildingKey, type Good, type UnitKey } from "../data";
+import { BUILDINGS, TICKS_PER_SECOND, UNITS, type AnimKey, type BuildingKey, type Good, type TechKey, type UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 import type { Building, Message, Projectile, SimState, Team, Unit } from "./types";
 import { nextRandom } from "./rng";
@@ -26,8 +26,8 @@ export type Job =
   | { k: "employ"; b: number }
   /** Hofstapel → Lager-Slot. ph 0 = zur Abholung, 1 = mit Ware zum Lager. */
   | { k: "haul"; from: number; to: number; slot: number; good: Good; ph: 0 | 1 }
-  /** Lager-Slot → Baustelle. */
-  | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1 }
+  /** Lager-Slot → Baustelle (bzw. mit rk: Forschung im Bergfried `site`). */
+  | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1; rk?: TechKey }
   /** Bauen auf einer Baustelle, deren Material vollständig ist. */
   | { k: "build"; site: number }
   /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
@@ -129,6 +129,8 @@ export interface Meta {
   raidLosses?: number;
   /** Nächster Schritt der Einführung (Index in TUTORIAL), fehlt = keine Einführung. */
   tutorial?: number;
+  /** Angesammelte Steuern in Gold · Ticks je Minute (60 · TPS ergeben ein Gold), fehlt = 0. */
+  tax?: number;
 }
 
 export class World {

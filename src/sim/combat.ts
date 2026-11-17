@@ -11,10 +11,11 @@
  * Tor, Mauer oder Treppe angreift und wen die eigenen Pfeile schnell erledigen, kommt zuerst. Ein gewähltes Ziel wird
  * TUNING.targetHoldSeconds gehalten, damit niemand zwischen zwei Gegnern hin- und herwechselt.
  */
-import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, type UnitKey } from "../data";
+import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, levelDef, type UnitKey } from "../data";
 import { removeBuilding } from "./build";
 import { footprint } from "./geom";
 import { releaseJob } from "./jobs";
+import { levelOf, unitArmor, unitRange } from "./research";
 import { stop } from "./move";
 import { TPS, dist, distToRect, face, setAnim, type SBuilding, type SProjectile, type SUnit, type World } from "./world";
 
@@ -27,7 +28,7 @@ export const MELEE_DZ = 1.2;
 const MELEE_BUILDING_REACH = 0.95;
 
 export function rangeOf(u: SUnit): number {
-  const r = UNITS[u.key].range ?? 1;
+  const r = unitRange(u);
   return isRanged(u.key) ? r + WALL_BONUS.rangePerStep * Math.max(0, u.z) : r;
 }
 
@@ -72,7 +73,7 @@ export function expectedDamage(a: SUnit, t: SUnit): number {
   let dmg = ad.damage ?? 1;
   if (td.role !== "arbeiter") dmg *= ad.bonus?.[td.role] ?? 1;
   if (isRanged(a.key) && a.z >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor;
-  dmg = Math.max(1, dmg - td.armor * DAMAGE_TYPES[ad.damageType ?? "hieb"].armor);
+  dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[ad.damageType ?? "hieb"].armor);
   if (t.z >= 2 && a.z < 1) dmg *= WALL_BONUS.damageTakenFactor;
   return dmg;
 }
@@ -142,7 +143,7 @@ export function strikeBuilding(w: World, u: SUnit, b: SBuilding): void {
   u.ai.hitB = w.s.tick;
   if (isRanged(u.key)) {
     setAnim(u, "schiessen", true);
-    shoot(w, u, cx, cy, b.built >= 1 && BUILDINGS[b.key].walkway ? 2.5 : 1, 0, 0, b.id, "building");
+    shoot(w, u, cx, cy, b.built >= 1 && levelDef(b.key, levelOf(b)).walkway ? 2.5 : 1, 0, 0, b.id, "building");
   } else {
     setAnim(u, "angriff", true);
     damageBuilding(w, u.key, b);
@@ -195,7 +196,7 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
   let dmg = (a.damage ?? 1) * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread);
   if (d.role !== "arbeiter") dmg *= a.bonus?.[d.role] ?? 1;
   if (a.role === "fernkampf" && az >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor; // Schuss von der Mauer
-  dmg = Math.max(1, dmg - d.armor * DAMAGE_TYPES[type].armor);
+  dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[type].armor);
   if (t.z >= 2 && az < 1) dmg *= WALL_BONUS.damageTakenFactor; // Deckung hinter den Zinnen
   t.hp -= dmg;
   if (t.hp <= 0) { kill(w, t); return; }

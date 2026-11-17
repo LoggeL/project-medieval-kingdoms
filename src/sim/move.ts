@@ -6,6 +6,7 @@
 import { UNITS } from "../data";
 import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
+import { carryFactor } from "./research";
 import type { Goal } from "./nav";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -142,7 +143,7 @@ function advance(w: World, u: SUnit): boolean {
 
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */
 export function speedOf(w: World, u: SUnit): number {
-  const base = UNITS[u.key].speed;
+  const base = UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1);
   if (u.layer > 0) return base;
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;

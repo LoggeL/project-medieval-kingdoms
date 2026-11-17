@@ -293,7 +293,7 @@ describe("Steinwirtschaft vor der ersten Welle", () => {
 });
 
 describe("Einführung", () => {
-  it("führt Schritt für Schritt von der Holzfällerhütte bis zur besetzten Mauer, erledigte Schritte werden übersprungen", () => {
+  it("führt Schritt für Schritt von der Holzfällerhütte über die erste Forschung bis zur besetzten Mauer und zum Ausbau des Bergfrieds, erledigte Schritte werden übersprungen", () => {
     const g = createGame({ seed: 1, raids: false });
     const texts = () => g.state.messages.filter((m) => TUTORIAL.some((t) => t.text === m.text)).map((m) => TUTORIAL.findIndex((t) => t.text === m.text));
     expect(texts()).toEqual([0]);
@@ -307,27 +307,41 @@ describe("Einführung", () => {
     g.dispatch({ t: "bauen", key: "haus", x: 28, y: 39, o: 0 });
     run(g, TPS);
     expect(texts()).toEqual([0, 1, 3]);
-    const k = buildNow(g, "kaserne", 36, 41, 0);
+    expect(g.state.messages.at(-1)!.text).toContain("Gehärtete Werkzeuge");
+    // Die Forschung zählt schon, sobald sie läuft (die Waren müssen erst in den Bergfried)
+    expect(g.dispatch({ t: "forschen", tech: "werkzeuge" }).ok).toBe(true);
     run(g, TPS);
     expect(texts()).toEqual([0, 1, 3, 4]);
-    g.dispatch({ t: "rekrutieren", building: k.id, unit: "bogen" });
-    run(g, 60 * TPS, () => texts().length === 5);
+    const k = buildNow(g, "kaserne", 36, 41, 0);
+    run(g, TPS);
     expect(texts()).toEqual([0, 1, 3, 4, 5]);
+    g.dispatch({ t: "rekrutieren", building: k.id, unit: "bogen" });
+    run(g, 60 * TPS, () => texts().length === 6);
+    expect(texts()).toEqual([0, 1, 3, 4, 5, 6]);
     expect(g.state.messages.at(-1)!.text).toContain("mit R drehen");
     for (const y of [32, 33, 35]) buildNow(g, "mauer", 48, y, 0);
     buildNow(g, "tor", 48, 34, 1);
     run(g, TPS);
-    expect(texts()).toHaveLength(5); // Treppe fehlt noch
+    expect(texts()).toHaveLength(6); // Treppe fehlt noch
     buildNow(g, "treppe", 46, 33, 3);
     run(g, TPS);
-    expect(texts()).toEqual([0, 1, 3, 4, 5, 6]);
+    expect(texts()).toEqual([0, 1, 3, 4, 5, 6, 7]);
     expect(g.state.messages.at(-1)!.text).toContain("mit T");
     const archer = g.state.units.find((u) => u.key === "bogen")!;
     g.dispatch({ t: "stationieren", units: [archer.id] });
     run(g, TPS);
-    expect(texts()).toEqual([0, 1, 3, 4, 5, 6, 7]);
+    expect(texts()).toEqual([0, 1, 3, 4, 5, 6, 7, 8]);
+    expect(g.state.messages.at(-1)!.text).toContain("Steinbaukunst");
     run(g, 30 * TPS);
-    expect(texts()).toHaveLength(7);
+    expect(texts()).toHaveLength(8);
+    // Ausbau des Bergfrieds auf Stufe 2 beendet die Kette
+    const w = worldOf(g);
+    w.s.research.done.push("steinbau");
+    stockUp(g, "stein", 30); stockUp(g, "holz", 10);
+    const seat = g.state.buildings.find((b) => b.key === "bergfried")!;
+    expect(g.dispatch({ t: "ausbauen", building: seat.id }).ok).toBe(true);
+    run(g, TPS);
+    expect(texts()).toEqual([0, 1, 3, 4, 5, 6, 7, 8, 9]);
     for (const m of g.state.messages) if (TUTORIAL.some((t) => t.text === m.text)) expect(m.kind).toBe("info");
   });
 });

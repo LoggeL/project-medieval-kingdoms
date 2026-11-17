@@ -75,13 +75,15 @@ export function committed(w: World, good: Good): number {
   let n = 0;
   for (const b of w.s.buildings) {
     if (b.team !== 0) continue;
-    if (b.built < 1) n += (b.needs[good] ?? 0) - (b.ai.picked[good] ?? 0);
+    if (b.built < 1 || b.upgrade) n += (b.needs[good] ?? 0) - (b.ai.picked[good] ?? 0);
     for (let i = 0; i < b.queue.length; i++) {
       if (UNITS[b.queue[i]].train?.equipment !== good) continue;
       if (i === 0 && b.ai.recruitPicked) continue;
       n++;
     }
   }
+  const cur = w.s.research.cur;
+  if (cur) n += (cur.needs[good] ?? 0) - (cur.picked[good] ?? 0);
   return n;
 }
 
