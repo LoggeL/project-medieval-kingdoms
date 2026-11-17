@@ -108,7 +108,9 @@
   "log": "#6a4826",
   "wood_hi": "#9c7040",
   "string": "#e9e2c8",
-  "bow": "#b88a50"
+  "bow": "#b88a50",
+  "stone": "#b9a58a",
+  "crate": "#b08450"
  },
  "foot_margin_px": 7,
  "smooth": true,

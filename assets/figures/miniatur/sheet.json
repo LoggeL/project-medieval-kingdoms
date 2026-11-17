@@ -1,7 +1,7 @@
 {
  "style": "Miniatur",
  "cell": 74,
- "frames": 9,
+ "frames": 17,
  "dirs": [
   "S",
   "SE",
@@ -12,57 +12,334 @@
   "W",
   "SW"
  ],
+ "atlas": "atlas.png",
  "anchor": [
   37,
   67
  ],
  "tile": null,
  "step_px": null,
+ "axes": null,
  "units": [
   {
    "key": "holzfaeller",
    "name": "Holzfäller",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "hacken": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 0
   },
   {
    "key": "traeger",
    "name": "Tagelöhner mit Stamm",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 8
   },
   {
    "key": "tageloehner",
    "name": "Tagelöhner",
-   "showcase": false
+   "showcase": false,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 16
   },
   {
    "key": "speer",
    "name": "Speerträger",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "angriff": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 24
   },
   {
    "key": "schwert",
    "name": "Schwertkämpfer",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "angriff": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 32
   },
   {
    "key": "bogen",
    "name": "Bogenschütze",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "schiessen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 40
   },
   {
    "key": "armbrust",
    "name": "Armbrustschütze",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 48
   },
   {
    "key": "ritter",
    "name": "Gepanzerter Fußsoldat",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 56
   },
   {
    "key": "landsknecht",
    "name": "Landsknecht",
-   "showcase": true
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 64
+  },
+  {
+   "key": "steinmetz",
+   "name": "Steinmetz",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "abbauen": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 72
+  },
+  {
+   "key": "traeger_stein",
+   "name": "Tagelöhner mit Steinblock",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 80
+  },
+  {
+   "key": "traeger_kiste",
+   "name": "Tagelöhner mit Kiste",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 88
   }
  ],
  "team_swap": {
@@ -167,7 +444,7 @@
    ]
   ]
  },
- "colours": 144,
+ "colours": 161,
  "shadow": false,
  "ground": null
 }

@@ -26,6 +26,10 @@
     0,
     0
    ]
+  },
+  "action": {
+   "anim": "hacken",
+   "motion": "hacken"
   }
  },
  "traeger": {
@@ -86,7 +90,11 @@
     15
    ]
   },
-  "tabard": "team"
+  "tabard": "team",
+  "action": {
+   "anim": "angriff",
+   "motion": "stoss"
+  }
  },
  "schwert": {
   "name": "Schwertkämpfer",
@@ -122,6 +130,10 @@
     0,
     0
    ]
+  },
+  "action": {
+   "anim": "angriff",
+   "motion": "hieb"
   }
  },
  "bogen": {
@@ -146,7 +158,11 @@
     25
    ]
   },
-  "tabard": "team"
+  "tabard": "team",
+  "action": {
+   "anim": "schiessen",
+   "motion": "schiessen"
+  }
  },
  "armbrust": {
   "name": "Armbrustschütze",
@@ -243,5 +259,90 @@
   "slash_a": "team",
   "plume": "feather",
   "zh_tilt": -40
+ },
+ "steinmetz": {
+  "name": "Steinmetz",
+  "torso": "worker",
+  "tunic": "gambeson",
+  "legs": "hose2",
+  "skirt": 0.3,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "pick",
+   "apron"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -40,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "abbauen",
+   "motion": "abbauen"
+  }
+ },
+ "traeger_stein": {
+  "name": "Tagelöhner mit Steinblock",
+  "torso": "worker",
+  "tunic": "hose2",
+  "legs": "hose",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "stone_block"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -176,
+    0,
+    4
+   ]
+  }
+ },
+ "traeger_kiste": {
+  "name": "Tagelöhner mit Kiste",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "crate"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "swing": 0.0,
+  "pose": {
+   "armR": [
+    -55,
+    0,
+    -12
+   ],
+   "armL": [
+    -55,
+    0,
+    12
+   ]
+  }
  }
 }

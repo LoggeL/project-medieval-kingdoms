@@ -83,7 +83,9 @@
   "log": "#6a4424",
   "wood_hi": "#a87440",
   "string": "#efe6cc",
-  "bow": "#c99a5a"
+  "bow": "#c99a5a",
+  "stone": "#b9a58a",
+  "crate": "#b08450"
  },
  "knee_bend": 40,
  "leg_swing": 30,

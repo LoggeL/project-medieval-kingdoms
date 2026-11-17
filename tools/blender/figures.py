@@ -177,6 +177,7 @@ def build(unit):
 
     root = empty("root")
     hip = empty("hip", (0, 0, legs), root)
+    upper = empty("upper", (0, 0, 0), hip)  # torso, arms, head and carried gear (lean in action frames)
 
     # legs
     legs_col = unit.get("legs", "hose")
@@ -199,7 +200,7 @@ def build(unit):
     SA, SB = unit.get("slash_a", "slash1"), unit.get("slash_b", "slash2")
     tcol = {"tunic": unit.get("tunic", team), "gambeson": "gambeson", "leather": "leather",
             "mail_tabard": team, "plate": "plate", "slashed": SA, "worker": unit.get("tunic", "brown")}[tk]
-    body = empty("body", (0, 0, 0), hip)
+    body = empty("body", (0, 0, 0), upper)
     if tk == "slashed":
         box("torsoL", (sw * 0.5, depth, torso), (sw * 0.25, 0, torso / 2), SA, body)
         box("torsoR", (sw * 0.5, depth, torso), (-sw * 0.25, 0, torso / 2), SB, body)
@@ -228,7 +229,7 @@ def build(unit):
     acol = {"tunic": tcol, "gambeson": "gambeson", "leather": unit.get("sleeve", "cloth"), "mail_tabard": "mail",
             "plate": "plate", "slashed": None, "worker": tcol}[tk]
     for side, sx in (("L", 1), ("R", -1)):
-        pv = empty("arm" + side, (sx * (sw * 0.46 + limb * 0.5), 0, torso * 0.9), hip)
+        pv = empty("arm" + side, (sx * (sw * 0.46 + limb * 0.5), 0, torso * 0.9), upper)
         pivots["arm" + side] = pv
         c = acol or (SB if side == "L" else SA)
         if tk == "slashed":
@@ -242,8 +243,8 @@ def build(unit):
     # neck + head
     hz = torso + neck + head * 0.5
     if neck > 0:
-        box("neck", (limb * 0.8, limb * 0.8, neck + head * 0.2), (0, 0, torso + neck / 2), "skin", hip)
-    headp = empty("head", (0, 0, hz), hip)
+        box("neck", (limb * 0.8, limb * 0.8, neck + head * 0.2), (0, 0, torso + neck / 2), "skin", upper)
+    headp = empty("head", (0, 0, hz), upper)
     ball("skull", (headw * 0.5, headw * 0.52, head * 0.5), (0, 0, 0), "skin", headp)
     if STYLE.get("eyes"):
         for sx in (1, -1):
@@ -252,7 +253,8 @@ def build(unit):
 
     # gear
     for g in unit.get("gear", []):
-        gear(g, pivots, hip, body, H, torso, limb, depth, sw, team, unit)
+        gear(g, pivots, upper, body, H, torso, limb, depth, sw, team, unit)
+    pivots["upper"] = upper
 
     # pose offsets (stance)
     for k, v in unit.get("pose", {}).items():
@@ -294,6 +296,10 @@ def helmet(kind, hp, head, hw, team, unit):
         ball("plume", (hw * 0.18, hw * 0.55, head * 0.16), (-hw * 0.42, hw * 0.25, head * 0.62), unit.get("plume", "feather"), hp,
              rot=(math.radians(25), math.radians(-30), 0))
         ball("hair", (hw * 0.53, hw * 0.55, head * 0.3), (0, hw * 0.08, head * 0.12), "hair", hp)
+
+
+def legs_len(unit, H):
+    return STYLE["proportions"]["legs"] * H
 
 
 def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
@@ -369,6 +375,24 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         lg.rotation_euler = (math.radians(58), 0, 0)
         cyl("log", limb * 0.85, H * 0.62, (0, 0, 0), "log", lg, verts=8)
         cyl("logend", limb * 0.78, limb * 0.12, (0, 0, H * 0.31), "wood_hi", lg, verts=8)
+    elif g == "pick":
+        # stonemason's pick: long haft, steel head pointed on both sides
+        cyl("haft", th(limb * 0.44) / 2, H * 0.55, (0, 0, H * 0.2), "wood", hr)
+        box("head", (th(limb * 0.5), limb * 3.4, th(limb * 0.5)), (0, 0, H * 0.46), "steel", hr)
+        box("tip", (th(limb * 0.3), limb * 0.9, th(limb * 0.3)), (0, -limb * 2.0, H * 0.44), "steel_hi", hr, rot=(math.radians(-20), 0, 0))
+    elif g == "apron":
+        box("apron", (sw * 0.8, th(limb * 0.3), torso * 0.55 + legs_len(unit, H) * 0.3), (0, -depth * 0.56, torso * 0.2), "leather", body)
+    elif g == "stone_block":
+        # dressed stone block on the right shoulder, steadied by the raised right hand
+        sb = empty("blockpv", (-sw * 0.42, depth * 0.1, torso * 0.98 + limb * 1.6), hip)
+        sb.rotation_euler = (0, math.radians(8), math.radians(10))
+        box("block", (H * 0.26, H * 0.21, H * 0.19), (0, 0, 0), "stone", sb)
+    elif g == "crate":
+        # crate carried in front of the chest with both arms
+        cr = empty("cratepv", (0, -depth * 0.5 - H * 0.13, torso * 0.45), hip)
+        box("crate", (H * 0.27, H * 0.22, H * 0.22), (0, 0, 0), "crate", cr)
+        for k in (-1, 1):
+            box("band", (H * 0.28, H * 0.23, th(limb * 0.3)), (0, 0, k * H * 0.07), "wood", cr)
 
 
 # ---------------------------------------------------------------- camera
@@ -389,6 +413,145 @@ def camera(cell, ppm):
     return cam
 
 
+# ---------------------------------------------------------------- actions
+# Sheet columns (the same for every unit): 0 stand, 1..8 walk, 9..12 action (units with "action"), 13..15 dying, 16 dead.
+ACTION_COL, ACTION_N = 9, 4
+DIE_COL, DIE_N, DEAD_COL = 13, 3, 16
+NCOLS = 17
+
+# Key poses per motion, angles in degrees. arm: (x, y, z) rotation of the shoulder pivot (x < 0 swings forward/up),
+# grip: absolute orientation of the held gear in the upper-body frame (x rotation, 0 = upright, 90 = pointing forward),
+# lean: upper body forward (+) / back (-), legs: (left, right) thigh angle (< 0 forward).
+ACTIONS = {
+    # two-handed axe blow: wind up over the shoulder, strike forward at hip height
+    "hacken": [
+        {"armR": (-195, 0, 8), "armL": (-190, 0, -8), "gripR": -50, "lean": -6},
+        {"armR": (-150, 0, 6), "armL": (-148, 0, -6), "gripR": 5, "lean": 2},
+        {"armR": (-110, 0, 4), "armL": (-108, 0, -4), "gripR": 60, "lean": 12},
+        {"armR": (-72, 0, 4), "armL": (-70, 0, -4), "gripR": 100, "lean": 22, "legs": (-12, 8)},
+    ],
+    # pick swing at the rock face low in front
+    "abbauen": [
+        {"armR": (-200, 0, 8), "armL": (-195, 0, -8), "gripR": -60, "lean": -4},
+        {"armR": (-150, 0, 6), "armL": (-146, 0, -6), "gripR": 20, "lean": 8},
+        {"armR": (-95, 0, 4), "armL": (-92, 0, -4), "gripR": 85, "lean": 22},
+        {"armR": (-50, 0, 4), "armL": (-48, 0, -4), "gripR": 125, "lean": 34, "legs": (-18, 10)},
+    ],
+    # spear thrust: pull back, lunge, full thrust, recover
+    "stoss": [
+        {"armR": (15, 0, 0), "gripR": 84, "lean": -6, "legs": (-8, 6)},
+        {"armR": (-30, 0, 0), "gripR": 88, "lean": 6, "legs": (-18, 10)},
+        {"armR": (-85, 0, 0), "gripR": 92, "lean": 18, "legs": (-30, 18)},
+        {"armR": (-45, 0, 0), "gripR": 90, "lean": 8, "legs": (-14, 8)},
+    ],
+    # sword cut from above
+    "hieb": [
+        {"armR": (-170, 0, 0), "gripR": -35, "lean": -6},
+        {"armR": (-145, 0, 0), "gripR": 25, "lean": 2, "legs": (-10, 6)},
+        {"armR": (-100, 0, 0), "gripR": 80, "lean": 14, "legs": (-22, 12)},
+        {"armR": (-45, 0, 0), "gripR": 135, "lean": 20, "legs": (-24, 14)},
+    ],
+    # bow: nock, raise, full draw, release
+    "schiessen": [
+        {"armL": (-45, 0, 10), "armR": (-40, 0, -10), "gripL": 0, "lean": 0},
+        {"armL": (-75, 0, 4), "armR": (-80, 0, -20), "gripL": 0, "lean": 0},
+        {"armL": (-90, 0, 0), "armR": (70, 0, 30), "gripL": 0, "lean": -3},
+        {"armL": (-90, 0, 0), "armR": (100, 0, 40), "gripL": 0, "lean": -5},
+    ],
+}
+# collapse: hit, knees buckle, topple backwards, lying on the back (corpse centred on the foot point)
+DYING = [
+    {"tilt": -8, "shift": 0.0, "knees": 25, "legs": (0, 0), "lean": 20, "armL": (-35, 0, -10), "armR": (-30, 0, 10)},
+    {"tilt": -20, "shift": -0.25, "knees": 100, "legs": (-55, -45), "lean": 12, "armL": (-60, 0, -25), "armR": (-20, 0, 25)},
+    {"tilt": -58, "shift": -0.6, "knees": 55, "legs": (-45, -35), "lean": -12, "armL": (-120, 0, -30), "armR": (-105, 0, 30)},
+    {"tilt": -90, "shift": -0.9, "knees": 8, "legs": (-4, 3), "lean": 0, "armL": (-20, -70, 0), "armR": (-15, 75, 0)},
+]
+AWAY = (-0.7071, 0.7071)  # ground direction away from the camera (world)
+
+
+def rot(v):
+    return Euler([math.radians(a) for a in v], "XYZ")
+
+
+def set_grip(pv, side, arm_deg, grip_x):
+    """Hand rotation so the held gear points at grip_x (x rotation) in the upper-body frame, whatever the arm does."""
+    inv = rot(arm_deg).to_matrix().inverted()
+    pv["hand" + side].rotation_euler = (inv @ rot((grip_x, 0, 0)).to_matrix()).to_euler("XYZ")
+
+
+def ground(root):
+    """Lift or lower the figure so its lowest point touches the ground (z = 0)."""
+    bpy.context.view_layer.update()
+    zmin = min((o.matrix_world @ v.co).z for o in bpy.data.objects if o.type == "MESH" for v in o.data.vertices)
+    root.location.z -= zmin
+
+
+def frame_list(unit):
+    cols = list(range(9))
+    if unit.get("action"):
+        cols += list(range(ACTION_COL, ACTION_COL + ACTION_N))
+    if unit.get("dies", True):
+        cols += list(range(DIE_COL, DIE_COL + DIE_N)) + [DEAD_COL]
+    return cols
+
+
+def anims_of(unit, walk_frames):
+    an = {"stehen": [0, 1], "gehen": [1, walk_frames]}
+    if unit.get("action"):
+        an[unit["action"]["anim"]] = [ACTION_COL, ACTION_N]
+    if unit.get("dies", True):
+        an["sterben"] = [DIE_COL, DIE_N]
+        an["tot"] = [DEAD_COL, 1]
+    return an
+
+
+def pose_reset(root, hip, pv, base, legs, dirz):
+    root.rotation_euler = (0, 0, dirz)
+    root.location = (0, 0, 0)
+    hip.location.z = legs
+    for k, v in base.items():
+        pv[k].rotation_euler = v
+
+
+def pose_action(unit, pv, base, i):
+    k = ACTIONS[unit["action"]["motion"]][i]
+    pv["upper"].rotation_euler = (math.radians(k.get("lean", 0)), 0, 0)
+    for side in ("L", "R"):
+        arm = k.get("arm" + side)
+        if arm is not None:
+            pv["arm" + side].rotation_euler = rot(arm)
+        if "grip" + side in k:
+            set_grip(pv, side, arm if arm is not None else [math.degrees(a) for a in base["arm" + side]], k["grip" + side])
+    lg = k.get("legs", (0, 0))
+    pv["legL"].rotation_euler = (math.radians(lg[0]), 0, 0)
+    pv["legR"].rotation_euler = (math.radians(lg[1]), 0, 0)
+    for side, a in (("L", lg[0]), ("R", lg[1])):
+        pv["ankle" + side].rotation_euler = (-math.radians(a), 0, 0)
+
+
+def pose_dying(root, pv, i, dirz):
+    k = DYING[i]
+    root.rotation_euler = (math.radians(k["tilt"]), 0, dirz)
+    # shift along the figure's own forward axis (local -y turned by the direction), plus a little away from the camera
+    fwd = (math.sin(dirz), -math.cos(dirz))
+    sh = k["shift"]
+    away = 0.2 * i / (len(DYING) - 1)
+    root.location = (-fwd[0] * sh + AWAY[0] * away, -fwd[1] * sh + AWAY[1] * away, 0)
+    pv["upper"].rotation_euler = (math.radians(k["lean"]), 0, 0)
+    for side in ("L", "R"):
+        pv["arm" + side].rotation_euler = rot(k["arm" + side])
+        pv["knee" + side].rotation_euler = (math.radians(k["knees"]), 0, 0)
+    pv["legL"].rotation_euler = (math.radians(k["legs"][0]), 0, 0)
+    pv["legR"].rotation_euler = (math.radians(k["legs"][1]), 0, 0)
+    ground(root)
+
+
+def unit_meta(key):
+    u = UNITS[key]
+    return {"key": key, "name": u["name"], "showcase": u.get("showcase", True), "frames": NCOLS,
+            "anims": anims_of(u, STYLE.get("walk_frames", 8))}
+
+
 # ---------------------------------------------------------------- main
 def main():
     sc = reset()
@@ -401,13 +564,19 @@ def main():
     sc.render.resolution_y = cell * ss
     sc.render.resolution_percentage = 100
     frames = STYLE.get("walk_frames", 6)
+    if frames != 8:
+        sys.exit("the sheet layout expects 8 walk frames (columns 1..8)")
     dirs = [0] if QUICK else list(range(8))
     names = [u for u in UNITS if not ONLY or u in ONLY.split(",")]
-    meta = {"cell": cell, "ss": ss, "frames": frames + 1, "dirs": [DIR_NAMES[d] for d in dirs], "units": [], "body_dy": []}
+    only_cols = None
+    if arg("--frames"):
+        a_, b_ = (int(x) for x in arg("--frames").split("-"))
+        only_cols = set(range(a_, b_ + 1))
+    meta = {"cell": cell, "ss": ss, "frames": NCOLS, "dirs": [DIR_NAMES[d] for d in dirs], "units": [], "body_dy": []}
     la = math.radians(STYLE.get("leg_swing", 26))
     legs_m = STYLE["proportions"]["legs"] * H
-    for f in range(frames + 1):
-        s_ = 0.0 if f == 0 else math.sin(2 * math.pi * (f - 1) / frames)
+    for f in range(NCOLS):
+        s_ = 0.0 if f == 0 or f > frames else math.sin(2 * math.pi * (f - 1) / frames)
         # how far the body sinks on screen in this frame (target pixels), used to anchor dither/hatch patterns
         meta["body_dy"].append(round((legs_m - legs_m * math.cos(la * abs(s_))) * ppm * math.cos(math.radians(30)), 3))
     for key in names:
@@ -420,41 +589,48 @@ def main():
         base = {k: tuple(v.rotation_euler) for k, v in pv.items()}
         hold = set(unit.get("hold", []))
         la = math.radians(STYLE.get("leg_swing", 26))
-        aa = math.radians(STYLE.get("arm_swing", 22))
+        aa = math.radians(STYLE.get("arm_swing", 22)) * unit.get("swing", 1.0)
         kb = math.radians(STYLE.get("knee_bend", 40))
         os.makedirs(os.path.join(OUT, key), exist_ok=True)
+        cols = [c for c in frame_list(unit) if only_cols is None or c in only_cols]
         for d in dirs:
-            root.rotation_euler = (0, 0, math.radians(45 + d * 45))
-            for f in range(frames + 1):
-                if f == 0:
-                    s, c = 0.0, 0.0
+            dirz = math.radians(45 + d * 45)
+            for f in cols:
+                pose_reset(root, hip, pv, base, legs, dirz)
+                if f <= frames:
+                    if f == 0:
+                        s, c = 0.0, 0.0
+                    else:
+                        ph = (f - 1) / frames
+                        s = math.sin(2 * math.pi * ph)
+                        c = math.cos(2 * math.pi * ph)
+                    # positive leg angle = leg swings back. L moves forward while ds/dt < 0 (c < 0): bend that knee.
+                    kL, kR = kb * max(0.0, -c), kb * max(0.0, c)
+                    pv["legL"].rotation_euler = (base["legL"][0] + s * la, base["legL"][1], base["legL"][2])
+                    pv["legR"].rotation_euler = (base["legR"][0] - s * la, base["legR"][1], base["legR"][2])
+                    pv["kneeL"].rotation_euler = (kL, 0, 0)
+                    pv["kneeR"].rotation_euler = (kR, 0, 0)
+                    # ankles keep the feet level with the ground
+                    pv["ankleL"].rotation_euler = (-(s * la + kL), 0, 0)
+                    pv["ankleR"].rotation_euler = (-(-s * la + kR), 0, 0)
+                    # keep the straight (stance) leg's foot on the ground
+                    hip.location.z = legs * math.cos(la * abs(s))
+                    if STYLE.get("quantize_hip"):
+                        # body bob in whole target pixels, so dither patterns stay locked to the body
+                        hip.location.z = legs - round((legs - hip.location.z) / PXM) * PXM
+                    for side, sgn in (("armL", -1), ("armR", 1)):
+                        amp = aa * (STYLE.get("held_swing", 0.45) if side in hold else 1.0)
+                        pv[side].rotation_euler = (base[side][0] + sgn * s * amp, base[side][1], base[side][2])
+                elif f < ACTION_COL + ACTION_N:
+                    pose_action(unit, pv, base, f - ACTION_COL)
                 else:
-                    ph = (f - 1) / frames
-                    s = math.sin(2 * math.pi * ph)
-                    c = math.cos(2 * math.pi * ph)
-                # positive leg angle = leg swings back. L moves forward while ds/dt < 0 (c < 0): bend that knee.
-                kL, kR = kb * max(0.0, -c), kb * max(0.0, c)
-                pv["legL"].rotation_euler = (base["legL"][0] + s * la, base["legL"][1], base["legL"][2])
-                pv["legR"].rotation_euler = (base["legR"][0] - s * la, base["legR"][1], base["legR"][2])
-                pv["kneeL"].rotation_euler = (kL, 0, 0)
-                pv["kneeR"].rotation_euler = (kR, 0, 0)
-                # ankles keep the feet level with the ground
-                pv["ankleL"].rotation_euler = (-(s * la + kL), 0, 0)
-                pv["ankleR"].rotation_euler = (-(-s * la + kR), 0, 0)
-                # keep the straight (stance) leg's foot on the ground
-                hip.location.z = legs * math.cos(la * abs(s))
-                if STYLE.get("quantize_hip"):
-                    # body bob in whole target pixels, so dither patterns stay locked to the body
-                    hip.location.z = legs - round((legs - hip.location.z) / PXM) * PXM
-                for side, sgn in (("armL", -1), ("armR", 1)):
-                    amp = aa * (STYLE.get("held_swing", 0.45) if side in hold else 1.0)
-                    pv[side].rotation_euler = (base[side][0] + sgn * s * amp, base[side][1], base[side][2])
+                    pose_dying(root, pv, f - DIE_COL, dirz)
                 base_path = os.path.join(OUT, key, "d%d_f%d" % (d, f))
                 sh = sc.display.shading
                 sh.light = "FLAT"
                 sc.render.filepath = base_path + ".png"
                 bpy.ops.render.render(write_still=True)
-                cols = {o.name: tuple(o.color) for o in bpy.data.objects if o.type == "MESH"}
+                cols_ = {o.name: tuple(o.color) for o in bpy.data.objects if o.type == "MESH"}
                 for o in bpy.data.objects:
                     if o.type == "MESH":
                         o.color = (0.8, 0.8, 0.8, 1)
@@ -471,18 +647,18 @@ def main():
                 sh.show_cavity = False
                 for o in bpy.data.objects:
                     if o.type == "MESH":
-                        o.color = cols[o.name]
-        meta["units"].append({"key": key, "name": unit["name"], "showcase": unit.get("showcase", True)})
+                        o.color = cols_[o.name]
+        meta["units"].append(unit_meta(key))
         print("rendered", key, flush=True)
     rj = os.path.join(OUT, "render.json")
     if ONLY and os.path.exists(rj):
         # partial render: keep the other units listed, in units.json order
         old = json.load(open(rj))
         keys = {u["key"] for u in old.get("units", [])} | {u["key"] for u in meta["units"]}
-        meta["units"] = [{"key": k, "name": UNITS[k]["name"], "showcase": UNITS[k].get("showcase", True)} for k in UNITS if k in keys]
+        meta["units"] = [unit_meta(k) for k in UNITS if k in keys]
         if QUICK:
             meta["dirs"] = old.get("dirs", meta["dirs"])
-    json.dump(meta, open(rj, "w"), indent=1)
+    json.dump(meta, open(rj, "w"), indent=1, ensure_ascii=False)
 
 
 main()
