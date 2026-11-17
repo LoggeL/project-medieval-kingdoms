@@ -1,0 +1,3 @@
+Seamless tileable texture for a video game user interface panel: dressed grey limestone masonry, medieval castle wall with rectangular ashlar blocks of varying width in a running bond, thin dark mortar joints, light weathering, cool grey with a slight warm ochre tint.
+Style: hand-crafted pixel art texture, crisp pixels, limited palette (about 16 colours), soft top-left lighting with one highlight edge and one shadow edge per block, low contrast so text on top stays readable.
+Strictly orthographic front view, perfectly flat, no perspective, no vignette, no frame, no text, no logo. The left edge must continue seamlessly into the right edge and the top into the bottom. Square image.

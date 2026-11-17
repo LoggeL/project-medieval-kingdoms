@@ -1,0 +1,3 @@
+Seamless tileable texture for a video game user interface panel: aged parchment (vellum), warm cream and light tan, faint fibres, very subtle mottled stains, evenly lit.
+Style: hand-crafted pixel art texture, crisp pixels, limited palette (about 12 colours), very low contrast so dark ink text on top stays perfectly readable.
+Strictly flat, no curled edges, no torn borders, no vignette, no darker rim, no writing, no frame, no logo. The left edge must continue seamlessly into the right edge and the top into the bottom. Square image.

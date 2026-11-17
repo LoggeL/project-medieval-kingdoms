@@ -1,0 +1,3 @@
+Seamless tileable texture for a video game user interface bar: dark oak planks running horizontally, deep brown with subtle wood grain and a few small knots, narrow dark gaps between four planks, slightly worn.
+Style: hand-crafted pixel art texture, crisp pixels, limited palette (about 14 colours, dark browns), soft top-left lighting, low contrast so light text on top stays readable.
+Strictly orthographic front view, perfectly flat, no perspective, no nails, no metal, no vignette, no frame, no text, no logo. The left edge must continue seamlessly into the right edge and the top into the bottom. Square image.
