@@ -227,15 +227,16 @@ export class BuildingSheet {
   }
 
   /**
-   * Ausschnitt einer Zelle (für Baustellen: nur der untere Teil, und Baumstümpfe): Zeilen y0..y1 in Zellkoordinaten.
+   * Ausschnitt einer Zelle (für Baustellen: nur der untere Teil von Bau und Gerüst, und Baumstümpfe): Zeilen y0..y1 in
+   * Zellkoordinaten; part "front" = Ausschnitt des Vorderteils.
    * Gecacht nach Schlüssel.
    */
-  crop(key: string, view: number, frame: number, team: number, y0: number, y1: number): Texture | null {
-    const full = this.texture(key, view, frame, team);
+  crop(key: string, view: number, frame: number, team: number, y0: number, y1: number, part: "body" | "front" = "body"): Texture | null {
+    const full = this.texture(key, view, frame, team, part);
     if (!full) return null;
     y0 = Math.max(0, Math.floor(y0)); y1 = Math.min(this.cell[1], Math.ceil(y1));
     if (y1 <= y0) return null;
-    const id = `${key}:${view}:${frame}:${team}:${y0}:${y1}`;
+    const id = `${key}:${view}:${frame}:${team}:${y0}:${y1}:${part}`;
     let t = this.cropCache.get(id);
     if (!t) {
       const fr = full.frame;

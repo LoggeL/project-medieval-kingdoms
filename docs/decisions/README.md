@@ -12,5 +12,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0006](0006-bergfried-und-forschung.md) | Bergfried als Sitz, Ausbaustufen, Forschung als Daten | Angenommen |
 | [0007](0007-adressen-der-auslieferung.md) | Adressen der Auslieferung: Spiel unter /, Konzept unter /konzept/ | Angenommen |
 | [0008](0008-zoom-und-tasten.md) | Zoomstufen, Pixeltreue und Tastenkürzel | Angenommen |
+| [0009](0009-baustellen.md) | Baustellen: Fortschritt aus Material und Arbeit, sichtbare Bauphasen | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

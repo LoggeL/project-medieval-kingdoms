@@ -234,7 +234,7 @@ def splat(mask, sx, sy):
     return mask
 
 
-def height_shadows(img, hpath):
+def height_shadows(img, hpath, fill=True):
     """Cast shadow on the ground and on horizontal parts of the building itself, from the height pass.
     A point at height z (screen px zp) lies above the ground point (x, y + zp); its shadow on a plane at height zr
     lands at (x + d*dx, y + d - d*dy) with d = (z - zr) in screen px. Returns (ground, self) masks at sprite size."""
@@ -248,7 +248,9 @@ def height_shadows(img, hpath):
     d = zs * k
     g = splat(np.zeros(op.shape, bool), xs + d * dx, ys + d - d * dy)
     g = ndimage.binary_closing(g, np.ones((2 * SS + 1, 2 * SS + 1), bool), border_value=0)
-    g = ndimage.binary_fill_holes(g) & ~op
+    # closed outlines cast a solid shadow (walls hide the ground inside); open structures (scaffold, stake-out
+    # string, foundation ring) set "shadow_fill": false in buildings.json and keep only the shadow of their parts
+    g = (ndimage.binary_fill_holes(g) if fill else g) & ~op
     ground = drop_small(blocks_mean(g.astype(np.float32)) >= 0.5, 12)
     # shadows on horizontal surfaces of the building (floors, platforms, roofs of lower parts)
     gx = np.abs(np.diff(z, axis=1, append=z[:, -1:]))
@@ -404,7 +406,7 @@ for ui, u in enumerate(units):
             gsh = None
             joined = front_mask(p[:-4] + "_n.png") if os.path.exists(p[:-4] + "_n.png") else None
             if os.path.exists(p[:-4] + "_h.png"):
-                gsh, selfb = height_shadows(img, p[:-4] + "_h.png")
+                gsh, selfb = height_shadows(img, p[:-4] + "_h.png", META["units"][ui].get("shadow_fill", True))
                 if os.path.exists(p[:-4] + "_n.png"):
                     # no ground shadow where a connected neighbour stands (wall pieces)
                     gsh = drop_small(gsh & ~joined, 12)

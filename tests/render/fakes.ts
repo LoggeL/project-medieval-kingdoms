@@ -62,7 +62,8 @@ export function fakeBuildingSheet(o: FakeOptions = {}): BuildingSheet & { calls:
       };
     },
     texture,
-    crop: (key: string, view: number, frame: number, team: number) => texture(key, view, frame, team),
+    crop: (key: string, view: number, frame: number, team: number, _y0: number, _y1: number, part: "body" | "front" = "body") =>
+      texture(key, view, frame, team, part),
     canvas: () => null,
   };
   return sheet as unknown as BuildingSheet & { calls: string[] };

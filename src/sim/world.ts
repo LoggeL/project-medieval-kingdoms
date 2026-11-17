@@ -29,7 +29,8 @@ export type Job =
   /** Lager-Slot → Baustelle (bzw. mit rk: Forschung im Bergfried `site`). */
   | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1; rk?: TechKey }
   /** Bauen auf einer Baustelle, deren Material vollständig ist. */
-  | { k: "build"; site: number }
+  /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
+  | { k: "build"; site: number; spot?: number; t?: number }
   /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
   | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 };
 
@@ -85,6 +86,11 @@ export interface BuildingAI {
   /** Davon schon aus dem Lager genommen (in den Händen eines Trägers). */
   picked: Partial<Record<Good, number>>;
   builder: number;
+  /**
+   * Baustelle: Standplatz, an dem der nächste Bauarbeiter anfängt. Wer nach getaner Arbeit geht (Material alle),
+   * rückt ihn eine Seite weiter, damit auch bei stockendem Nachschub rund um den Bau gearbeitet wird.
+   */
+  nextSpot?: number;
   /** Kaserne: Tagelöhner, der gerade die Waffe holt, und ob er sie schon trägt. */
   recruit: number;
   recruitPicked: boolean;

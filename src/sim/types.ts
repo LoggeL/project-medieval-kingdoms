@@ -52,8 +52,13 @@ export interface Building {
   built: number;
   /** Noch anzuliefernde Baumaterialien (Baustelle). */
   needs: Partial<Record<Good, number>>;
-  /** Auf der Baustelle liegendes Material (sichtbar neben dem Grundriss). */
+  /** Auf der Baustelle liegendes, noch nicht verbautes Material (sichtbar auf dem Grundriss, siehe construction.piles). */
   site: Partial<Record<Good, number>>;
+  /**
+   * Baustelle: Material insgesamt (Stück), das in den Bau eingeht. Verbaut ist mat − needs − site; der Baufortschritt
+   * kommt nie über verbaut / mat hinaus. Fehlt bei fertig gesetzten Gebäuden und in alten Spielständen.
+   */
+  mat?: number;
   hp: number;
   /** Hofstapel (output) oder null. */
   output: { good: Good; amount: number; reserved: number } | null;

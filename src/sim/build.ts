@@ -1,7 +1,8 @@
 /**
  * Bauen: Platzierungsregeln, Baustellen, Mauerlinien, Fertigstellung, Abriss und Zerstörung.
  * Eine Baustelle belegt sofort ihren Grundriss. Gold wird sofort bezahlt, Waren bringen Tagelöhner Stück für
- * Stück aus dem Lager (economy.ts), danach baut einer die Baustelle fertig (jobs.ts).
+ * Stück aus dem Lager (economy.ts) und legen sie auf der Baustelle ab. Ein Bauarbeiter (jobs.ts) verbaut sie Stück für
+ * Stück: Der Fortschritt wächst nur durch Arbeit und kommt nie über den Anteil des verbauten Materials hinaus.
  */
 import { BUILDINGS, GOODS, TECHS, TERRAIN, levelDef, type BuildingKey, type Cost, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
@@ -179,6 +180,43 @@ function affordable(w: World, key: BuildingKey, max: number): number {
 }
 
 // ---------------------------------------------------------------- Baustellen
+const total = (rec: Partial<Record<Good, number>>): number => {
+  let n = 0;
+  for (const k in rec) n += rec[k as Good] ?? 0;
+  return n;
+};
+
+/** Verbautes Material einer Baustelle (Stück). */
+export function siteUsed(b: SBuilding): number {
+  return b.mat === undefined ? 0 : Math.max(0, b.mat - total(b.needs) - total(b.site));
+}
+
+/** Wie weit darf die Baustelle gebaut sein (0..1)? Verbautes Material / Material insgesamt; ohne Material 1. */
+export function buildCap(b: SBuilding): number {
+  if (b.mat === undefined) return total(b.needs) ? 0 : 1; // alte Spielstände: erst bauen, wenn alles da ist
+  return b.mat > 0 ? siteUsed(b) / b.mat : 1;
+}
+
+/** Kann ein Bauarbeiter jetzt etwas tun (Material liegt bereit oder verbautes ist noch nicht verarbeitet)? */
+export function canWork(b: SBuilding): boolean {
+  if (b.built >= 1) return false;
+  if (b.mat === undefined) return !total(b.needs);
+  return total(b.site) > 0 || b.built < buildCap(b) - 1e-9;
+}
+
+/** Ein Stück Material von der Baustelle verbauen (die Ware mit dem größten Rest zuerst). Liefert die Ware oder null. */
+export function useMaterial(b: SBuilding): Good | null {
+  let best: Good | null = null;
+  for (const k in b.site) {
+    const g = k as Good;
+    if ((b.site[g] ?? 0) > 0 && (!best || (b.site[g] ?? 0) > (b.site[best] ?? 0))) best = g;
+  }
+  if (!best) return null;
+  const n = (b.site[best] ?? 0) - 1;
+  if (n > 0) b.site[best] = n; else delete b.site[best];
+  return best;
+}
+
 /** Baustelle setzen. deferNav: Laufraster nicht sofort neu aufbauen (mehrere Stücke auf einmal, danach refreshAfterPlace). */
 export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: number, deferNav = false): SBuilding {
   const def = BUILDINGS[key];
@@ -197,6 +235,7 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   w.s.trees = w.s.trees.filter((t) => !onFp.has(w.idx(t.x, t.y))); // Baumstümpfe weichen der Baustelle
   w.s.gold -= cost.gold ?? 0;
   for (const [g, n] of Object.entries(cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
+  b.mat = total(b.needs);
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   if (!deferNav) refreshAfterPlace(w);
   return b;
@@ -213,7 +252,7 @@ export function completeBuilding(w: World, b: SBuilding): void {
   const def = levelDef(b.key, levelOf(b));
   b.built = 1;
   b.hp = def.hp;
-  b.needs = {}; b.site = {};
+  b.needs = {}; b.site = {}; delete b.mat;
   b.ai.enroute = {}; b.ai.picked = {}; b.ai.builder = 0;
   if (def.storage && !b.slots.length) b.slots = Array.from({ length: def.storage.slots }, () => ({ good: null, amount: 0, reserved: 0, incoming: 0 }));
   if (def.output && !b.output) b.output = { good: def.output.good, amount: 0, reserved: 0 };
@@ -225,7 +264,8 @@ export function completeBuilding(w: World, b: SBuilding): void {
 }
 
 /**
- * Gebäude entfernen. why: "abriss" gibt die Hälfte der Kosten zurück (Waren direkt ins Lager),
+ * Gebäude entfernen. why: "abriss" gibt die Hälfte der Kosten zurück (Waren direkt ins Lager; bei einer Baustelle nur
+ * die Hälfte des Goldes und des schon verbauten Materials, unverbautes Material auf der Baustelle ganz),
  * "zerstoert" verliert alles, "ersetzt" (Mauer unter einem neuen Tor) gibt nichts zurück.
  */
 export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoert" | "ersetzt"): void {
@@ -237,7 +277,14 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
   for (const u of w.s.units) if (u.order.t === "station" && u.order.building === b.id) u.order = { t: "idle" };
   if (why === "abriss") {
     for (const s of b.slots) if (s.good && s.amount > 0) storeDirect(w, s.good, s.amount); // Bestand umlagern, soweit Platz ist
-    for (const [g, n] of Object.entries(def.cost) as [Good | "gold", number][]) {
+    if (b.built < 1 && b.mat !== undefined) {
+      // Baustelle: was nie geliefert wurde, kostete nichts; liegendes Material kommt ganz zurück, verbautes zur Hälfte
+      w.s.gold += Math.floor((def.cost.gold ?? 0) / 2);
+      for (const [g, n] of Object.entries(b.site) as [Good, number][]) if (n > 0) storeDirect(w, g, n);
+      const used = siteUsed(b), cost = Object.entries(def.cost).filter(([g]) => g !== "gold") as [Good, number][];
+      const sum = cost.reduce((a, [, n]) => a + n, 0);
+      for (const [g, n] of cost) { const half = Math.floor((used * n) / Math.max(1, sum) / 2); if (half > 0) storeDirect(w, g, half); }
+    } else for (const [g, n] of Object.entries(def.cost) as [Good | "gold", number][]) {
       const half = Math.floor(n / 2);
       if (g === "gold") w.s.gold += half; else if (half > 0) storeDirect(w, g, half);
     }

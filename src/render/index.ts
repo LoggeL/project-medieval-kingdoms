@@ -13,6 +13,7 @@ import { screenToWorld, worldToScreen } from "./iso";
 import { Overlays, WALL_GHOST_ALPHA, type Marker, type Preview } from "./overlays";
 import { interiorTargets, stepInteriors } from "./interior";
 import { ObjectLayer, type Hit } from "./scene";
+import { DustLayer } from "./dust";
 import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
 
@@ -47,6 +48,7 @@ export class GameRenderer {
   private objects: ObjectLayer;
   private overlays: Overlays;
   private smoke = new SmokeLayer();
+  private dust = new DustLayer();
   private screen = new Container();
   private rect = new Graphics();
   private fade: Sprite | null = null;
@@ -64,7 +66,7 @@ export class GameRenderer {
     this.terrain = new TerrainLayer(app.renderer, sheets.terrain);
     this.objects = new ObjectLayer(sheets.buildings, sheets.figures);
     this.overlays = new Overlays(sheets.buildings);
-    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.objects.ghostGroup, this.smoke.container, this.objects.silhouettes, this.overlays.top);
+    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.objects.ghostGroup, this.smoke.container, this.dust.container, this.objects.silhouettes, this.overlays.top);
     // Mauerzug-Vorschau als Ganzes halbtransparent (einzeln transparente Stücke würden sich überlagern)
     this.objects.ghostGroup.filters = [new AlphaFilter({ alpha: WALL_GHOST_ALPHA })];
     this.screen.addChild(this.rect);
@@ -140,6 +142,8 @@ export class GameRenderer {
     });
     // Rauch läuft in Spielzeit (steht in der Pause, doppelt so schnell bei 2×)
     this.smoke.update(this.objects.emitters, (state.tick + alpha) / TICKS_PER_SECOND, cam.r);
+    // Baustaub, Späne und Abrissstaub (Zeiten kommen aus der Objektebene)
+    this.dust.update(this.objects.strikes, this.objects.rubble);
     this.overlays.update(state, cam.r, time, alpha, {
       preview: input.preview, selectedBuilding: input.selectedBuilding, markers: input.markers, units: this.objects.units,
     });

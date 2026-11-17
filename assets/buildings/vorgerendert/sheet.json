@@ -736,6 +736,277 @@
    ],
    "posts": [],
    "front": true
+  },
+  {
+   "key": "baustelle_haus",
+   "name": "Baustelle Wohnhaus",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_holzfaeller",
+   "name": "Baustelle Holzfällerhütte",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_kaserne",
+   "name": "Baustelle Kaserne",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_turm",
+   "name": "Baustelle Mauerturm",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_mauer",
+   "name": "Baustelle Mauer und Tor",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_treppe",
+   "name": "Baustelle Mauertreppe",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    1,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_steinbruch",
+   "name": "Baustelle Steinbruch",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_lager",
+   "name": "Baustelle Lagerplatz",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_lagerhaus",
+   "name": "Baustelle Lagerhaus",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_bergfried",
+   "name": "Baustelle Bergfried",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_haus",
+   "name": "Gerüst Wohnhaus",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_holzfaeller",
+   "name": "Gerüst Holzfällerhütte",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_kaserne",
+   "name": "Gerüst Kaserne",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_turm",
+   "name": "Gerüst Mauerturm",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_lagerhaus",
+   "name": "Gerüst Lagerhaus",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustoff_holz",
+   "name": "Bauholz",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "eine Lage",
+    "zwei Lagen",
+    "drei Lagen",
+    "vier Lagen"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baustoff_stein",
+   "name": "Bausteine",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "3 Blöcke",
+    "6 Blöcke",
+    "9 Blöcke",
+    "12 Blöcke"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
   }
  ],
  "team_swap": {

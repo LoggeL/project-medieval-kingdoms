@@ -5,9 +5,9 @@
  */
 import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
 import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, storeWalk } from "./geom";
-import { completeBuilding, refreshAfterPlace } from "./build";
+import { buildCap, canWork, completeBuilding, refreshAfterPlace, useMaterial } from "./build";
 import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
-import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal, type TravelResult } from "./move";
+import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
 import { reservePut, tidy } from "./storage";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
@@ -272,19 +272,35 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   u.carry = null; u.ai.job = null; u.order = { t: "idle" };
 }
 
+/** Arbeitszeit an einem Standplatz, bevor der Bauarbeiter auf eine andere Seite der Baustelle wechselt. */
+const SPOT_TICKS = 5 * TPS;
+
+/**
+ * Bauen: Der Bauarbeiter hämmert an einem Standplatz neben dem Grundriss und wechselt alle paar Sekunden die Seite.
+ * Jeder Tick Arbeit bringt 1 / (buildSeconds · TPS) Fortschritt, aber nie mehr, als das verbaute Material erlaubt
+ * (buildCap). Ist die Grenze erreicht, verbaut er das nächste Stück von der Baustelle; liegt keines da, wartet er nicht
+ * untätig, sondern gibt den Auftrag zurück (der Disponent holt ihn wieder, sobald Material geliefert ist).
+ */
 function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
   const site = w.buildings.get(j.site);
-  if (!site || !isSite(site) || Object.keys(site.needs).length) { releaseJob(w, u); return; }
-  const r = travel(w, u, goalAround(site));
-  if (r === "unreachable") { giveUp(w, u); return; }
+  // Ausbau: erst, wenn alles angeliefert ist; neue Baustelle: solange Material liegt oder verbautes zu verarbeiten ist
+  if (!site || !isSite(site) || (site.upgrade ? Object.keys(site.needs).length > 0 : !canWork(site))) { releaseJob(w, u); return; }
+  const r = travel(w, u, buildSpot(w, u, site, j));
+  if (r === "unreachable") {
+    if ((j.spot ?? 0) >= 0) { j.spot = -1; return; } // Standplatz versperrt: irgendwo daneben
+    giveUp(w, u); return;
+  }
   if (r !== "arrived") return;
   const def = BUILDINGS[site.key];
   const [cx, cy] = center(site.key, site.x, site.y, site.o);
   face(u, cx - u.x, cy - u.y);
-  setAnim(u, "bauen");
   if (site.upgrade) {
-    // Ausbau: das Gebäude steht und arbeitet weiter, der Tagelöhner baut die nächste Stufe auf
+    // Ausbau: das Gebäude steht und arbeitet weiter, der Tagelöhner baut die nächste Stufe auf (Material liegt schon
+    // vollständig da, siehe Disponent), und wechselt wie auf einer Baustelle die Seite
+    setAnim(u, "bauen");
     site.upgrade.t = Math.min(1, site.upgrade.t + 1 / (upgradeSeconds(site) * TPS));
+    j.t = (j.t ?? 0) + 1;
+    if (j.t >= SPOT_TICKS) { j.t = 0; j.spot = (j.spot ?? 0) + 1; }
     if (site.upgrade.t >= 1) {
       completeUpgrade(w, site, () => refreshAfterPlace(w));
       u.ai.job = null; u.order = { t: "idle" };
@@ -292,13 +308,45 @@ function runBuild(w: World, u: SUnit, j: Extract<Job, { k: "build" }>): void {
     }
     return;
   }
-  site.built = Math.min(1, site.built + 1 / (def.buildSeconds * TPS));
+  const step = 1 / (def.buildSeconds * TPS);
+  if (site.built + step > buildCap(site) + 1e-9) useMaterial(site);
+  const cap = buildCap(site);
+  if (site.built >= cap - 1e-9 && cap < 1) { releaseJob(w, u); setAnim(u, "stehen"); return; }
+  setAnim(u, "bauen");
+  site.built = Math.min(1, cap, site.built + step);
+  if (site.built > cap - 1e-6) site.built = cap; // Rundung: an der Materialgrenze genau einrasten (sonst 0,99999…)
   site.hp = Math.max(site.hp, Math.round(def.hp * (0.2 + 0.8 * site.built)));
+  j.t = (j.t ?? 0) + 1;
+  if (j.t >= SPOT_TICKS) { j.t = 0; j.spot = (j.spot ?? 0) + 1; } // nächste Seite
   if (site.built >= 1) {
     completeBuilding(w, site);
     u.ai.job = null; u.order = { t: "idle" };
     setAnim(u, "stehen");
   }
+}
+
+/**
+ * Standplatz j.spot rund um den Grundriss: die freien Felder im Abstand 1 (ohne Ecken), reihum; −1 oder keiner frei =
+ * irgendwo daneben. Reihenfolge über die Seiten verteilt (Nachbarseiten im Wechsel), damit er sichtbar herumgeht.
+ */
+function buildSpot(w: World, u: SUnit, site: SBuilding, j: Extract<Job, { k: "build" }>): TravelGoal {
+  const around = goalAround(site);
+  const k = j.spot ?? 0;
+  if (k < 0) return around;
+  const spots: [number, number][] = [];
+  const comp = w.nav.comp[0][unitNode(w, u)];
+  const { x0, y0, x1, y1 } = around;
+  const sides: [number, number][][] = [[], [], [], []];
+  for (let x = x0; x <= x1; x++) { sides[0].push([x, y0 - 1]); sides[2].push([x, y1 + 1]); }
+  for (let y = y0; y <= y1; y++) { sides[1].push([x1 + 1, y]); sides[3].push([x0 - 1, y]); }
+  for (const side of [0, 1, 2, 3].map((i) => sides[(i * 3 + site.id) % 4])) {
+    const free = side.filter(([x, y]) => w.inMap(x, y) && w.nav.open(w.nav.node(0, x, y), 0)
+      && (comp < 0 || w.nav.comp[0][w.nav.node(0, x, y)] === comp)); // nur von hier erreichbare Seiten
+    if (free.length) spots.push(free[(site.id + k) % free.length]);
+  }
+  if (!spots.length) return around;
+  const [x, y] = spots[k % spots.length];
+  return tileGoal(x, y);
 }
 
 function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void {
@@ -431,7 +479,12 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
         if (rec) { dec(rec.enroute, j.good); if (j.ph === 1) dec(rec.picked, j.good); }
         break;
       }
-      case "build": { const site = w.buildings.get(j.site); if (site && site.ai.builder === u.id) site.ai.builder = 0; break; }
+      case "build": {
+        const site = w.buildings.get(j.site);
+        if (site && site.ai.builder === u.id) site.ai.builder = 0;
+        if (site && (j.t ?? 0) > 0 && (j.spot ?? 0) >= 0) site.ai.nextSpot = (j.spot ?? 0) + 1; // nächster fängt nebenan an
+        break;
+      }
       case "recruit": {
         const s = w.buildings.get(j.from)?.slots[j.slot];
         if (j.ph === 0 && s) { s.reserved--; tidy(s); }

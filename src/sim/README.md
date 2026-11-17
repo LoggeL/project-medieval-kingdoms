@@ -24,7 +24,7 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 
 - Einheiten, Gebäude und Geschosse im Zustand tragen ein zusätzliches Feld `ai` bzw. Zusatzfelder (Geschoss: `target`, `akey`, `dur` …). Das ist innerer Zustand, nicht lesen.
 - Ein Rekrut verschwindet während der Ausbildung aus `state.units` (er ist in der Kaserne) und kommt mit derselben ID als Soldat am Eingang heraus. `training.t` und `training.dur` sind Sekunden.
-- Baustelle: `built` 0..1, `needs` = noch fehlendes Material, `site` = schon angeliefertes Material (sichtbar neben dem Grundriss). Gebaut wird erst, wenn `needs` leer ist.
+- Baustelle: `built` 0..1, `needs` = noch fehlendes Material, `site` = angeliefertes, noch nicht verbautes Material (sichtbar im Grundriss), `mat` = Material insgesamt. Ein Bauarbeiter baut, sobald Material liegt, verbaut es Stück für Stück und kommt nie über `verbaut / mat` hinaus (`buildCap`, `canWork`, `useMaterial` in `build.ts`, ADR 0009).
 - Bäume: `faellt` mit `progress` 0..1 (1,5 s) und Fallrichtung, `liegt` mit `logs` und `progress` = Zerlegefortschritt, dann `stumpf`. Felsbrocken verschwinden bei `amount` 0.
 - Einheiten auf Treppen haben eine Zwischenhöhe `z`; `layer` wechselt am Knoten (oberer Treppen-Tile zählt schon zu Ebene 1).
 - Lager: 8 Slots mit je 20 Stück (Balance in `src/data`), Füllstufe = `amount / perSlot`.
