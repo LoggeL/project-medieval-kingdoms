@@ -4,7 +4,12 @@
  * Nahkampf trifft sofort, Fernkampf schießt ein Geschoss, das nach seiner Flugzeit am Zielpunkt (mit Vorhalt)
  * einschlägt; ist das Ziel nicht mehr dort, geht der Schuss daneben. Schützen auf Wehrgang oder Turm reichen
  * pro Höhenstufe weiter (WALL_BONUS.rangePerStep), und wer oben steht, nimmt von unten weniger Schaden
- * (WALL_BONUS.damageTakenFactor). Nahkämpfer treffen nur auf gleicher Höhe.
+ * (WALL_BONUS.damageTakenFactor); ihr Schuss nach unten trifft härter (WALL_BONUS.damageDealtFactor).
+ * Nahkämpfer treffen nur auf gleicher Höhe und Gebäude nur aus dem Nachbarfeld (nicht durch eine Mauer hindurch).
+ *
+ * Zielwahl der Schützen (pickTarget): Gefahr vor Nähe. Wer selbst schießen kann und den Schützen erreicht, wer gerade
+ * Tor, Mauer oder Treppe angreift und wen die eigenen Pfeile schnell erledigen, kommt zuerst. Ein gewähltes Ziel wird
+ * TUNING.targetHoldSeconds gehalten, damit niemand zwischen zwei Gegnern hin- und herwechselt.
  */
 import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, type UnitKey } from "../data";
 import { removeBuilding } from "./build";
@@ -17,7 +22,9 @@ export const isRanged = (key: UnitKey): boolean => UNITS[key].role === "fernkamp
 export const isSoldier = (key: UnitKey): boolean => UNITS[key].role !== "arbeiter";
 
 /** Höhenunterschied, bis zu dem Nahkämpfer sich treffen. */
-const MELEE_DZ = 1.2;
+export const MELEE_DZ = 1.2;
+/** Nahkampf gegen Gebäude: höchstens so weit vom Grundriss (Felder), also aus dem Nachbarfeld, nicht durch eine Mauer. */
+const MELEE_BUILDING_REACH = 0.95;
 
 export function rangeOf(u: SUnit): number {
   const r = UNITS[u.key].range ?? 1;
@@ -34,7 +41,8 @@ export function inRangeBuilding(u: SUnit, b: SBuilding): boolean {
   const [fw, fh] = footprint(b.key, b.o);
   const d = distToRect(u.x, u.y, b.x, b.y, b.x + fw, b.y + fh);
   if (isRanged(u.key)) return d <= rangeOf(u);
-  return d <= rangeOf(u) + 0.35 && u.z < MELEE_DZ;
+  // Wer auf dem Grundriss steht (Treppe), erreicht ihn in jeder Höhe
+  return d <= Math.min(rangeOf(u) + 0.35, MELEE_BUILDING_REACH) && (u.z < MELEE_DZ || d === 0);
 }
 
 /** Kann u das Ziel im Nahkampf erreichen (gleiche Höhe oder über Wege verbunden)? */
@@ -56,6 +64,57 @@ export function nearestEnemy(w: World, u: SUnit, radius: number, ok?: (t: SUnit)
     if (d < bd || (d === bd && best && t.id < best.id)) { if (!ok || ok(t)) { best = t; bd = d; } }
   });
   return best;
+}
+
+/** Erwarteter Schaden eines Treffers von a gegen t (ohne Streuung), wie damageUnit rechnet. */
+export function expectedDamage(a: SUnit, t: SUnit): number {
+  const ad = UNITS[a.key], td = UNITS[t.key];
+  let dmg = ad.damage ?? 1;
+  if (td.role !== "arbeiter") dmg *= ad.bonus?.[td.role] ?? 1;
+  if (isRanged(a.key) && a.z >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor;
+  dmg = Math.max(1, dmg - td.armor * DAMAGE_TYPES[ad.damageType ?? "hieb"].armor);
+  if (t.z >= 2 && a.z < 1) dmg *= WALL_BONUS.damageTakenFactor;
+  return dmg;
+}
+
+/** Greift t gerade ein Gebäude an (letzter Schlag vor höchstens 3 Sekunden)? */
+export function assaulting(w: World, t: SUnit): boolean {
+  return t.ai.hitB !== undefined && w.s.tick - t.ai.hitB <= 3 * TPS;
+}
+
+/**
+ * Gefahrenwert eines Ziels für u (kleiner = zuerst bekämpfen): Treffer bis zum Fall, geteilt durch die Gefahr.
+ * Gefährlich ist, wer selbst schießt und u erreicht, wer gerade ein Gebäude angreift, und wer auf dem Wehrgang steht.
+ */
+export function threatScore(w: World, u: SUnit, t: SUnit): number {
+  const hits = t.hp / expectedDamage(u, t);
+  let danger = 1;
+  if (isRanged(t.key) && dist(u.x, u.y, t.x, t.y) <= rangeOf(t) + 1) danger += 1.5;
+  if (assaulting(w, t)) danger += 1;
+  if (t.layer > 0 && u.team === 0) danger += 1;
+  return hits / danger + 0.15 * dist(u.x, u.y, t.x, t.y);
+}
+
+/**
+ * Ziel für u wählen: das aktuelle halten, solange es gültig ist und die Haltezeit läuft, sonst das gefährlichste
+ * Ziel im Umkreis, das `ok` erfüllt. Ein neues Ziel löst das alte nur ab, wenn es deutlich gefährlicher ist.
+ */
+export function pickTarget(w: World, u: SUnit, radius: number, ok: (t: SUnit) => boolean): SUnit | null {
+  const ai = u.ai;
+  const cur = w.aliveUnit(ai.target);
+  const curOk = !!cur && cur.team !== u.team && ok(cur);
+  if (curOk && (ai.lock ?? 0) > w.s.tick) return cur!;
+  let best: SUnit | null = null, bs = Infinity;
+  w.grid.query(u.x, u.y, radius, (o) => {
+    const t = o as SUnit;
+    if (t.team === u.team || t.dead || dist(u.x, u.y, t.x, t.y) > radius || !ok(t)) return;
+    const sc = threatScore(w, u, t);
+    if (sc < bs - 1e-9 || (Math.abs(sc - bs) <= 1e-9 && best && t.id < best.id)) { best = t; bs = sc; }
+  });
+  const pick: SUnit | null = curOk && (!best || threatScore(w, u, cur!) <= bs * 1.3) ? cur! : best;
+  if (pick && pick.id !== ai.target) ai.lock = w.s.tick + Math.round(TUNING.targetHoldSeconds * TPS);
+  ai.target = pick ? pick.id : 0;
+  return pick;
 }
 
 // ---------------------------------------------------------------- Angriffe
@@ -80,6 +139,7 @@ export function strikeBuilding(w: World, u: SUnit, b: SBuilding): void {
   face(u, b.x + fw / 2 - u.x, b.y + fh / 2 - u.y);
   if (u.ai.cd > 0) { calmDown(u); return; }
   u.ai.cd = Math.round((UNITS[u.key].cooldown ?? 1) * TPS);
+  u.ai.hitB = w.s.tick;
   if (isRanged(u.key)) {
     setAnim(u, "schiessen", true);
     shoot(w, u, cx, cy, b.built >= 1 && BUILDINGS[b.key].walkway ? 2.5 : 1, 0, 0, b.id, "building");
@@ -134,6 +194,7 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
   const type = a.damageType ?? "hieb";
   let dmg = (a.damage ?? 1) * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread);
   if (d.role !== "arbeiter") dmg *= a.bonus?.[d.role] ?? 1;
+  if (a.role === "fernkampf" && az >= 2 && t.z < 1) dmg *= WALL_BONUS.damageDealtFactor; // Schuss von der Mauer
   dmg = Math.max(1, dmg - d.armor * DAMAGE_TYPES[type].armor);
   if (t.z >= 2 && az < 1) dmg *= WALL_BONUS.damageTakenFactor; // Deckung hinter den Zinnen
   t.hp -= dmg;
@@ -159,8 +220,17 @@ export function kill(w: World, u: SUnit): void {
   u.ai.deadT = 0; u.ai.target = 0; u.ai.targetB = 0;
   stop(u);
   setAnim(u, "sterben", true);
-  if (u.team === 1) w.s.gold += TUNING.bounty;
+  if (u.team === 1) { w.s.gold += TUNING.bounty; w.meta.raidLosses = (w.meta.raidLosses ?? 0) + 1; }
   else if (isSoldier(u.key)) w.msg(`Ein ${UNITS[u.key].name} ist gefallen.`, "kampf", "gefallen", 8, "gefallen");
+}
+
+/** Einheit ohne Tod aus der Welt nehmen (Angreifer hat den Kartenrand erreicht); entfernt am Ende des Ticks. */
+export function vanish(u: SUnit): void {
+  u.dead = true; u.hp = 0;
+  u.order = { t: "idle" };
+  u.ai.target = 0; u.ai.targetB = 0;
+  u.ai.deadT = Math.ceil((TUNING.dyingSeconds + TUNING.corpseSeconds) * TPS);
+  stop(u);
 }
 
 /** Sterbeanimation, liegen bleiben, dann entfernen. */

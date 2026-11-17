@@ -5,7 +5,7 @@
  * Überfälle → Ausbildung → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
-import { GOODS, START, TUNING, type BuildingKey, type Good } from "../data";
+import { GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
 import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
@@ -75,7 +75,8 @@ export function createGame(opts: GameOptions = {}): Simulation {
       w.addUnit("tageloehner", 0, map.camp[0] + 0.5 + Math.cos(a) * 1.5, map.camp[1] + 0.5 + Math.sin(a) * 1.5);
     }
     s.messages = [];
-    w.msg("Willkommen, Burgherr! Baue eine Holzfällerhütte am Waldrand und einen Steinbruch am Fels.", "info", undefined, 20, "willkommen");
+    meta.tutorial = 0;
+    w.msg(TUTORIAL[0].text, "info", undefined, 20, TUTORIAL[0].voice);
   }
   updatePopulation(w);
   updateStock(w);
@@ -114,6 +115,7 @@ export function step(w: World): void {
   if (s.tick % DISPATCH_EVERY === 0) { pruneWorkers(w); dispatcher(w); }
   updatePopulation(w);
   raidTick(w);
+  if (s.tick % TPS === 0) updateTutorial(w);
   updateTraining(w);
   const list = s.units.slice(), n = list.length, off = n ? (s.tick * 7) % n : 0;
   for (let i = 0; i < n; i++) {
@@ -129,6 +131,26 @@ export function step(w: World): void {
   updateDeaths(w);
   for (const u of s.units) u.animT += 1 / TPS;
   updateStock(w);
+}
+
+// ---------------------------------------------------------------- Einführung
+function goalReached(w: World, g: TutorialGoal): boolean {
+  const s = w.s;
+  if ("placed" in g) return s.buildings.some((b) => b.team === 0 && b.key === g.placed);
+  if ("built" in g) return g.built.every((k) => s.buildings.some((b) => b.team === 0 && b.key === k && b.built >= 1));
+  if ("soldiers" in g) return s.units.filter((u) => u.team === 0 && !u.dead && isSoldier(u.key)).length >= g.soldiers;
+  return s.units.filter((u) => u.team === 0 && !u.dead && u.order.t === "station").length >= g.stationed;
+}
+
+/** Zielkette der Einführung: erledigte Schritte überspringen, den ersten offenen als Meldung zeigen. */
+function updateTutorial(w: World): void {
+  const m = w.meta;
+  if (m.tutorial === undefined || m.tutorial >= TUTORIAL.length) return;
+  let k = m.tutorial;
+  while (k < TUTORIAL.length && TUTORIAL[k].done && goalReached(w, TUTORIAL[k].done!)) k++;
+  if (k === m.tutorial) return;
+  m.tutorial = k;
+  if (k < TUTORIAL.length) w.msg(TUTORIAL[k].text, "info", undefined, 20, TUTORIAL[k].voice);
 }
 
 function act(w: World, u: SUnit): void {

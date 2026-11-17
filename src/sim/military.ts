@@ -1,15 +1,20 @@
 /**
  * Militär: Verhalten eigener Soldaten je Befehl (bewegen, angreifen, halten, stationieren, untätig),
  * die Befehle selbst, Stationierung auf Mauer- und Turmposten sowie die Ausbildung in der Kaserne.
+ *
+ * Auf dem Posten schießen Schützen auf das gefährlichste Ziel in Reichweite (combat.pickTarget). Nahkämpfer bewachen
+ * ihren Abschnitt: Kommt ein Gegner bis auf TUNING.postLeash Felder an ein Tor oder eine Treppe in der Nähe ihres
+ * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
+ * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, TUNING, UNITS, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, TUNING, UNITS, type Good, type UnitKey } from "../data";
 import { walkLayerAt } from "./build";
-import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, rangeOf, strikeBuilding, strikeUnit } from "./combat";
+import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
 import { goalAround, lineClear, stepToward, stop, tileGoal, travel, unitNode } from "./move";
 import { available } from "./storage";
 import type { CommandResult, UnitOrder } from "./types";
-import { TPS, newUnitAI, setAnim, type SUnit, type World } from "./world";
+import { TPS, distToRect, newUnitAI, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
 // ---------------------------------------------------------------- Verhalten
 export function soldierAct(w: World, u: SUnit): void {
@@ -36,7 +41,9 @@ function idleSoldier(w: World, u: SUnit): void {
     ai.target = 0; stop(u);
   } else ai.target = 0;
   if ((w.s.tick + u.id) % 10 === 0) {
-    const e = nearestEnemy(w, u, TUNING.sight, (x) => isRanged(u.key) || meleeReachable(w, u, x));
+    const e = isRanged(u.key)
+      ? pickTarget(w, u, TUNING.sight, () => true)
+      : nearestEnemy(w, u, TUNING.sight, (x) => meleeReachable(w, u, x));
     if (e) { ai.target = e.id; return; }
   }
   if (u.anim === "gehen" || u.anim === "angriff" || u.anim === "schiessen") setAnim(u, "stehen");
@@ -69,19 +76,68 @@ function attackOrder(w: World, u: SUnit, o: Extract<UnitOrder, { t: "attack" }>)
   if (travel(w, u, goalAround(b)) === "unreachable") u.order = { t: "idle" };
 }
 
-/** Halten bzw. auf dem Posten: nur angreifen, was in Reichweite ist. */
+/** Halten bzw. auf dem Posten: nur angreifen, was in Reichweite ist (Schützen: das gefährlichste Ziel). */
 function fightInPlace(w: World, u: SUnit): void {
   const ai = u.ai;
   let t = w.aliveUnit(ai.target);
-  if (!t || !inRangeUnit(u, t)) {
-    t = undefined; ai.target = 0;
-    if ((w.s.tick + u.id) % 5 === 0) {
-      const e = nearestEnemy(w, u, rangeOf(u) + 0.5, (x) => inRangeUnit(u, x));
-      if (e) { ai.target = e.id; t = e; }
-    }
+  if (!t || !inRangeUnit(u, t)) { t = undefined; ai.target = 0; ai.lock = 0; }
+  if (isRanged(u.key) ? (!t || (w.s.tick + u.id) % 5 === 0) : !t && (w.s.tick + u.id) % 5 === 0) {
+    const e = isRanged(u.key)
+      ? pickTarget(w, u, rangeOf(u) + 0.5, (x) => inRangeUnit(u, x))
+      : nearestEnemy(w, u, rangeOf(u) + 0.5, (x) => inRangeUnit(u, x));
+    ai.target = e ? e.id : 0;
+    t = e ?? undefined;
   }
   if (t) strikeUnit(w, u, t);
   else if (u.anim !== "stehen" && (u.anim !== "angriff" && u.anim !== "schiessen" || u.animT >= 0.6)) setAnim(u, "stehen");
+}
+
+/** Tore und Treppen, die ein Nahkämpfer von seinem Posten aus bewacht. */
+function guarded(w: World, px: number, py: number): SBuilding[] {
+  const out: SBuilding[] = [];
+  for (const b of w.s.buildings) {
+    const def = BUILDINGS[b.key];
+    if (b.team !== 0 || b.built < 1 || !(def.gate || def.stairs)) continue;
+    const [fw, fh] = footprint(b.key, b.o);
+    if (distToRect(px, py, b.x, b.y, b.x + fw, b.y + fh) <= TUNING.postGuardRadius) out.push(b);
+  }
+  return out;
+}
+
+/** Liegt der Gegner im bewachten Abschnitt: höchstens postLeash Felder von einem bewachten Tor bzw. einer Treppe, oder auf dem Wehrgang nahe dem Posten? */
+function inSection(t: SUnit, anchors: SBuilding[], px: number, py: number): boolean {
+  if (t.layer > 0 && Math.hypot(t.x - px, t.y - py) <= TUNING.postGuardRadius) return true;
+  for (const b of anchors) {
+    const [fw, fh] = footprint(b.key, b.o);
+    if (distToRect(t.x, t.y, b.x, b.y, b.x + fw, b.y + fh) <= TUNING.postLeash) return true;
+  }
+  return false;
+}
+
+/**
+ * Nahkämpfer auf dem Posten: Gegner im Abschnitt angreifen (hinunter über die Treppe, durch das Tor, auf dem
+ * Wehrgang entlang). true = er kämpft oder ist unterwegs zum Gegner; false = zurück auf den Posten.
+ */
+function guardSection(w: World, u: SUnit, px: number, py: number): boolean {
+  const ai = u.ai;
+  const anchors = guarded(w, px, py);
+  const t = w.aliveUnit(ai.target);
+  // Erreichbarkeit nur bei der Wahl prüfen: auf der Treppe zwischen zwei Ebenen liefert sie kurz kein Ergebnis
+  if (t && t.team !== u.team && !t.ai.retreat && inSection(t, anchors, px, py)) {
+    if (chase(w, u, t)) { ai.sortie = true; return true; }
+  }
+  ai.target = 0;
+  if ((w.s.tick + u.id) % 10 === 0) {
+    let best: SUnit | null = null, bd = Infinity;
+    w.grid.query(px, py, TUNING.postGuardRadius + TUNING.postLeash + 1, (o) => {
+      const e = o as SUnit;
+      if (e.team === u.team || e.dead || e.ai.retreat || !inSection(e, anchors, px, py) || !meleeReachable(w, u, e)) return;
+      const d = Math.hypot(e.x - u.x, e.y - u.y);
+      if (d < bd || (d === bd && best && e.id < best.id)) { best = e; bd = d; }
+    });
+    if (best) { ai.target = (best as SUnit).id; ai.sortie = true; return chase(w, u, best) || (ai.target = 0, false); }
+  }
+  return false;
 }
 
 function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>): void {
@@ -90,6 +146,9 @@ function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>)
   if (!b || !def || b.built < 1 || !def.posts?.[o.post]) { u.order = { t: "idle" }; return; }
   const [px, py, pz] = postWorld(b.key, b.x, b.y, b.o, o.post);
   const layer = def.walkway ?? 0;
+  // Nahkämpfer verteidigen Tor, Treppe und Wehrgang in der Nähe; danach zurück auf den Posten
+  if (!isRanged(u.key) && guardSection(w, u, px, py)) return;
+  u.ai.sortie = false;
   const r = travel(w, u, { ...tileGoal(Math.floor(px), Math.floor(py), layer, 0), endX: px, endY: py });
   if (r === "unreachable") { u.order = { t: "idle" }; w.msg("Der Posten ist nicht erreichbar (Treppe fehlt?).", "warnung", "posten", 10, "kein_posten"); return; }
   if (r !== "arrived") return;
@@ -310,7 +369,7 @@ export function cmdRecruit(w: World, id: number, unit: UnitKey): CommandResult {
   return { ok: true, ids: [b.id] };
 }
 
-const goodLabel = (g: string): string => ({ speer: "Speere", schwert: "Schwerter", bogen: "Bögen" } as Record<string, string>)[g] ?? g;
+const goodLabel = (g: Good): string => GOODS[g].name;
 
 /** Ausbildung voranbringen; fertige Soldaten treten am Eingang heraus. */
 export function updateTraining(w: World): void {

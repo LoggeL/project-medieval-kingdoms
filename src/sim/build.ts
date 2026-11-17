@@ -3,7 +3,7 @@
  * Eine Baustelle belegt sofort ihren Grundriss. Gold wird sofort bezahlt, Waren bringen Tagelöhner Stück für
  * Stück aus dem Lager (economy.ts), danach baut einer die Baustelle fertig (jobs.ts).
  */
-import { BUILDINGS, GOODS, TERRAIN, type BuildingKey, type Good } from "../data";
+import { BUILDINGS, GOODS, TERRAIN, type BuildingKey, type Cost, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
 import { NEIGHBOURS, center, entrance, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
 import { abortJobsAt } from "./jobs";
@@ -12,7 +12,8 @@ import { available, storeDirect } from "./storage";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
 
-const FORT = new Set<BuildingKey>(["mauer", "tor", "turm"]);
+/** Befestigungen mit Wehrgang oder Plattform (Mauer, Tor, Turm), aus den Daten abgeleitet. */
+const FORT = new Set<BuildingKey>((Object.keys(BUILDINGS) as BuildingKey[]).filter((k) => BUILDINGS[k].walkway));
 export const isFort = (key: BuildingKey): boolean => FORT.has(key);
 const MAX_WALL = 64;
 
@@ -49,8 +50,20 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
   return null;
 }
 
-function costReason(w: World, key: BuildingKey, times = 1): string | null {
-  const cost = BUILDINGS[key].cost;
+/**
+ * Kosten eines Baus an (x, y): Ein Tor in einem fertigen Mauerstück übernimmt dessen Steine,
+ * es kostet also nur den Unterschied (Mauer ziehen, dann das Tor hineinsetzen, verschwendet nichts).
+ */
+export function costAt(w: World, key: BuildingKey, x: number, y: number): Cost {
+  const cost: Cost = { ...BUILDINGS[key].cost };
+  const old = key === "tor" ? w.buildingAt(x, y) : undefined;
+  if (old && old.key === "mauer" && old.team === 0 && old.built >= 1) {
+    for (const [g, n] of Object.entries(BUILDINGS.mauer.cost) as [Good | "gold", number][]) cost[g] = Math.max(0, (cost[g] ?? 0) - n);
+  }
+  return cost;
+}
+
+function costReason(w: World, key: BuildingKey, times = 1, cost: Cost = BUILDINGS[key].cost): string | null {
   if ((cost.gold ?? 0) * times > w.s.gold) return "Nicht genug Gold";
   for (const [g, n] of Object.entries(cost) as [Good | "gold", number][]) {
     if (g === "gold") continue;
@@ -99,7 +112,7 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
     if (!b || (b.key !== "mauer" && b.key !== "tor")) reason = "Die Rückseite muss an eine Mauer grenzen";
   }
   let costFail = false;
-  if (!reason) { reason = costReason(w, key); costFail = !!reason; }
+  if (!reason) { reason = costReason(w, key, 1, costAt(w, key, x, y)); costFail = !!reason; }
   return costFail ? { ok: false, reason: reason!, tiles, costFail } : { ok: !reason, reason: reason ?? undefined, tiles };
 }
 
@@ -167,6 +180,7 @@ function affordable(w: World, key: BuildingKey, max: number): number {
 export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: number, deferNav = false): SBuilding {
   const def = BUILDINGS[key];
   o = ((o % 4) + 4) % 4;
+  const cost = costAt(w, key, x, y);
   if (key === "tor") {
     // Tor quer zur Mauerlinie ausrichten: Linie entlang x (Nachbarn O + W) → o = 0, entlang y → o = 1
     const old = w.buildingAt(x, y);
@@ -178,8 +192,8 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   const onFp = new Set(fp.map(([tx, ty]) => w.idx(tx, ty)));
   for (const [tx, ty] of fp) w.s.tiles[w.idx(tx, ty)].building = b.id;
   w.s.trees = w.s.trees.filter((t) => !onFp.has(w.idx(t.x, t.y))); // Baumstümpfe weichen der Baustelle
-  w.s.gold -= def.cost.gold ?? 0;
-  for (const [g, n] of Object.entries(def.cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
+  w.s.gold -= cost.gold ?? 0;
+  for (const [g, n] of Object.entries(cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
   if (!deferNav) refreshAfterPlace(w);
   return b;

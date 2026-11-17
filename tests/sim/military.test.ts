@@ -197,7 +197,8 @@ describe("Überfall", () => {
 
   it("Tote fallen, liegen und verschwinden", () => {
     const g = createGame({ scenario: "leer", size: 24 });
-    const a = spawn(g, "schwert", 0, 10, 10), b = spawn(g, "speer", 1, 12, 10);
+    // Opfer ist ein eigener Speerträger: verwundete Angreifer würden sich zurückziehen statt zu fallen
+    const a = spawn(g, "schwert", 1, 10, 10), b = spawn(g, "speer", 0, 12, 10);
     b.hp = 5;
     run(g, 5 * TPS, () => b.dead);
     expect(b.dead).toBe(true);
