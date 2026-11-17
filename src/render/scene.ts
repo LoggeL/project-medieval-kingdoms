@@ -6,11 +6,14 @@
  * Stapeln und Figuren im Hof. Figuren, die von Gebäuden oder Bäumen verdeckt sind, bekommen eine dezente Silhouette
  * in Teamfarbe über allem (und bleiben dort anklickbar). Verarbeitungsgebäude (ADR 0011) zeigen Eingangspuffer und
  * Ausgabestapel als eigene Warenstapel, ihr Arbeitsbild (Mühlenflügel) läuft nur, solange gearbeitet wird.
+ * Gebirge (ADR 0012): je Gebirgs-Tile ein Massivteil aus dem Gebäudeblatt („gebirge“), zur Mitte des Massivs hin höher
+ * (Rand, Hang, Gipfel nach mountainClass), Variante und Ansicht aus der Tile-Nummer, in jeder Drehung tiefensortiert.
  */
-import { Container, type Texture } from "pixi.js";
+import { Container, Rectangle, Texture } from "pixi.js";
 import { BUILDINGS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
-import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
+import { mountainClass } from "../sim/mapgen";
+import type { Building, Rock, SimState, Tile, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
 import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
@@ -55,8 +58,11 @@ interface Part {
   rot: number; sx: number; sy: number;
   alpha: number; tint: number;
   hit: Hit | null;
-  /** Verdeckt Figuren dahinter (Gebäudeblatt-Sprite ohne Drehung): Schlüssel, Ansicht, Variante. */
-  occKey: string | null; occView: number; occFrame: number;
+  /**
+   * Verdeckt Figuren dahinter (Gebäudeblatt-Sprite ohne Drehung): Schlüssel, Ansicht, Variante; occDx/occDy = Lage der
+   * linken oberen Texturecke in der Zelle (0 bei ganzen Zellen, > 0 bei auf den Inhalt beschnittenen Texturen).
+   */
+  occKey: string | null; occView: number; occFrame: number; occDx: number; occDy: number;
   /** Figur: Einheit (für Silhouette und Verdeckung). */
   unit: Unit | null; figKey: string; figDir: number; figFrame: number;
 }
@@ -79,6 +85,22 @@ export interface UnitOnScreen { id: number; team: number; x: number; y: number; 
 
 const FIG_FPS = 10;
 const hash4 = (id: number) => (Math.imul(id, 2654435761) >>> 28) & 3;
+/** Massivteile je Karte: Tile-Lage, Bild (Höhenklasse · 4 + Variante) und Grundausrichtung; Gebirge ändert sich nie. */
+interface MountainPiece { x: number; y: number; frame: number; o: number }
+const mountainCache = new WeakMap<readonly Tile[], MountainPiece[]>();
+export function mountainPieces(s: Pick<SimState, "tiles" | "w" | "h">): MountainPiece[] {
+  let list = mountainCache.get(s.tiles);
+  if (list) return list;
+  list = [];
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
+    const i = y * s.w + x;
+    if (s.tiles[i].terrain !== "gebirge") continue;
+    const h = Math.imul(i + 1, 2246822519) >>> 0;
+    list.push({ x, y, frame: mountainClass(s.tiles, s.w, s.h, x, y) * 4 + ((h >>> 13) & 3), o: hash4(i + 7) });
+  }
+  mountainCache.set(s.tiles, list);
+  return list;
+}
 /** Arbeitsanimationen, auf die eine fehlende Animation zurückfällt (vor den Gehbildern), nie auf das Stehbild. */
 const WORK_ANIMS: AnimKey[] = ["bauen", "hacken", "abbauen", "angriff", "schiessen"];
 /** Silhouette: Teamfarbe und Deckkraft; Anteil verdeckter Stichproben, ab dem sie erscheint. */
@@ -235,6 +257,7 @@ export class ObjectLayer {
     for (const u of state.units) if (u.anim === "bauen" && !u.dead) this.strikeAt(u, state, alpha);
     for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
     for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
+    this.safe("gebirge", () => this.mountainItems(state));
     this.groupList.length = 0;
     for (const g of opt.ghosts) {
       if (g.group) this.groupList.push(g);
@@ -300,12 +323,12 @@ export class ObjectLayer {
   private part(it: Item, tex: Texture, x: number, y: number, px: number, py: number, o: Partial<Pick<Part, "rot" | "sx" | "sy" | "alpha" | "tint" | "hit">> = {}): Part {
     let p = this.parts[this.nParts];
     if (!p) {
-      p = { tex, x: 0, y: 0, px: 0, py: 0, rot: 0, sx: 1, sy: 1, alpha: 1, tint: 0xffffff, hit: null, occKey: null, occView: 0, occFrame: 0, unit: null, figKey: "", figDir: 0, figFrame: 0 };
+      p = { tex, x: 0, y: 0, px: 0, py: 0, rot: 0, sx: 1, sy: 1, alpha: 1, tint: 0xffffff, hit: null, occKey: null, occView: 0, occFrame: 0, occDx: 0, occDy: 0, unit: null, figKey: "", figDir: 0, figFrame: 0 };
       this.parts.push(p);
     }
     p.tex = tex; p.x = Math.round(x); p.y = Math.round(y); p.px = px; p.py = py;
     p.rot = o.rot ?? 0; p.sx = o.sx ?? 1; p.sy = o.sy ?? 1; p.alpha = o.alpha ?? 1; p.tint = o.tint ?? 0xffffff; p.hit = o.hit ?? null;
-    p.occKey = null; p.unit = null;
+    p.occKey = null; p.occDx = 0; p.occDy = 0; p.unit = null;
     this.nParts++;
     it.p1 = this.nParts;
     // Bildrechteck
@@ -481,7 +504,7 @@ export class ObjectLayer {
           for (const o of cand) {
             const sp = bs.get(o.occKey!);
             if (!sp) continue;
-            const lx = wx - (o.x - o.px), ly = wy - (o.y - o.py);
+            const lx = wx - (o.x - o.px) + o.occDx, ly = wy - (o.y - o.py) + o.occDy;
             if (lx < 0 || ly < 0 || lx >= bs.cell[0] || ly >= bs.cell[1]) continue;
             if (sp.pixels.alpha(o.occFrame * bs.cell[0] + lx, o.occView * bs.cell[1] + ly) > SOLID_ALPHA) { covered++; break; }
           }
@@ -1091,6 +1114,48 @@ export class ObjectLayer {
       this.part(it, rockTexture(Math.max(0, Math.min(4, Math.floor(used * 5)))), X, Y, 32, 40);
     }
     this.closeItem(it);
+  }
+
+  /**
+   * Massivteile: Ein Gebirge sind viele große, sich überlappende Teile; damit die Grafikkarte nicht jedes Mal die ganze
+   * Zelle (320 × 256, meist durchsichtig) füllt, zeichnet die Darstellung nur den Inhaltsrahmen (bbox) der Zelle.
+   */
+  private mountainItems(state: SimState): void {
+    const bs = this.bs;
+    const list = mountainPieces(state);
+    if (!list.length) return;
+    if (!bs?.has("gebirge")) { warnOnce("Sprite „gebirge“ fehlt im Gebäudeblatt, das Gebirge zeigt nur den Geröllboden"); return; }
+    const sp = bs.get("gebirge")!;
+    const [ax, ay] = bs.anchor;
+    for (const m of list) {
+      const [u0, u1, v0, v1] = this.box(m.x, m.y, m.x + 1, m.y + 1);
+      const it = this.newItem(u0 + 0.02, u1 - 0.02, v0 + 0.02, v1 - 0.02);
+      const [X, Y] = this.scr(m.x + 0.5, m.y + 0.5);
+      const view = viewOf(m.o, this.r);
+      const frame = Math.min(sp.frames - 1, m.frame);
+      const trimmed = this.trimmed(bs, sp.bbox[view]?.[frame] ?? null, view, frame);
+      if (trimmed) {
+        const p = this.part(it, trimmed.tex, X, Y, ax - trimmed.dx, ay - trimmed.dy);
+        this.occluder(p, "gebirge", view, frame);
+        p.occDx = trimmed.dx; p.occDy = trimmed.dy;
+      }
+      this.closeItem(it);
+    }
+  }
+
+  private trimCache = new Map<string, { tex: Texture; dx: number; dy: number } | null>();
+  private trimmed(bs: BuildingSheet, box: { x0: number; y0: number; x1: number; y1: number } | null, view: number, frame: number) {
+    const id = `${view}:${frame}`;
+    let t = this.trimCache.get(id);
+    if (t !== undefined) return t;
+    const full = bs.texture("gebirge", view, frame);
+    if (!full || !box) t = null;
+    else {
+      const fr = full.frame;
+      t = { tex: new Texture({ source: full.source, frame: new Rectangle(fr.x + box.x0, fr.y + box.y0, box.x1 - box.x0, box.y1 - box.y0) }), dx: box.x0, dy: box.y0 };
+    }
+    this.trimCache.set(id, t);
+    return t;
   }
 
   /** Pixelgenauer Treffer: oberstes Objekt unter dem Welt-Pixel (wx, wy). Figuren mit etwas Spielraum. */

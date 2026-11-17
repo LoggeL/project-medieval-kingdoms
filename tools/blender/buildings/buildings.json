@@ -70,5 +70,6 @@
  "geruest_baeckerei": {"name": "Gerüst Bäckerei", "footprint": [3, 2], "variants": ["Standard"], "seed": 222, "front": true, "shadow_fill": false},
  "stapel_getreide": {"name": "Stapel Getreide", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 230},
  "stapel_mehl": {"name": "Stapel Mehl", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 231},
- "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232}
+ "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232},
+ "gebirge": {"name": "Felsmassiv", "footprint": [1, 1], "variants": ["Rand 1", "Rand 2", "Rand 3", "Rand 4", "Hang 1", "Hang 2", "Hang 3", "Hang 4", "Gipfel 1", "Gipfel 2", "Gipfel 3", "Gipfel 4"], "seed": 300}
 }

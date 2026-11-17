@@ -13,6 +13,9 @@ const COL: Record<TerrainKey, string[]> = {
   gras: ["#6d9440", "#678e3c", "#729a45", "#6a9140"], wiese: ["#86a24c", "#7f9b47", "#8aa750", "#83a04a"],
   waldboden: ["#4f6e33", "#4a6930", "#537336", "#4d6c31"], erde: ["#a7835a", "#a07d55", "#ac8960", "#a48058"],
   fels: ["#8f8a82", "#88837b", "#958f86", "#8b867e"], wasser: ["#3f74a0", "#3b6f9a", "#4479a6", "#3d719c"],
+  huegel: ["#848c47", "#7e8643", "#8a924c", "#818944"], gebirge: ["#615b54", "#5c5650", "#67615a", "#5f5952"],
+  sumpf: ["#5b6236", "#566033", "#606839", "#586234"], sand: ["#d6c08a", "#d0ba84", "#dcc690", "#d3bd87"],
+  fruchtbar: ["#557f38", "#517a35", "#5a843b", "#537c36"],
 };
 
 export function createScene(canvas: HTMLCanvasElement, bridge: UiBridge, sprites: () => Sprites | null) {

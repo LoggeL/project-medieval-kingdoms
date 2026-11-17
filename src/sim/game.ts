@@ -1,7 +1,7 @@
 /**
  * Die Simulation: Spielstart, Tick mit fester Systemreihenfolge, Befehle, Speichern und Laden.
  *
- * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
+ * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Nachrutschen am Gebirge → Disponent (alle 10 Ticks) → Bevölkerung →
  * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
@@ -14,6 +14,7 @@ import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
 import { emptyMap, generateMap } from "./mapgen";
+import { updateSlides } from "./gelaende";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
@@ -60,7 +61,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     raidsEnabled: opts.raids ?? scenario === "standard", raidRunning: false, immigration: scenario === "standard",
   };
   const rand = () => nextRandom(meta);
-  const map = scenario === "leer" ? emptyMap(size, size) : generateMap(size, size, rand, () => meta.nextId++);
+  const map = scenario === "leer" ? emptyMap(size, size) : generateMap(size, size, rand, () => meta.nextId++, seed);
   meta.camp = map.camp; meta.entry = map.entry; meta.raidSpawn = map.raidSpawn;
   const stock = Object.fromEntries(Object.keys(GOODS).map((g) => [g, 0])) as Record<Good, number>;
   const s: SState = {
@@ -77,6 +78,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
       const a = (i / START.peasants) * Math.PI * 2;
       w.addUnit("tageloehner", 0, map.camp[0] + 0.5 + Math.cos(a) * 1.5, map.camp[1] + 0.5 + Math.sin(a) * 1.5);
     }
+    for (const o of map.late ?? []) o.id = meta.nextId++;
     s.messages = [];
     meta.tutorial = 0;
     w.msg(TUTORIAL[0].text, "info", undefined, 20, TUTORIAL[0].voice);
@@ -118,6 +120,7 @@ export function step(w: World): void {
   for (const u of s.units) { u.px = u.x; u.py = u.y; u.pz = u.z; if (u.ai.cd > 0) u.ai.cd--; }
   w.grid.rebuild(s.units);
   updateTrees(w);
+  updateSlides(w);
   if (s.tick % DISPATCH_EVERY === 0) { pruneWorkers(w); dispatcher(w); }
   updatePopulation(w);
   raidTick(w);

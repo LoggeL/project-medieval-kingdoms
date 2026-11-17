@@ -7,8 +7,9 @@
  * Zelle = weiße Maske mit Alpha (am jeweiligen Rand deckend, nach innen auslaufend).
  *
  * Beim Vorrendern eines Gelände-Abschnitts legt die Darstellung über eine Kachel die Kachel jedes Nachbarn mit höherem
- * Vorrang, maskiert mit der Maske der gemeinsamen Kante. Vorrang von unten nach oben: wasser, erde, fels, waldboden, gras,
- * wiese. Wasser überdeckt nie Land. Land über Wasser wird als Ufer gezeichnet (eigene Ebene über der Wasser-Animation).
+ * Vorrang, maskiert mit der Maske der gemeinsamen Kante. Vorrang von unten nach oben: wasser, sumpf, sand, erde, gebirge,
+ * fels, huegel, waldboden, fruchtbar, gras, wiese (BLEND_ORDER). Wasser überdeckt nie Land. Land über Wasser wird als
+ * Ufer gezeichnet (eigene Ebene über der Wasser-Animation).
  */
 import type { TerrainKey } from "../data";
 
@@ -23,7 +24,7 @@ export const EDGES: Edge[] = ["ne", "se", "sw", "nw"];
 export const EDGE_NEIGHBOUR: Record<Edge, [number, number]> = { ne: [0, -1], se: [1, 0], sw: [0, 1], nw: [-1, 0] };
 
 /** Vorrang (höher überdeckt niedriger). Unbekannte Geländearten nehmen an keinem Übergang teil. */
-export const BLEND_ORDER: TerrainKey[] = ["wasser", "erde", "fels", "waldboden", "gras", "wiese"];
+export const BLEND_ORDER: TerrainKey[] = ["wasser", "sumpf", "sand", "erde", "gebirge", "fels", "huegel", "waldboden", "fruchtbar", "gras", "wiese"];
 
 export function precedence(t: TerrainKey): number {
   return BLEND_ORDER.indexOf(t);

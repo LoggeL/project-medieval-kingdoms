@@ -418,14 +418,14 @@ export class FigureSheet {
 
 interface TerrainMeta {
   tile: [number, number]; anchor: [number, number]; image: string; fps?: number;
-  keys: Record<string, { row: number; variants: number; frames: number }>;
+  /** image: eigenes Bild dieser Geländeart (Zeilen zählen darin), fehlt = das Hauptbild `image` (ADR 0012). */
+  keys: Record<string, { row: number; variants: number; frames: number; image?: string }>;
   blend?: BlendMeta;
 }
 
 export class TerrainSheet {
   private tex = new Map<string, Texture[][]>();
-  private canvas: HTMLCanvasElement | null = null;
-  private cells = new Map<string, [number, number]>();
+  private cells = new Map<string, [HTMLCanvasElement, number, number]>();
   private blendCanvas: HTMLCanvasElement | null = null;
   private blendMeta: BlendMeta | null = null;
   private blendTex = new Map<string, Texture>();
@@ -434,18 +434,27 @@ export class TerrainSheet {
   static async load(): Promise<TerrainSheet | null> {
     const meta = await loadJson<TerrainMeta>(`terrain/${STYLE}/sheet.json`);
     if (!meta) return null;
-    const [im, bl] = await Promise.all([
-      loadImage(`terrain/${STYLE}/${meta.image || "terrain.png"}`),
+    // Hauptbild und weitere Bilder einzelner Geländearten (angehängte Arten liegen in eigenen Bildern)
+    const main = meta.image || "terrain.png";
+    const names = [...new Set([main, ...Object.values(meta.keys).map((k) => k.image ?? main)])];
+    const [bl, ...ims] = await Promise.all([
       meta.blend?.image ? loadImage(`terrain/${STYLE}/${meta.blend.image}`) : Promise.resolve(null),
+      ...names.map((n) => loadImage(`terrain/${STYLE}/${n}`)),
     ]);
-    if (!im) { warnOnce("Geländebild fehlt, Ersatzdarstellung"); return null; }
+    if (!ims[0]) { warnOnce("Geländebild fehlt, Ersatzdarstellung"); return null; }
     const sheet = new TerrainSheet(meta);
-    const canvas = toCanvas(im);
-    sheet.canvas = canvas;
-    const src = sourceOf(canvas);
     const [tw, th] = meta.tile;
-    const cols = Math.floor(im.width / tw);
+    const pics = new Map<string, { canvas: HTMLCanvasElement; src: CanvasSource; cols: number }>();
+    names.forEach((n, i) => {
+      const im = ims[i];
+      if (!im) { warnOnce(`Geländebild ${n} fehlt, diese Geländearten als Ersatz`); return; }
+      const canvas = toCanvas(im);
+      pics.set(n, { canvas, src: sourceOf(canvas), cols: Math.floor(im.width / tw) });
+    });
     for (const [key, k] of Object.entries(meta.keys)) {
+      const pic = pics.get(k.image ?? main);
+      if (!pic) continue;
+      const { canvas, src, cols } = pic;
       const variants: Texture[][] = [];
       const V = Math.max(1, k.variants), F = Math.max(1, k.frames);
       for (let v = 0; v < V; v++) {
@@ -454,7 +463,7 @@ export class TerrainSheet {
           // Spalten: Variante · Bilder + Bild (passt das nicht ins Bild, nur Bilder)
           const col = V * F <= cols ? v * F + f : f % cols;
           frames.push(new Texture({ source: src, frame: new Rectangle(col * tw, k.row * th, tw, th) }));
-          if (f === 0) sheet.cells.set(`${key}:${v}`, [col * tw, k.row * th]);
+          if (f === 0) sheet.cells.set(`${key}:${v}`, [canvas, col * tw, k.row * th]);
         }
         variants.push(frames);
       }
@@ -491,8 +500,8 @@ export class TerrainSheet {
 
   /** Kachel des Geländes key (Variante), maskiert mit der Kantenmaske edge (Variante mv). Gecacht. */
   blended(key: string, variant: number, edge: Edge, mv: number): Texture | null {
-    const bm = this.blendMeta, bc = this.blendCanvas, tc = this.canvas;
-    if (!bm || !bc || !tc) return null;
+    const bm = this.blendMeta, bc = this.blendCanvas;
+    if (!bm || !bc) return null;
     const nv = Math.max(1, this.variants(key));
     const v = variant % nv;
     const id = `${key}:${v}:${edge}:${mv}`;
@@ -506,7 +515,7 @@ export class TerrainSheet {
     const c = document.createElement("canvas");
     c.width = tw; c.height = th;
     const g = c.getContext("2d", { willReadFrequently: true })!;
-    g.drawImage(tc, cell[0], cell[1], tw, th, 0, 0, tw, th);
+    g.drawImage(cell[0], cell[1], cell[2], tw, th, 0, 0, tw, th);
     const tile = g.getImageData(0, 0, tw, th);
     const m = document.createElement("canvas");
     m.width = tw; m.height = th;
