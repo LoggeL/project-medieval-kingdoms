@@ -120,6 +120,14 @@ describe("Baustelle in der Objektebene", () => {
     run(g, 6 * 20);
     layer.update(g.state, 0, 0, VIEW, OPT);
     expect(layer.rubble.length).toBe(0);
+    // eine nur abgesteckte Baustelle hinterlässt nichts
+    const id2 = g.dispatch({ t: "bauen", key: "haus", x: l.x + 6, y: l.y - 4, o: 0 }).ids?.[0];
+    expect(id2).toBeTruthy();
+    layer.update(g.state, 0, 0, VIEW, OPT);
+    g.dispatch({ t: "abreissen", id: id2! });
+    run(g, 2);
+    layer.update(g.state, 0, 0, VIEW, OPT);
+    expect(layer.rubble.length).toBe(0);
   });
 });
 

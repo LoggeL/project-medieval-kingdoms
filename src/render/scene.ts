@@ -153,9 +153,9 @@ export class ObjectLayer {
   private strikePool: StrikeEmitter[] = [];
   private rubblePool: RubbleEmitter[] = [];
   /** Gebäude des letzten Bildes (Abriss erkennen) und Grundmauern verschwundener Gebäude mit Zeitpunkt (Spielsekunden). */
-  private prevB = new Map<number, { key: BuildingKey; x: number; y: number; o: number }>();
+  private prevB = new Map<number, { key: BuildingKey; x: number; y: number; o: number; built: number }>();
   private prevSeen = false;
-  private debris: { id: number; key: BuildingKey; x: number; y: number; o: number; t0: number }[] = [];
+  private debris: { id: number; key: BuildingKey; x: number; y: number; o: number; built: number; t0: number }[] = [];
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
@@ -585,15 +585,16 @@ export class ObjectLayer {
     if (this.prevSeen) for (const [id, p] of this.prevB) {
       if (this.byId.has(id)) continue;
       if (state.tiles[p.y * state.w + p.x]?.building) continue; // ersetzt (Mauer unter einem Tor)
-      this.debris.push({ id, key: p.key, x: p.x, y: p.y, o: p.o, t0: time });
+      if (p.built <= 0) continue; // nur abgesteckt: Pflöcke ziehen hinterlässt keinen Schutt
+      this.debris.push({ id, key: p.key, x: p.x, y: p.y, o: p.o, built: p.built, t0: time });
     }
     this.prevB.clear();
-    for (const b of state.buildings) this.prevB.set(b.id, { key: b.key, x: b.x, y: b.y, o: b.o });
+    for (const b of state.buildings) this.prevB.set(b.id, { key: b.key, x: b.x, y: b.y, o: b.o, built: b.built });
     this.prevSeen = true;
     this.debris = this.debris.filter((d) => time - d.t0 >= 0 && time - d.t0 < DEBRIS_SECONDS);
   }
 
-  private debrisItem(d: { id: number; key: BuildingKey; x: number; y: number; o: number; t0: number }, time: number): void {
+  private debrisItem(d: { id: number; key: BuildingKey; x: number; y: number; o: number; built: number; t0: number }, time: number): void {
     const bs = this.bs;
     if (!bs) return;
     const t = time - d.t0;

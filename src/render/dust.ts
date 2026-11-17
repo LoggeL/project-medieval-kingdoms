@@ -77,10 +77,10 @@ export function rubbleParticles(X: number, Y: number, w: number, t: number, seed
     const life = RUBBLE_LIFE - 0.6;
     if (age < 0 || age > life) continue;
     const k = age / life;
-    const ox = (rnd(seed, i + 40) - 0.5) * 2 * w, oy = (rnd(seed, i + 80) - 0.5) * w * 0.5;
+    const ox = (rnd(seed, i + 40) - 0.5) * 2 * w, oy = (rnd(seed, i + 80) - 0.5) * w;
     out.push({
       x: Math.round(X + ox * (0.6 + k * 0.6)),
-      y: Math.round(Y + oy - 6 - 26 * Math.sqrt(k)),
+      y: Math.round(Y + oy - 4 - 16 * Math.sqrt(k)),
       tex: 5 + Math.min(2, Math.floor(k * 3 + rnd(seed, i + 120))),
       alpha: 0.85 * Math.min(1, age / 0.15) * (1 - k * k),
     });
