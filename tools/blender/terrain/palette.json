@@ -35,5 +35,22 @@
  "wasser2": "#4a7f95",
  "wasser_dk": "#365f76",
  "wasser_hi": "#80b1c1",
- "schaum": "#d9e9e7"
+ "schaum": "#d9e9e7",
+ "erzboden1": "#8a786b",
+ "erzboden2": "#968273",
+ "erzboden3": "#77665b",
+ "erz_ader": "#a65a2f",
+ "erz_rost": "#c87a3c",
+ "erz_brocken": "#6a4537",
+ "sumpf1": "#5b6236",
+ "sumpf2": "#666d3c",
+ "sumpfwasser": "#3e5a50",
+ "schilf": "#7b8c3d",
+ "schilf_hi": "#a3ae55",
+ "rohrkolben": "#5e3f26",
+ "acker1": "#7a5b3b",
+ "acker_dk": "#5f452d",
+ "acker_hell": "#8d6b46",
+ "saat": "#6f9234",
+ "saat_hi": "#94b444"
 }

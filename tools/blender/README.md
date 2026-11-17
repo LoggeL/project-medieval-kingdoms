@@ -94,8 +94,11 @@ tools/blender/build_terrain.sh            # alle Stile (braucht die Figuren-Rend
 ```json
 {"tile": [64, 32], "anchor": [32, 16], "image": "terrain.png", "fps": 4,
  "keys": {"gras": {"row": 0, "variants": 4, "frames": 1}, "wiese": {"row": 1, …}, "waldboden": {"row": 2, …},
-          "erde": {"row": 3, …}, "fels": {"row": 4, …}, "wasser": {"row": 5, "variants": 1, "frames": 4}}}
+          "erde": {"row": 3, …}, "fels": {"row": 4, …}, "wasser": {"row": 5, "variants": 1, "frames": 4},
+          "erz": {"row": 6, …}, "sumpf": {"row": 7, …}, "acker": {"row": 8, …}}}
 ```
+
+`erz` (Fels mit rostroten Adern und Erzbrocken), `sumpf` (Moorboden mit trüben Pfützen, Schilf und Rohrkolben) und `acker` (Furchen mit junger Saat) sind später angehängt, die Zeilen 0–5 sind unverändert. Die Furchen haben eine Richtung: Varianten 0 und 1 verlaufen entlang Welt-x, 2 und 3 entlang Welt-y. Geländekacheln werden beim Drehen nicht mitgedreht, für die Ansichten r = 1 und r = 3 nimmt die Darstellung deshalb die andere Hälfte (Variante xor 2).
 
 Zeile = Geländetyp, Variante v und Bild f in Spalte v · frames + f. Ein Pixel (x, y) gehört zur Kachel, wenn |x + 0,5 − 32| / 32 + |y + 0,5 − 16| / 16 < 1; Kacheln im Abstand (32, 16) schließen dann ohne Lücke und Überlappung. Der Anker (32, 16) ist die Kachelmitte.
 
