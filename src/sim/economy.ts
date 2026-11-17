@@ -7,6 +7,7 @@
  */
 import { BUILDINGS, TUNING, UNITS, type Good } from "../data";
 import { center, entrance } from "./geom";
+import { nearestEnemy } from "./combat";
 import { tileGoal, travel } from "./move";
 import { hasRoom, reservePut, reserveTake } from "./storage";
 import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
@@ -113,9 +114,24 @@ const SPOTS: [number, number][] = (() => {
   return out;
 })();
 
-/** Untätige Tagelöhner warten am Sammelplatz (jeder an seinem Fleck). */
+/** Untätige Tagelöhner warten am Sammelplatz (jeder an seinem Fleck) und laufen vor Angreifern davon. */
 export function idlePeasant(w: World, u: SUnit): void {
   const ai = u.ai;
+  if (ai.flee > 0) {
+    ai.flee--;
+    const r = travel(w, u, tileGoal(ai.cx, ai.cy, 0, 1));
+    if (r !== "moving" && r !== "waiting") ai.flee = 0;
+    return;
+  }
+  if ((w.s.tick + u.id) % 5 === 0) {
+    const e = nearestEnemy(w, u, 5);
+    if (e) {
+      const dx = u.x - e.x, dy = u.y - e.y, d = Math.hypot(dx, dy) || 1;
+      const nav = w.nav, c = nav.comp[0][nav.node(u.layer, Math.floor(u.x), Math.floor(u.y))];
+      const n = c < 0 ? -1 : nav.nearestInComp(0, c, Math.floor(u.x + (dx / d) * 7), Math.floor(u.y + (dy / d) * 7), 0, 5);
+      if (n >= 0) { ai.cx = nav.tileX(n); ai.cy = nav.tileY(n); ai.flee = 4 * TPS; ai.think = 0; return; }
+    }
+  }
   if (ai.think > 0) { ai.think--; setAnim(u, "stehen"); return; }
   const [x, y] = campSpot(w, u);
   const r = travel(w, u, tileGoal(x, y, 0, 0));
@@ -151,7 +167,7 @@ export function updatePopulation(w: World): void {
   for (const u of s.units) if (u.team === 0 && !u.dead) pop++;
   for (const b of s.buildings) if (b.ai.inside) pop++;
   s.housing = housing; s.population = pop;
-  if (s.tick < w.meta.nextImmigrant) return;
+  if (!w.meta.immigration || s.tick < w.meta.nextImmigrant) return;
   w.meta.nextImmigrant = s.tick + TUNING.immigrantSeconds * TPS;
   if (pop >= housing) return;
   const [ex, ey] = w.meta.entry;

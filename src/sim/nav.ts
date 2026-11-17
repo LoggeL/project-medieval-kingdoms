@@ -4,7 +4,8 @@
  * Knoten = Laufebene · W · H + y · W + x. Ebene 0 Boden, 1 Wehrgang (Höhe 3: Mauer- und Tor-Tiles),
  * 2 Turmplattform (Höhe 5). Innerhalb einer Ebene 8er-Nachbarschaft ohne Eckenschneiden, zwischen den
  * Ebenen nur über Übergangskanten (links):
- *   Treppe:  unterer Tile (Boden, z 0,75) ↔ oberer Tile (nur über Kanten erreichbar, z 2,25) ↔ Mauer-Tile (Ebene 1)
+ *   Treppe:  unterer Tile (Boden) ↔ oberer Tile (nur über Kanten erreichbar) ↔ Mauer-Tile (Ebene 1);
+ *            auf beiden Treppen-Tiles ergibt sich die Höhe aus der Lage entlang der Stufen (stairZ)
  *   Turm:    angrenzender Wehrgang ↔ Plattform; Eingangs-Tile am Boden ↔ Plattform
  * Tore sind am Boden nur für Team 0 offen. Gebäude blockieren den Boden; im Belagerungsmodus (breach)
  * sind sie mit hohen Kosten passierbar: Der Weg zeigt dann, welches Gebäude ein Angreifer einreißen muss.
@@ -12,13 +13,12 @@
  * keine volle Suche auslösen. Ergebnisse werden bis zur nächsten Änderung des Rasters zwischengespeichert.
  */
 import { BUILDINGS, TERRAIN } from "../data";
-import { entrance, footprintTiles, stairEnds } from "./geom";
+import { center, entrance, footprintTiles, modelToWorld, stairEnds } from "./geom";
 import type { Team } from "./types";
 import type { World } from "./world";
 
 export const BLOCKED = 0, OPEN = 1, GATE = 2, BUILT = 3;
 export const LAYER_Z = [0, 3, 5];
-const STAIR_Z_BOTTOM = 0.75, STAIR_Z_TOP = 2.25;
 const BREACH_COST = 14, BREACH_GATE = 10;
 const MIN_COST = 0.7;
 const SQRT2 = Math.SQRT2;
@@ -41,6 +41,8 @@ export class Nav {
   /** Knoten, die nur über Übergangskanten erreichbar sind (oberer Treppen-Tile). */
   readonly linkOnly: Uint8Array;
   readonly links = new Map<number, number[]>();
+  /** Treppen-Tiles: Vorderkante (Welt) und Steigrichtung. */
+  private readonly stairs = new Map<number, [number, number, number, number]>();
   /** Zusammenhangskomponenten je Team (−1 = nicht begehbar). */
   readonly comp: Int32Array[];
   private readonly cache = new Map<string, number[] | null>();
@@ -97,6 +99,7 @@ export class Nav {
     w0.fill(BLOCKED); w1.fill(0); w2.fill(0);
     this.linkOnly.fill(0);
     this.links.clear();
+    this.stairs.clear();
     for (let i = 0; i < N; i++) {
       const t = TERRAIN[s.tiles[i].terrain];
       w0[i] = t.walkable ? OPEN : BLOCKED;
@@ -124,8 +127,12 @@ export class Nav {
         const e = stairEnds(b.x, b.y, b.o);
         if (!this.w.inMap(...e.bottom) || !this.w.inMap(...e.top)) continue;
         const bi = e.bottom[1] * W + e.bottom[0], top = N + e.top[1] * W + e.top[0];
-        w0[bi] = OPEN; this.cost[bi] = 1; this.z[bi] = STAIR_Z_BOTTOM;
-        this.linkOnly[top] = 1; this.z[top] = STAIR_Z_TOP;
+        w0[bi] = OPEN; this.cost[bi] = 1;
+        this.linkOnly[top] = 1;
+        const [cx, cy] = center(b.key, b.x, b.y, b.o);
+        const [fx, fy] = modelToWorld(0, -1, b.o), [ax, ay] = modelToWorld(0, 1, b.o);
+        const geo: [number, number, number, number] = [cx + fx, cy + fy, ax, ay];
+        this.stairs.set(bi, geo); this.stairs.set(top - N, geo);
         this.link(bi, top);
         if (this.w.inMap(...e.wall) && w1[e.wall[1] * W + e.wall[0]]) this.link(top, N + e.wall[1] * W + e.wall[0]);
       } else if (BUILDINGS[b.key].walkway === 2) {
@@ -147,6 +154,16 @@ export class Nav {
     this.labelComponents();
     if (bump) this.w.meta.navVersion++;
     this.cache.clear();
+  }
+
+  /** Höhe auf einer Treppe an der Weltposition (x, y) oder −1, wenn dort keine Treppe ist. */
+  stairZ(x: number, y: number): number {
+    const tx = Math.floor(x), ty = Math.floor(y);
+    if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) return -1;
+    const g = this.stairs.get(ty * this.W + tx);
+    if (!g) return -1;
+    const s = (x - g[0]) * g[2] + (y - g[1]) * g[3]; // 0 an der Vorderkante, 2 an der Mauer
+    return Math.min(LAYER_Z[1], Math.max(0, (s / 2) * LAYER_Z[1]));
   }
 
   private link(a: number, b: number): void {

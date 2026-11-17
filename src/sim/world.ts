@@ -54,6 +54,8 @@ export interface UnitAI {
   think: number;
   /** Ticks seit dem Tod. */
   deadT: number;
+  /** Tagelöhner auf der Flucht (Ticks). */
+  flee: number;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -99,6 +101,8 @@ export interface Meta {
   entry: [number, number];
   raidSpawn: [number, number];
   raidsEnabled: boolean;
+  /** Zuzug neuer Tagelöhner (aus im leeren Szenario). */
+  immigration: boolean;
   /** Bei Kampfbeginn einer Welle gesetzt, für die Meldung „abgewehrt“. */
   raidRunning: boolean;
 }
@@ -204,7 +208,7 @@ export class World {
 export function newUnitAI(): UnitAI {
   return {
     path: null, pi: 0, goal: "", navV: 0, hasEnd: false, endX: 0, endY: 0, wait: 0,
-    job: null, cd: 0, target: 0, targetB: 0, cx: 0, cy: 0, think: 0, deadT: 0,
+    job: null, cd: 0, target: 0, targetB: 0, cx: 0, cy: 0, think: 0, deadT: 0, flee: 0,
   };
 }
 

@@ -67,7 +67,7 @@ export function raiderAct(w: World, u: SUnit): void {
   if (t) {
     if (inRangeUnit(u, t)) { strikeUnit(w, u, t); return; }
     const d = Math.hypot(t.x - u.x, t.y - u.y);
-    if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y)) { stepToward(w, u, t.x, t.y, isRanged(u.key) ? 3 : 0.6); ai.goal = ""; return; }
+    if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y) && stepToward(w, u, t.x, t.y, isRanged(u.key) ? 3 : 0.6)) { ai.goal = ""; return; }
     const tx = Math.floor(t.x), ty = Math.floor(t.y);
     if (!ai.goal || Math.hypot(tx - ai.cx, ty - ai.cy) > 1.5) { ai.cx = tx; ai.cy = ty; }
     const r = travel(w, u, { ...tileGoal(ai.cx, ai.cy, t.layer, 1), breach: true });
@@ -95,7 +95,7 @@ function breakThrough(w: World, u: SUnit): void {
   const b = w.buildingAt(w.nav.tileX(n), w.nav.tileY(n));
   if (!b || b.team === u.team) return;
   if (inRangeBuilding(u, b)) strikeBuilding(w, u, b);
-  else { const [cx, cy] = center(b.key, b.x, b.y, b.o); stepToward(w, u, cx, cy, 0.5); }
+  else { const [cx, cy] = center(b.key, b.x, b.y, b.o); if (!stepToward(w, u, cx, cy, 0.5)) setAnim(u, "stehen"); }
 }
 
 function chooseTarget(w: World, u: SUnit): void {

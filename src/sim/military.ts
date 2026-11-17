@@ -47,8 +47,7 @@ function chase(w: World, u: SUnit, t: SUnit): boolean {
   if (inRangeUnit(u, t)) { strikeUnit(w, u, t); return true; }
   const ai = u.ai;
   const d = Math.hypot(t.x - u.x, t.y - u.y);
-  if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y)) {
-    stepToward(w, u, t.x, t.y, isRanged(u.key) ? rangeOf(u) * 0.9 : 0.6);
+  if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y) && stepToward(w, u, t.x, t.y, isRanged(u.key) ? rangeOf(u) * 0.9 : 0.6)) {
     ai.goal = "";
     return true;
   }

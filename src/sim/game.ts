@@ -53,7 +53,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     version: SAVE_VERSION, rng: seedState(seed), nextId: 1, navVersion: 0,
     nextImmigrant: TUNING.immigrantSeconds * TPS, throttle: {},
     camp: [0, 0], entry: [0, 0], raidSpawn: [0, 0],
-    raidsEnabled: opts.raids ?? scenario === "standard", raidRunning: false,
+    raidsEnabled: opts.raids ?? scenario === "standard", raidRunning: false, immigration: scenario === "standard",
   };
   const rand = () => nextRandom(meta);
   const map = scenario === "leer" ? emptyMap(size, size) : generateMap(size, size, rand, () => meta.nextId++);

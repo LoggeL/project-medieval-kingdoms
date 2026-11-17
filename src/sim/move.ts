@@ -106,6 +106,8 @@ function advance(w: World, u: SUnit): boolean {
       budget = 0;
     }
   }
+  // Auf der Treppe folgt die Höhe den Stufen
+  if (u.layer <= 1) { const sz = nav.stairZ(u.x, u.y); if (sz >= 0) u.z = sz; }
   const done = ai.pi >= path.length && (!ai.hasEnd || (Math.abs(u.x - ai.endX) < 1e-6 && Math.abs(u.y - ai.endY) < 1e-6));
   setAnim(u, done ? "stehen" : "gehen");
   return done;
@@ -121,16 +123,21 @@ export function speedOf(w: World, u: SUnit): number {
   return base * Math.min(1.45, Math.max(0.55, 1 / c));
 }
 
-/** Direkt (ohne Pfad) auf einen Punkt zugehen; nur für kurze, freie Strecken auf derselben Ebene. */
-export function stepToward(w: World, u: SUnit, tx: number, ty: number, keep = 0): void {
+/** Direkt (ohne Pfad) auf einen Punkt zugehen; nur für kurze, freie Strecken auf derselben Ebene. false = versperrt. */
+export function stepToward(w: World, u: SUnit, tx: number, ty: number, keep = 0): boolean {
   const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
   face(u, dx, dy);
-  if (d <= keep) return;
+  if (d <= keep) { setAnim(u, "stehen"); return true; }
   const step = Math.min(d - keep, speedOf(w, u) / TPS);
   const nx = u.x + (dx / d) * step, ny = u.y + (dy / d) * step;
-  if (!w.nav.open(w.nav.node(u.layer, Math.floor(nx), Math.floor(ny)), u.team)) return;
+  const fx = Math.floor(nx), fy = Math.floor(ny);
+  if (!w.inMap(fx, fy) || !w.nav.open(w.nav.node(u.layer, fx, fy), u.team)) return false;
+  // nicht diagonal zwischen zwei Hindernissen hindurch
+  if (fx !== Math.floor(u.x) && fy !== Math.floor(u.y)
+    && (!w.nav.open(w.nav.node(u.layer, fx, Math.floor(u.y)), u.team) || !w.nav.open(w.nav.node(u.layer, Math.floor(u.x), fy), u.team))) return false;
   u.x = nx; u.y = ny;
   setAnim(u, "gehen");
+  return true;
 }
 
 /** Freie Sicht/Strecke am Boden bzw. auf derselben Ebene (Raster abtasten). */
