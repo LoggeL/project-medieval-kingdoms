@@ -3,8 +3,9 @@
  * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Verarbeitung (Rezept, Eingangspuffer, Fortschritt, Ausgabestapel,
  * Stillstandsgrund, Anhalten; ADR 0011), Hofstapel, Lagerplätze, Ausbildung, Abreißen.
  * Bergfried: Stufe, Steuern, Ausbau (Kosten, fehlende Forschung, Fortschritt), laufende Forschung und der Forschungsbaum.
- * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
- * Tasten (src/data/hotkeys.ts): Ausbilden U I O J K L, Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
+ * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehlsleiste (src/ui/befehle.ts): Stationieren,
+ * Angriffsmarsch, Patrouille, Rückzug, Formation und Haltung.
+ * Tasten (src/data/hotkeys.ts): Ausbilden (Plätze des Einheitenrasters), Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
  * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
@@ -22,6 +23,7 @@ import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { gearShort, recruit } from "./unitgrid";
+import { createCommandBar } from "./befehle";
 
 const CAT_NAME = { zentrum: "Sitz des Burgherrn", wirtschaft: "Wirtschaft", nahrung: "Nahrung", handwerk: "Handwerk", wohnen: "Wohnen", militaer: "Militär", befestigung: "Befestigung", wege: "Wege und Fuhrwesen" } as const;
 const LAYER_NAME = ["am Boden", "auf dem Wehrgang", "auf dem Turm"];
@@ -584,23 +586,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       body.append(h("p.mk-desc", { text: "Arbeiter folgen ihrer Arbeit. Befehle gibt es nur für Soldaten." }));
       return;
     }
-    const ids = () => liveUnits(bridge.state(), bridge.selection().units).filter((u) => u.team === 0 && UNITS[u.key].role !== "arbeiter").map((u) => u.id);
-    const send = (t: "stationieren" | "halten") => {
-      const r = bridge.dispatch({ t, units: ids() });
-      if (!r.ok) ctx.toast(r.reason ?? "Befehl nicht möglich.", "warnung");
-      else if (r.reason) ctx.toast(r.reason, "info");
-    };
-    const canStation = soldiers.some((u) => UNITS[u.key].canStation);
-    const station = h("button.mk-btn.mk-cmd", { type: "button", title: "Auf freie Posten an Mauern und Türmen verteilen", disabled: !canStation, onclick: () => send("stationieren") },
-      h("span.mk-cmd-glyph.mk-g-station", { "aria-hidden": "true" }), h("span", { text: "Stationieren" }));
-    const hold = h("button.mk-btn.mk-cmd", { type: "button", title: "Stehen bleiben und nur in Reichweite kämpfen", onclick: () => send("halten") },
-      h("span.mk-cmd-glyph.mk-g-hold", { "aria-hidden": "true" }), h("span", { text: "Halten" }));
-    // T und H wertet die Eingabe aus (src/app/input.ts), die Knöpfe leuchten beim Drücken nur auf
-    setKey(station, BUTTON_KEYS.stationieren, { app: true });
-    setKey(hold, BUTTON_KEYS.halten, { app: true });
-    body.append(section("Befehle",
-      h("div.mk-cmds", null, station, hold),
-      h("p.mk-sub", { text: "Angreifen: Rechtsklick auf einen Gegner. Bewegen: Rechtsklick auf den Boden oder einen Wehrgang." })));
+    // Befehlsleiste, Formation und Haltung (src/ui/befehle.ts, ADR 0018)
+    const bar = createCommandBar(ctx, soldiers, section);
+    body.append(...bar.sections);
+    upd.push((s) => bar.update(s));
   }
 
   /** Titel auf eine Zeile verkleinern (bis 14 px), statt mitten im Wort umzubrechen; reicht das nicht, darf er umbrechen. */
@@ -621,8 +610,8 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       icon ? h("span.mk-head-icon", null, icon) : null,
       h("div.mk-head-text", null, h("h2.mk-title", { text: title, lang: "de" }), h("p.mk-sub", { text: sub })));
   }
-  function section(title: string, ...kids: (Node | null)[]): HTMLElement {
-    return h("section.mk-sec", null, h("h3.mk-sec-title", { text: title }), ...kids);
+  function section(title: string | HTMLElement, ...kids: (Node | null)[]): HTMLElement {
+    return h("section.mk-sec", null, typeof title === "string" ? h("h3.mk-sec-title", { text: title }) : h("h3.mk-sec-title", null, title), ...kids);
   }
   function row(label: string, icon: HTMLElement | null, val: HTMLElement): HTMLElement {
     return h("div.mk-row", null, icon, h("span.mk-row-label", { text: label }), val);
@@ -683,6 +672,9 @@ const ACTIVITY: Record<UnitActivity, string> = {
   schiebt: "Schiebt den Rammbock",
   repariert: "Repariert",
   erholt: "Erholt sich",
+  marschiert: "Angriffsmarsch",
+  patrouilliert: "Patrouilliert",
+  zieht_zurueck: "Zieht sich zum Bergfried zurück",
 };
 
 /** Tätigkeit für das Panel: aus Unit.activity (Simulation), sonst grob aus dem Befehl. */

@@ -91,7 +91,7 @@ describe("Tastenschilder", () => {
     expect(keyLabel("Delete")).toBe("Entf");
     expect(keyLabel("Escape")).toBe("Esc");
     expect(bindingLabel(BUTTON_KEYS.abriss)).toBe("Entf");
-    expect(TRAIN_KEYS.map((c) => keyLabel(c)).join(" ")).toBe("U I O J K L");
+    expect(TRAIN_KEYS.map((c) => keyLabel(c)).join(" ")).toBe("U I O Ü Ä #");
   });
 
   it("folgen dem gemeldeten Layout (englisch: Z statt Y)", () => {

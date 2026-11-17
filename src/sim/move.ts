@@ -8,6 +8,7 @@ import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
 import { carryFactor } from "./research";
 import { MIN_COST } from "./nav";
+import { orderSpeed } from "./befehle";
 import type { Goal } from "./nav";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -97,8 +98,8 @@ export function blockedNode(u: SUnit): number {
 export function evictUnits(w: World): void {
   const nav = w.nav;
   for (const u of w.s.units) {
-    // wer gerade an einer Leiter klettert (Höhe ohne Treppe), bleibt, wo er ist
-    if (u.dead || u.layer !== 0 || u.inside || (u.z > 0.2 && nav.stairZ(u.x, u.y) < 0)) continue;
+    // wer gerade über Treppe, Turmtür oder Sturmleiter hinaufsteigt (Ebene wechselt erst am Knoten), steht nicht auf dem Boden
+    if (u.dead || u.layer !== 0 || u.inside || u.z > 0.05) continue;
     const n = unitNode(w, u);
     if (nav.linkOnly[n] || nav.open(n, u.team)) continue;
     const free = nav.nearestOpen(u.team, nav.tileX(n), nav.tileY(n), 0);
@@ -157,7 +158,8 @@ export function climbing(w: World, u: SUnit, n: number): boolean {
 
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */
 export function speedOf(w: World, u: SUnit): number {
-  const base = UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1) * (u.run ? LIFE.run.factor : 1);
+  // Rückzug schneller, Formation im Tempo des Langsamsten (befehle.ts); fliehende Tagelöhner rennen (ADR 0016)
+  const base = orderSpeed(u, UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1) * (u.run ? LIFE.run.factor : 1));
   if (u.layer > 0) return base;
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;

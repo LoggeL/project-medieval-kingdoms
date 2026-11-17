@@ -14,7 +14,12 @@ export type Tool =
   | { t: "mauer"; key?: BuildingKey }
   /** Weg oder Brücke ziehen (BuildingDef.road). */
   | { t: "weg"; key: BuildingKey }
-  | { t: "abriss" };
+  | { t: "abriss" }
+  /**
+   * Befehl der gewählten Soldaten, der Klicks in die Welt braucht (ADR 0018): Angriffsmarsch (Zielpunkt oder Gegner)
+   * bzw. Patrouille (pts = schon gesetzte Wegmarken; Umschalt + Klick setzt weitere). Rechtsklick oder Esc bricht ab.
+   */
+  | { t: "befehl"; cmd: "angriffsbewegung" | "patrouille"; pts: { x: number; y: number }[] };
 
 export interface Selection { units: number[]; building: number | null }
 

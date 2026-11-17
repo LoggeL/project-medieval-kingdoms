@@ -35,6 +35,7 @@ export const mountUi: MountUi = (root, bridge) => {
   for (const sheet of new Set(["forschung", ...Object.values(TECHS).map((t) => t.iconSheet ?? "forschung")])) {
     root.style.setProperty(`--mk-tex-${sheet}`, `url("${new URL(`ui/${sheet}.png`, base).href}")`);
   }
+  root.style.setProperty("--mk-tex-befehle", `url("${new URL("ui/befehle.png", base).href}")`);
 
   const toastLayer = h("div.mk-toasts");
   const rectOf = (el: HTMLElement) => (el.isConnected && !el.hidden ? el.getBoundingClientRect() : null);

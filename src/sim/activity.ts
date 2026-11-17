@@ -30,7 +30,10 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
       case "attack": return "kaempft";
       case "hold": return "haelt";
       case "station": return moving && !u.ai.step ? "unterwegs" : "wache";
-      default: return u.ai.target ? "kaempft" : moving ? "unterwegs" : "wartet";
+      case "amove": return u.ai.target ? "kaempft" : moving ? "marschiert" : "wartet";
+      case "patrol": return u.ai.target ? "kaempft" : "patrouilliert";
+      case "retreat": return "zieht_zurueck";
+      default: return u.ai.target ? "kaempft" : moving ? "unterwegs" : u.stance === "stellung" ? "haelt" : "wartet";
     }
   }
   const j = u.ai.job;

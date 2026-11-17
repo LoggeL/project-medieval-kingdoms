@@ -51,6 +51,7 @@ export * from "./goods";
 export * from "./recipes";
 export * from "./landwirtschaft";
 export * from "./nahrung";
+export * from "./befehle";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 

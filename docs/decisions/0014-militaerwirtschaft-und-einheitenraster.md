@@ -62,7 +62,7 @@ Zusammen kosten sie 95 Gold. Gesperrte Rezepte stehen im Panel ausgegraut und ne
 **Oberfläche:**
 - `roster.ts` baut das Raster nur aus `UNITS` und `UNIT_GROUPS` (Test: keine Einheit beim Namen im Quelltext).
 - Die Detailkarte zeigt für alle Einheiten Werte, Rüstungsklasse und „Stark gegen“. Spielbare zeigen ihre Ausrüstung, gesperrte ihre Voraussetzungen.
-- Die Kaserne hat sechs Ausbildungsknöpfe (Tasten U I O J K L).
+- Die Kaserne hat sechs Ausbildungsknöpfe (Tasten U I O J K L; seit der Zusammenführung mit ADR 0018 U I O Ü Ä #, weil J K L die Befehle der Soldaten tragen).
 
 ## Folgen
 - Neue Einheiten, Rezepte oder Werkstätten brauchen nur Daten und Grafik. Für eine bisher geplante Einheit genügt der Eintrag in `trains`, sobald ihre `planned`-Liste leer ist.

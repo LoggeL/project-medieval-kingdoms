@@ -46,7 +46,10 @@ export class PointerHint {
       this.el.hidden = !text;
     }
     if (!text) return;
-    const x = Math.round(Math.min(window.innerWidth - 16, Math.max(8, cx + 16)));
+    // rechts neben dem Zeiger; reicht der Platz nicht (z. B. vor dem Auswahlpanel), links davon
+    const w = this.el.offsetWidth;
+    const right = cx + 16 + w > window.innerWidth - 8;
+    const x = Math.round(Math.max(8, right ? cx - 12 - w : cx + 16));
     const y = Math.round(Math.min(window.innerHeight - 30, Math.max(8, cy + 20)));
     if (x === this.x && y === this.y) return;
     this.x = x; this.y = y;
