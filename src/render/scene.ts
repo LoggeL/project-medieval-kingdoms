@@ -39,6 +39,11 @@ export interface Ghost {
   x0: number; y0: number; x1: number; y1: number;
   cx: number; cy: number;
   alpha: number; tint: number;
+  /**
+   * Teil einer Gruppe (Mauerzug beim Ziehen): nicht einzeln halbtransparent in der Tiefensortierung, sondern deckend in
+   * der eigenen Ebene ghostGroup, die als Ganzes einheitlich transparent ist (keine sich addierenden Überlappungen).
+   */
+  group?: boolean;
 }
 
 interface Part {
@@ -90,6 +95,10 @@ export class ObjectLayer {
   readonly container = new Container();
   /** Silhouetten verdeckter Figuren (über der Objektebene). */
   readonly silhouettes = new Container();
+  /** Gruppenvorschau (Mauerzug): deckend gezeichnet; die Darstellung gibt dem Container eine gemeinsame Transparenz. */
+  readonly ghostGroup = new Container();
+  private groupPool = new SpritePool(this.ghostGroup);
+  private groupList: Ghost[] = [];
   private pool = new SpritePool(this.container);
   private silPool = new SpritePool(this.silhouettes);
   private sorter = new DepthSorter();
@@ -152,7 +161,12 @@ export class ObjectLayer {
     for (const b of state.buildings) this.safe(b.key, () => this.buildingItems(b, state, opt));
     for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
     for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
-    for (const g of opt.ghosts) this.safe(g.key, () => this.ghostItem(g));
+    this.groupList.length = 0;
+    for (const g of opt.ghosts) {
+      if (g.group) this.groupList.push(g);
+      else this.safe(g.key, () => this.ghostItem(g));
+    }
+    this.groupGhosts();
 
     // Sortieren und Sprites belegen
     const items = this.items;
@@ -609,6 +623,31 @@ export class ObjectLayer {
     const [X, Y] = this.scr(g.cx, g.cy);
     this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1], { alpha: g.alpha, tint: g.tint });
     this.closeItem(it);
+  }
+
+  /** Gruppenvorschau: von hinten nach vorn (Ansicht u + v, dann u) deckend in ghostGroup. */
+  private groupGhosts(): void {
+    this.groupPool.reset();
+    const bs = this.bs;
+    const list = this.groupList;
+    if (bs && list.length) {
+      const key = (g: Ghost) => {
+        const [u, v] = toView(g.cx, g.cy, this.r, this.W, this.H);
+        return [u + v, u];
+      };
+      const keyed = list.map((g) => ({ g, k: key(g) }));
+      keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1]);
+      for (const { g } of keyed) {
+        const tex = bs.texture(g.key, viewOf(g.o, this.r), g.frame);
+        if (!tex) continue;
+        const [X, Y] = this.scr(g.cx, g.cy);
+        const s = this.groupPool.next(tex);
+        s.pivot.set(bs.anchor[0], bs.anchor[1]);
+        s.position.set(Math.round(X), Math.round(Y));
+        if (g.tint !== 0xffffff) s.tint = g.tint;
+      }
+    }
+    this.groupPool.finish();
   }
 
   // ---------------------------------------------------------------- Bäume und Felsen

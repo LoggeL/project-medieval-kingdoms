@@ -2,7 +2,7 @@
  * Darstellung: setzt Gelände, Objekte und Hilfsebenen zusammen, führt Kamera, Drehung (mit kurzem Überblenden) und Zoom.
  * Liest den Simulationszustand nur. Bildschirmkoordinaten sind CSS-Pixel relativ zum Canvas.
  */
-import { Container, Graphics, RenderTexture, Sprite, type Application } from "pixi.js";
+import { AlphaFilter, Container, Graphics, RenderTexture, Sprite, type Application } from "pixi.js";
 import { TICKS_PER_SECOND, UNITS } from "../data";
 import type { Rot } from "../sim/geom";
 import { LAYER_Z } from "../sim/nav";
@@ -10,7 +10,7 @@ import type { SimState } from "../sim/types";
 import { setSmoothing, type Sheets } from "./assets";
 import { Camera } from "./camera";
 import { screenToWorld, worldToScreen } from "./iso";
-import { Overlays, type Marker, type Preview } from "./overlays";
+import { Overlays, WALL_GHOST_ALPHA, type Marker, type Preview } from "./overlays";
 import { ObjectLayer, type Hit } from "./scene";
 import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
@@ -52,7 +52,9 @@ export class GameRenderer {
     this.terrain = new TerrainLayer(app.renderer, sheets.terrain);
     this.objects = new ObjectLayer(sheets.buildings, sheets.figures);
     this.overlays = new Overlays(sheets.buildings);
-    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.smoke.container, this.objects.silhouettes, this.overlays.top);
+    this.world.addChild(this.terrain.container, this.overlays.ground, this.objects.container, this.objects.ghostGroup, this.smoke.container, this.objects.silhouettes, this.overlays.top);
+    // Mauerzug-Vorschau als Ganzes halbtransparent (einzeln transparente Stücke würden sich überlagern)
+    this.objects.ghostGroup.filters = [new AlphaFilter({ alpha: WALL_GHOST_ALPHA })];
     this.screen.addChild(this.rect);
     app.stage.addChild(this.world, this.screen);
     app.stage.eventMode = "none";

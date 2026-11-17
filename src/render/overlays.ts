@@ -27,6 +27,8 @@ const BAD_FILL = 0xe0503c, BAD_LINE = 0xff8a70;
 /** Regelverstoß, der nicht an einer Kachel hängt (z. B. „Zu wenige Bäume“): alle Rauten orange. */
 const RULE_FILL = 0xe89a3a, RULE_LINE = 0xffc070;
 const FORT = new Set<string>(["mauer", "tor", "turm"]);
+/** Gemeinsame Transparenz des gezogenen Mauerzugs (Gruppe, siehe Ghost.group). */
+export const WALL_GHOST_ALPHA = 0.6;
 
 export class Overlays {
   /** Unter den Objekten (Boden). */
@@ -102,16 +104,17 @@ export class Overlays {
         const { piece, o } = wallPiece(mask);
         const keys: [string, number][] = bs.has(piece) ? [[piece, o]]
           : piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz" ? [["mauer", o], ["mauer", o + 1]] : [["mauer", o]];
-        for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, 0.55, tl.ok ? 0xffffff : 0xff7a6a);
+        // als Gruppe: die Darstellung zeichnet den Mauerzug deckend und blendet ihn als Ganzes (WALL_GHOST_ALPHA)
+        for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, WALL_GHOST_ALPHA, tl.ok ? 0xffffff : 0xff7a6a, true);
       }
     }
     return this.ghostList;
   }
 
-  private addGhost(key: string, o: number, frame: number, x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, alpha: number, tint: number): void {
+  private addGhost(key: string, o: number, frame: number, x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, alpha: number, tint: number, group = false): void {
     let g = this.ghostPool[this.ghostList.length];
-    if (!g) { g = { key, o, frame, x0, y0, x1, y1, cx, cy, alpha, tint }; this.ghostPool.push(g); }
-    g.key = key; g.o = o; g.frame = frame; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.cx = cx; g.cy = cy; g.alpha = alpha; g.tint = tint;
+    if (!g) { g = { key, o, frame, x0, y0, x1, y1, cx, cy, alpha, tint, group }; this.ghostPool.push(g); }
+    g.key = key; g.o = o; g.frame = frame; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.cx = cx; g.cy = cy; g.alpha = alpha; g.tint = tint; g.group = group;
     this.ghostList.push(g);
   }
 
