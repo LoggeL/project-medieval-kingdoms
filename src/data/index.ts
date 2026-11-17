@@ -104,7 +104,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   lager: {
     name: "Lagerplatz", desc: "Acht Stellplätze für Holz, Stein, Eisen und Waffen. Jede Ware liegt sichtbar auf ihrem Stapel.",
     category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lager_boden",
-    storage: { slots: 8, perSlot: 8 }, hp: 300,
+    storage: { slots: 8, perSlot: 20 }, hp: 300,
   },
   holzfaeller: {
     name: "Holzfällerhütte", desc: "Ein Holzfäller fällt Bäume in der Nähe, zerlegt sie und legt die Stämme auf seinen Hof.",
@@ -228,4 +228,34 @@ export const START = {
   stock: { holz: 40, stein: 30, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand. */
   raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2 },
+};
+
+// ---------------------------------------------------------------- Simulationswerte (Balance)
+/** Schadensarten: welcher Anteil der Rüstung wirkt und wie stark sie gegen Gebäude sind. */
+export const DAMAGE_TYPES: Record<DamageType, { armor: number; building: number }> = {
+  stich: { armor: 0.7, building: 0.35 },
+  hieb: { armor: 1, building: 1 },
+  pfeil: { armor: 1, building: 0.1 },
+};
+
+/** Stellschrauben der Simulation (Sekunden, Tiles, Gold). */
+export const TUNING = {
+  /** Wohnraum ohne Häuser. */
+  baseHousing: 10,
+  /** Abstand, in dem neue Tagelöhner zuziehen, solange Wohnraum frei ist. */
+  immigrantSeconds: 20,
+  /** Stämme pro gefälltem Baum. */
+  treeLogs: 3,
+  fallSeconds: 1.5,
+  dyingSeconds: 1,
+  corpseSeconds: 10,
+  /** Sichtweite untätiger Soldaten und der Angreifer. */
+  sight: 8,
+  raiderSight: 7,
+  /** Pfeilgeschwindigkeit in Tiles pro Sekunde. */
+  projectileSpeed: 11,
+  /** Gold je besiegtem Angreifer. */
+  bounty: 4,
+  /** Zufällige Streuung des Schadens (±). */
+  damageSpread: 0.15,
 };

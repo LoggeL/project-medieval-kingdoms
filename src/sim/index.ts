@@ -1,15 +1,8 @@
 /**
- * Einstieg der Simulation. Wird von der echten Simulation ersetzt (createGame mit Karte, Wirtschaft, Kampf).
- * Bis dahin liefert sie die Platzhalter-Welt aus demo.ts.
+ * Einstieg der Simulation: createGame({ seed, size }) startet eine Partie, loadGame(json) lädt einen Spielstand.
+ * Beide liefern ein Game (types.ts). Die Platzhalter-Welt aus demo.ts bleibt für Darstellungsversuche erhalten.
  */
-import { createDemoGame } from "./demo";
-import type { Game } from "./types";
-
 export * from "./types";
 export * from "./geom";
-
-export interface GameOptions { seed?: number; size?: number }
-
-export function createGame(_opts: GameOptions = {}): Game {
-  return createDemoGame();
-}
+export { createGame, loadGame, type GameOptions } from "./game";
+export { createDemoGame } from "./demo";
