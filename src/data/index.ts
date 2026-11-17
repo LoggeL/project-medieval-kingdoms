@@ -43,9 +43,9 @@ export const GOODS: Record<Good, GoodDef> = {
   holz: { name: "Holz", stack: "stapel_holz", carrier: "traeger" },
   stein: { name: "Stein", stack: "stapel_stein", carrier: "traeger_stein" },
   eisen: { name: "Eisen", stack: "stapel_eisen", carrier: "traeger_kiste" },
-  speer: { name: "Speere", stack: "stapel_speer", carrier: "traeger_kiste" },
-  schwert: { name: "Schwerter", stack: "stapel_schwert", carrier: "traeger_kiste" },
-  bogen: { name: "Bögen", stack: "stapel_bogen", carrier: "traeger_kiste" },
+  speer: { name: "Speere", stack: "stapel_speer", carrier: "traeger_speer" },
+  schwert: { name: "Schwerter", stack: "stapel_schwert", carrier: "traeger_schwert" },
+  bogen: { name: "Bögen", stack: "stapel_bogen", carrier: "traeger_bogen" },
 };
 
 export type Cost = Partial<Record<Good | "gold", number>>;

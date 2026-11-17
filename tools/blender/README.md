@@ -13,7 +13,7 @@ Braucht Blender 5.x im `PATH` sowie Python 3 mit Pillow und NumPy.
 |---|---|
 | `figures.py` | baut die Figuren in Blender, rendert 8 Richtungen × (Stehen, 8 Laufbilder, Aktion, Sterben, tot), je ein Farb- und ein Lichtdurchgang, nach `.local/blender/<stil>/` |
 | `pixelize.py` | Materialzuordnung, Blockverkleinerung mit Vorrang für kleine Merkmale, harte Lichtstufen (optional Dither, Schraffur), Kontur oder Innenrand, Schlagschatten, Teamtausch-Tabelle → `assets/figures/<stil>/<einheit>.png` |
-| `units.json` | Einheiten: Rumpf, Helm, Wappenrock, Ausrüstung, Haltung, Griffwinkel, `action` (`anim` = Name im Blatt, `motion` = Bewegung aus `ACTIONS` in `figures.py`), `swing` (Armschwung beim Gehen, 0 = Last mit beiden Armen), `dies: false` = ohne Sterbebilder. `showcase: false` = nur Hilfsfigur für die Gebäudeszene der Konzeptseite (Tagelöhner ohne Last) |
+| `units.json` | Einheiten: Rumpf, Helm, Wappenrock, Ausrüstung, Haltung, Griffwinkel, `action` (`anim` = Name im Blatt, `motion` = Bewegung aus `ACTIONS` in `figures.py`), `action_gear` (Gerät, das nur in den Aktionsbildern zu sehen ist, z. B. der Hammer des Tagelöhners), `swing` (Armschwung beim Gehen, 0 = Last mit beiden Armen), `dies: false` = ohne Sterbebilder. `showcase: false` = nur Hilfsfigur für die Gebäudeszene der Konzeptseite (Tagelöhner ohne Last). Neue Einheiten kommen ans Ende, damit die Atlaszeilen der bisherigen gleich bleiben |
 | `styles/*.json` | Stilrichtungen: Figurengröße, Proportionen, Palette, Licht, Kontur |
 | `build.sh` | beides für alle oder einzelne Stile |
 
@@ -23,7 +23,7 @@ Braucht Blender 5.x im `PATH` sowie Python 3 mit Pillow und NumPy.
 |---|---|---|
 | 0 | `stehen` | alle |
 | 1–8 | `gehen` | alle |
-| 9–12 | Aktion: `hacken` (Holzfäller), `abbauen` (Steinmetz), `angriff` (Speer: Stoß, Schwert: Hieb), `schiessen` (Bogen) | nur Einheiten mit `action`, sonst leer |
+| 9–12 | Aktion: `hacken` (Holzfäller), `abbauen` (Steinmetz), `bauen` (Tagelöhner: Hammerschläge tief vor dem Körper, Hammer nur in diesen Bildern), `angriff` (Speer: Stoß, Schwert: Hieb), `schiessen` (Bogen: Anlegen, Heben mit eingelegtem Pfeil, voller Auszug mit Sehne zur Hand, Lösen) | nur Einheiten mit `action`, sonst leer |
 | 13–15 | `sterben` (getroffen, Knie geben nach, kippt nach hinten) | alle |
 | 16 | `tot` (liegt auf dem Rücken, um den Fußpunkt zentriert) | alle |
 
@@ -34,6 +34,12 @@ Braucht Blender 5.x im `PATH` sowie Python 3 mit Pillow und NumPy.
 Einzelne Einheiten neu rendern: `blender -b --factory-startup --python-exit-code 1 -P tools/blender/figures.py -- --style … --out .local/blender/<stil> --units speer` (optional `--frames 9-16` nur diese Spalten). Die übrigen Einheiten bleiben in `render.json` erhalten.
 
 **Richtung d** entspricht einer Drehung der Figur um 45° + d · 45° um die Hochachse. d = 0 schaut zur Kamera.
+
+**Seitenansicht:** In den Richtungen O und W sieht man die Figur im Profil, dort zählt nur die Körpertiefe. Damit sie nicht zum dünnen Strich wird, gilt für alle Menschenfiguren `PROFILE` in `figures.py` (pro Stil überschreibbar mit dem Schlüssel `profile`): Brust und Hüfte 1,55-mal so tief, freie Arme in Ruhe 18° nach vorn und 5° nach außen, Oberarme und Hände etwas kräftiger, ein Pixel Nase (nicht unter Nasal- oder Schallernhelm). Der Tagelöhner ist im Profil jetzt 10 statt 5 px breit (vorgerendert), von vorn unverändert 15.
+
+**Ellbogen:** Unterarm, Hand und gehaltenes Gerät hängen an einem Ellbogen-Gelenk (`elbowL`/`elbowR`). In Ruhe ist der Arm gestreckt wie bisher, Aktionen können ihn beugen (`"elbowR": (x, y, z)` in `ACTIONS`), so beim vollen Auszug des Bogens (Ellbogen hoch, Hand an der Wange). Beim Schießen spannt `bow_extras` die Sehne von beiden Bogenenden zur rechten Hand (`"string": "drawn"`) und legt den Pfeil ein (`"arrow": "nocked"` bzw. `"drawn"`).
+
+**Träger:** Alle Trägerfiguren tragen das Gewand des Tagelöhners (Kittel `cloth`, Hose `hose2`, Mütze in Teamfarbe). Holzstamm und Speerbündel liegen auf der rechten Schulter, um 22,5° nach außen gedreht, damit sie auch beim Gehen auf die Kamera zu nicht zum Punkt schrumpfen. `traeger_speer`: zwei Speere geschultert; `traeger_schwert`: drei Schwerter schräg vor der Brust, mit Riemen gebunden; `traeger_bogen`: drei bespannte Bögen aufrecht in der rechten Hand. Eisen trägt weiter `traeger_kiste`.
 
 **Stiloptionen für den vorgerenderten Eindruck** (siehe `styles/vorgerendert.json`): `smooth` (glatt schattierte, abgerundete Grundkörper), `cavity` (Kontaktschatten in Falten, nur im Lichtdurchgang), `quantize_hip` (Körperhub in ganzen Pixeln), `back_hair` (Haar am Hinterkopf unter Mützen), in `pixel`: `rim_sides: "shade"`, `metal` + `metal_gain`, `shadow.solid`, `shadow.fringe_alpha`, `shadow.contact`.
 
@@ -94,15 +100,27 @@ tools/blender/build_terrain.sh            # alle Stile (braucht die Figuren-Rend
 ```json
 {"tile": [64, 32], "anchor": [32, 16], "image": "terrain.png", "fps": 4,
  "keys": {"gras": {"row": 0, "variants": 4, "frames": 1}, "wiese": {"row": 1, …}, "waldboden": {"row": 2, …},
-          "erde": {"row": 3, …}, "fels": {"row": 4, …}, "wasser": {"row": 5, "variants": 1, "frames": 4},
+          "erde": {"row": 3, …}, "fels": {"row": 4, …}, "wasser": {"row": 5, "variants": 4, "frames": 8},
           "erz": {"row": 6, …}, "sumpf": {"row": 7, …}, "acker": {"row": 8, …}}}
 ```
 
 `erz` (Fels mit rostroten Adern und Erzbrocken), `sumpf` (Moorboden mit trüben Pfützen, Schilf und Rohrkolben) und `acker` (Furchen mit junger Saat) sind später angehängt, die Zeilen 0–5 sind unverändert. Die Furchen haben eine Richtung: Varianten 0 und 1 verlaufen entlang Welt-x, 2 und 3 entlang Welt-y. Geländekacheln werden beim Drehen nicht mitgedreht, für die Ansichten r = 1 und r = 3 nimmt die Darstellung deshalb die andere Hälfte (Variante xor 2).
 
-Zeile = Geländetyp, Variante v und Bild f in Spalte v · frames + f. Ein Pixel (x, y) gehört zur Kachel, wenn |x + 0,5 − 32| / 32 + |y + 0,5 − 16| / 16 < 1; Kacheln im Abstand (32, 16) schließen dann ohne Lücke und Überlappung. Der Anker (32, 16) ist die Kachelmitte.
+Zeile = Geländetyp, Variante v und Bild f in Spalte v · frames + f. Wasser hat 4 Varianten zu je 8 Bildern (Spalten 0–31 der Zeile 5). Ein Pixel (x, y) gehört zur Kachel, wenn |x + 0,5 − 32| / 32 + |y + 0,5 − 16| / 16 < 1; Kacheln im Abstand (32, 16) schließen dann ohne Lücke und Überlappung. Der Anker (32, 16) ist die Kachelmitte.
 
-**Nahtlos:** Grundton und Feinrelief kommen aus Rauschen, das über eine Kachel periodisch ist. Am Rand nutzen alle Varianten eines Typs dasselbe Rauschen, innen jede ihr eigenes, daher passen beliebige Varianten aneinander. Halme, Blüten, Laub, Steine und Risse liegen ganz innerhalb der Raute. Wasser hat vier Wellenbilder, periodisch in Raum und Zeit.
+**Nahtlos:** Grundton und Feinrelief kommen aus Rauschen, das über eine Kachel periodisch ist. Am Rand nutzen alle Varianten eines Typs dasselbe Rauschen, innen jede ihr eigenes, daher passen beliebige Varianten aneinander. Halme, Blüten, Laub, Steine und Risse liegen ganz innerhalb der Raute.
+
+**Wasser:** Wellen laufen. Jede Wellenkomponente ist über die Kachel periodisch (ganzzahlige Wellenzahlen) und rückt in den 8 Bildern eine ganze Zahl von Perioden weiter, die Schleife ist also in Raum und Zeit nahtlos. Eine ruhige Dünung (Wellenzahl 2–3,2) wählt den Grundton, wenige kurze Wellen quer zum Wind (`WIND`) geben die hellen Kämme, Schaum nur, wo ein Kamm auf hoher Dünung liegt. Am Rand teilen alle vier Varianten dieselben Wellen, innen hat jede ihre eigenen, daher passen sie beliebig aneinander und eine Seefläche zeigt kein Kachelraster. Das Verpixeln bricht ab, wenn zwei Bilder einer Variante gleich sind. Hinweis für die Darstellung: Benachbarte Wasserkacheln müssen dasselbe Bild zeigen, sonst passen die Wellen an der Kante nicht (kein Versatz der Bildnummer je Kachel).
+
+**Übergänge (`blend.png`):** Masken für weiche, unregelmäßige Geländegrenzen, für alle Stile gleich (`blend_masks()` in `terrain.py`, beim Verpixeln geschrieben). Im `sheet.json`:
+
+```json
+"blend": {"image": "blend.png", "tile": [64, 32], "edges": ["ne", "se", "sw", "nw"], "variants": 4}
+```
+
+Zeile = Kante der Bildschirmraute (`ne` = Kante zwischen oberer und rechter Ecke, `se` rechte–untere, `sw` untere–linke, `nw` linke–obere), Spalte = Variante. Jede Zelle ist weiß mit hartem Alpha (0 oder 255): an ihrer Kante deckend (mindestens 2 px senkrecht), nach innen unregelmäßig in 2-px-Stufen bis höchstens 7 px, mit Zungen und einzelnen losen Pixeln. Beide Enden jeder Kante sind in allen Varianten 3 px tief, damit Masken benachbarter Kacheln entlang einer Grenze ohne Stufe weiterlaufen; mit höchstens 7 von 16 px bleibt ein Weg von einer Kachel Breite in der Mitte sichtbar. Verwendung in der Darstellung: Für jede Kante, deren Nachbar höheren Vorrang hat (wasser < erde < fels < waldboden < gras < wiese), die Kachel des Nachbarn (seine Variante, damit die Kante genau passt) mit der Maske dieser Kante über die Kachel legen, niedrigeren Vorrang zuerst. Land über Wasser ergibt das Ufer, Wasser deckt nie Land. Fehlt `blend.png`, bleibt alles wie bisher.
+
+Prüfbild: `python3 tools/blender/preview_blend.py [--style vorgerendert] [--out .local/preview/blend.png]` setzt eine kleine Karte aus Gras, Wiese, Waldboden, Fels, Erde und Wasser einmal ohne und einmal mit Übergängen zusammen, genau nach dieser Regel.
 
 ## Prüfbilder
 

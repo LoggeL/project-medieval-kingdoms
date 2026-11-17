@@ -377,7 +377,7 @@ function hero() {
     if (visible) {
       t += dt; tick(dt);
       acc += dt; while (acc >= 0.11) { acc -= 0.11; figs.forEach(f => { if (f.walk) f.frame++; if (f.act) f.aframe++; }); }
-      accW += dt; while (accW >= 0.25) { accW -= 0.25; wf = (wf + 1) % 4; }
+      accW += dt; while (accW >= 0.25) { accW -= 0.25; wf = (wf + 1) % ((WD.terrain.keys.wasser || {}).frames || 4); }
       render();
     }
     requestAnimationFrame(loop);

@@ -89,6 +89,10 @@
      1,
      8
     ],
+    "bauen": [
+     9,
+     4
+    ],
     "sterben": [
      13,
      3
@@ -340,6 +344,81 @@
     ]
    },
    "row": 88
+  },
+  {
+   "key": "traeger_speer",
+   "name": "Tagelöhner mit Speeren",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 96
+  },
+  {
+   "key": "traeger_schwert",
+   "name": "Tagelöhner mit Schwertern",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 104
+  },
+  {
+   "key": "traeger_bogen",
+   "name": "Tagelöhner mit Bögen",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 112
   }
  ],
  "team_swap": {
@@ -540,7 +619,7 @@
    ]
   ]
  },
- "colours": 291,
+ "colours": 292,
  "shadow": true,
  "ground": [
   "#c9a56b",
