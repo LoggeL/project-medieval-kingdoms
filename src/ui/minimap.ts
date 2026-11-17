@@ -1,6 +1,7 @@
 /**
  * Übersichtskarte unten links: Gelände, Bäume, Felsen, Gebäude und Einheiten aus dem Zustand,
  * als Raute in derselben Drehung wie die Kamera (toView mit view().r). 2 px pro Tile, höchstens ~3× pro Sekunde neu gezeichnet.
+ * Darüber der Sichtbereich der Kamera (bridge.camera().corners) als Rahmen; Klicken oder Ziehen setzt die Kamera (lookAt).
  */
 import type { UiBridge } from "../app/contract";
 import type { TerrainKey } from "../data";
@@ -20,12 +21,87 @@ const S = 2;
 
 export interface Minimap { el: HTMLElement; update(s: SimState, force?: boolean): void }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Umkehrung von toView: Ansicht (u, v) → Welt (x, y). */
+function fromView(u: number, v: number, r: Rot, W: number, H: number): [number, number] {
+  switch (r) {
+    case 1: return [v, H - u];
+    case 2: return [W - u, H - v];
+    case 3: return [W - v, u];
+    default: return [u, v];
+  }
+}
+
 export function createMinimap(bridge: UiBridge): Minimap {
   const canvas = h("canvas.mk-mini-canvas", { "aria-label": "Übersichtskarte", role: "img" });
   const grid = document.createElement("canvas");
   const north = h("span.mk-mini-north", { "aria-hidden": "true", text: "N" });
-  const el = h("div.mk-mini", { title: "Übersichtskarte (dreht mit der Kamera)" }, canvas, north);
+  // Sichtbereich als Vieleck über der Karte (gleiches Koordinatensystem wie das Canvas über viewBox)
+  const frame = document.createElementNS(SVG_NS, "svg");
+  frame.classList.add("mk-mini-view");
+  frame.setAttribute("aria-hidden", "true");
+  frame.setAttribute("preserveAspectRatio", "none");
+  const poly = document.createElementNS(SVG_NS, "polygon");
+  frame.append(poly);
+  const el = h("div.mk-mini", { title: "Übersichtskarte: klicken oder ziehen, um dorthin zu blicken (dreht mit der Kamera)" }, canvas, frame, north);
   let last = 0;
+  let geo = { w: 0, h: 0, gh: 0, cw: 0, ch: 0, r: 0 as Rot };
+
+  /** Welt (Tiles) → Kartenpixel. */
+  const toMap = (x: number, y: number): [number, number] => {
+    const [a, b] = toView(x, y, geo.r, geo.w, geo.h);
+    return [(a - b) * S + geo.gh * S, ((a + b) * S) / 2];
+  };
+  /** Bildschirmpunkt über der Karte → Welt (Tiles), auf die Karte begrenzt. */
+  const toWorld = (clientX: number, clientY: number): [number, number] => {
+    const rc = canvas.getBoundingClientRect();
+    const X = ((clientX - rc.left) / Math.max(1, rc.width)) * geo.cw, Y = ((clientY - rc.top) / Math.max(1, rc.height)) * geo.ch;
+    const a = X / S - geo.gh, b = (2 * Y) / S;
+    const [x, y] = fromView((a + b) / 2, (b - a) / 2, geo.r, geo.w, geo.h);
+    return [Math.max(0, Math.min(geo.w, x)), Math.max(0, Math.min(geo.h, y))];
+  };
+
+  // ------------------------------------------------------------ Sichtbereich nachführen (nur bei Änderung)
+  let lastPts = "", lastPoll = 0;
+  const pollView = (now: number) => {
+    requestAnimationFrame(pollView);
+    if (now - lastPoll < 40 || !geo.cw || !el.isConnected) return;
+    lastPoll = now;
+    const cam = bridge.camera();
+    const pts = cam.corners.length >= 3 ? cam.corners.map(([x, y]) => toMap(x, y).map((v) => v.toFixed(1)).join(",")).join(" ") : "";
+    if (pts === lastPts) return;
+    lastPts = pts;
+    poly.setAttribute("points", pts);
+    frame.style.display = pts ? "" : "none";
+  };
+  requestAnimationFrame(pollView);
+
+  // ------------------------------------------------------------ Klicken und Ziehen
+  let dragging = false, pendingLook: [number, number] | null = null;
+  const look = (e: PointerEvent) => {
+    if (!geo.cw) return;
+    const first = !pendingLook;
+    pendingLook = toWorld(e.clientX, e.clientY);
+    if (first) requestAnimationFrame(() => { if (pendingLook) bridge.lookAt(pendingLook[0], pendingLook[1]); pendingLook = null; });
+  };
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("mk-dragging");
+    look(e);
+  });
+  el.addEventListener("pointermove", (e) => { if (dragging) look(e); });
+  const stop = (e: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove("mk-dragging");
+    if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  };
+  el.addEventListener("pointerup", stop);
+  el.addEventListener("pointercancel", stop);
 
   function draw(s: SimState): void {
     const r = (bridge.view().r & 3) as Rot;
@@ -34,6 +110,9 @@ export function createMinimap(bridge: UiBridge): Minimap {
     if (grid.width !== gw || grid.height !== gh) { grid.width = gw; grid.height = gh; }
     const cw = (gw + gh) * S, ch = ((gw + gh) * S) / 2;
     if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+    if (geo.cw !== cw || geo.ch !== ch) frame.setAttribute("viewBox", `0 0 ${cw} ${ch}`);
+    if (geo.r !== r || geo.cw !== cw) lastPts = "";
+    geo = { w: s.w, h: s.h, gh, cw, ch, r };
 
     const g = grid.getContext("2d")!;
     const img = g.createImageData(gw, gh);
@@ -86,7 +165,10 @@ export function createMinimap(bridge: UiBridge): Minimap {
     el,
     update(s, force = false) {
       const now = performance.now();
-      if (!force && now - last < 330) return;
+      // force (Ansicht gewechselt): sofort neu zeichnen, wenn sich die Drehung geändert hat; Verschieben/Zoomen
+      // ändert nur den Rahmen, den pollView nachführt.
+      const turned = ((bridge.view().r & 3) as Rot) !== geo.r || !geo.cw;
+      if (!(force && turned) && now - last < 330) return;
       last = now;
       draw(s);
     },

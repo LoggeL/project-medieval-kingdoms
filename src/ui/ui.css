@@ -1,9 +1,11 @@
 /*
  * Mittelalterliche Oberfläche: Kopfleiste aus dunklem Eichenholz mit Eisenbändern, Fußleiste aus behauenem Stein
  * mit eingelassenen Holzrahmen, Auswahl-Panel auf Pergament. Ornamente nur an Ecken und Trennern.
- * Texturen: assets/ui/*_kachel.png, per Codex erzeugt (Prompts art/prompts/ui-*.txt, Originale assets/ui/quelle/),
+ * Texturen: assets/ui/*_kachel.png, per Codex erzeugt (Prompts art/prompts/ui-*.txt, Originale art/ui-quelle/),
  * auf das Pixelraster verkleinert (209 px), Holz waagrecht gespiegelt angesetzt, damit es nahtlos kachelt.
- * Pfade setzt index.ts als CSS-Variablen.
+ * Pfade setzt index.ts als absolute URLs in CSS-Variablen.
+ * Zahlen: Alegreya Sans mit Versal- und Tabellenziffern (eindeutige 5/S, 8/3); die Pixelschrift Pixelify Sans war bei
+ * 1:1 nicht sicher lesbar (5 wie S, 15 wie 18) und wird nur noch für den Kompass-Buchstaben benutzt.
  */
 
 .mk-root {
@@ -34,7 +36,8 @@
 
   --mk-f-head: "Jacquarda Bastarda 9", "UnifrakturMaguntia", Georgia, serif;
   --mk-f-text: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
-  --mk-f-num: "Pixelify Sans", ui-monospace, monospace;
+  --mk-f-num: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+  --mk-f-pixel: "Pixelify Sans", ui-monospace, monospace;
 
   position: fixed;
   inset: 0;
@@ -51,7 +54,7 @@
 .mk-root [hidden] { display: none !important; }
 .mk-top, .mk-side, .mk-bottom, .mk-help, .mk-detail { pointer-events: auto; }
 .mk-icon { image-rendering: pixelated; display: block; flex: none; }
-.mk-num { font-family: var(--mk-f-num); font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.mk-num { font-family: var(--mk-f-num); font-weight: 700; letter-spacing: 0.01em; font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "lnum" 1, "tnum" 1; }
 .mk-muted { opacity: 0.7; }
 
 /* ------------------------------------------------------------------ Materialien */
@@ -132,8 +135,9 @@
   background: linear-gradient(#6a4528, #4a2e19 60%, #2f1d0f), var(--mk-wood);
   box-shadow: inset 0 1px 0 rgba(255, 222, 160, 0.28), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5);
   font-family: var(--mk-f-num);
+  font-variant-numeric: lining-nums;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   cursor: pointer;
   display: inline-flex;
@@ -182,6 +186,7 @@ kbd {
   background: #f6ebcd;
   color: var(--mk-ink);
   font: 700 12px/1.3 var(--mk-f-text);
+  font-variant-numeric: lining-nums;
   text-align: center;
 }
 
@@ -260,7 +265,8 @@ kbd {
   align-items: center;
   justify-content: center;
   color: #fff8e2;
-  font: 600 11px/1 var(--mk-f-num);
+  font: 700 12px/1 var(--mk-f-num);
+  font-variant-numeric: lining-nums tabular-nums;
   text-shadow: 0 1px 0 #000, 0 0 2px #000;
 }
 .mk-bar-stock .mk-bar-fill, .mk-bar-slot .mk-bar-fill { background: linear-gradient(#b98a52, #7a5228); }
@@ -290,11 +296,11 @@ kbd {
   background: rgba(10, 5, 2, 0.32);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 210, 150, 0.12);
 }
-.mk-res .mk-num { font-size: 16px; color: var(--mk-light); text-shadow: 0 1px 0 #000; min-width: 1.6em; }
+.mk-res .mk-num { font-size: 17px; color: var(--mk-light); text-shadow: 0 1px 0 #000; min-width: 1.6em; }
 .mk-res-gold .mk-num { color: #ffd979; }
 .mk-res.mk-warn .mk-num { color: var(--mk-red-light); }
 .mk-res-cap .mk-cap-col { display: flex; flex-direction: column; gap: 2px; }
-.mk-res-cap .mk-num { font-size: 13px; }
+.mk-res-cap .mk-num { font-size: 14px; line-height: 1; }
 .mk-bar-cap { height: 6px; width: 64px; flex: none; }
 .mk-res-cap.mk-warn .mk-bar-fill { background: linear-gradient(#e2775f, #a3301f); }
 .mk-sep {
@@ -315,31 +321,57 @@ kbd {
   background: rgba(10, 5, 2, 0.32);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
   font-size: 14px;
+  overflow: hidden;
 }
 .mk-raid {
   flex: none;
-  font: 600 13px/1 var(--mk-f-num);
+  font: 700 14px/1 var(--mk-f-num);
+  font-variant-numeric: lining-nums tabular-nums;
   color: var(--mk-light-soft);
   padding: 4px 7px;
   border: 1px solid rgba(224, 185, 85, 0.35);
   border-radius: 2px;
 }
 .mk-raid.mk-raid-soon { color: #ffcf7a; border-color: #e0a43a; }
-.mk-raid.mk-raid-active { color: #fff; background: var(--mk-red); border-color: #ff9a80; animation: mk-pulse 1.2s ease-in-out infinite; }
-@keyframes mk-pulse { 50% { box-shadow: 0 0 10px #ff6a4a; } }
+.mk-raid.mk-raid-active { color: #fff; background: var(--mk-red); border-color: #ff9a80; animation: mk-pulse 1.2s steps(2, jump-none) infinite; }
+.mk-raid.mk-raid-active.mk-raid-soon .mk-raid-next { color: #ffe08a; }
+.mk-raid-next { font-weight: 400; }
+/* Zwei Stufen statt fließender Schatten-Animation: kein Neuzeichnen in jedem Bild */
+@keyframes mk-pulse { 50% { border-color: #ffe08a; } }
 .mk-ev-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-style: italic; color: var(--mk-light); }
 .mk-ev-text.mk-msg-warnung { color: #ffcf7a; }
 .mk-ev-text.mk-msg-kampf { color: var(--mk-red-light); }
-.mk-top-ctl { display: flex; align-items: center; gap: 10px; flex: none; }
+.mk-top-ctl { display: flex; align-items: center; gap: 10px; flex: none; margin-left: auto; }
 .mk-group { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 4px; background: rgba(10, 5, 2, 0.35); }
+/* Kompass: Messingscheibe, die Nadel zeigt nach Norden (Welt −y) im Bild, "N" sitzt an der Spitze. */
 .mk-compass {
-  width: 26px; height: 26px;
-  display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+  flex: none;
+  width: 30px; height: 30px;
+  margin: 0 2px;
   border-radius: 50%;
-  background: radial-gradient(circle, #f3e2b5, #c9a861);
+  background:
+    linear-gradient(transparent 49%, rgba(90, 60, 20, 0.35) 49% 51%, transparent 51%),
+    linear-gradient(90deg, transparent 49%, rgba(90, 60, 20, 0.35) 49% 51%, transparent 51%),
+    radial-gradient(circle, #f3e2b5, #c9a861);
   box-shadow: 0 0 0 2px var(--mk-iron), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-  color: var(--mk-ink);
-  font: 700 13px/1 var(--mk-f-num);
+}
+.mk-needle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 6px; height: 18px;
+  transform-origin: 50% 50%;
+  background: linear-gradient(#c0392b 0 50%, #2f2f33 50%);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  transition: transform 0.2s ease-out;
+}
+.mk-compass-n {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font: 700 10px/1 var(--mk-f-pixel);
+  color: #7a1c10;
+  text-shadow: 0 0 2px #f3e2b5, 0 0 1px #f3e2b5;
+  pointer-events: none;
 }
 .mk-btn-help { width: 30px; border-radius: 50%; font-family: var(--mk-f-head); font-size: 19px; }
 
@@ -492,6 +524,11 @@ kbd {
 .mk-recruit.mk-cant { opacity: 0.75; }
 .mk-training { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 3px; background: rgba(120, 80, 30, 0.1); font-size: 13px; }
 .mk-training.mk-idle { color: var(--mk-ink-faint); font-style: italic; }
+.mk-training.mk-waiting { color: var(--mk-ink-soft); }
+.mk-training.mk-waiting .mk-bar-train .mk-bar-fill { width: 100% !important; opacity: 0.25; }
+.mk-recruits-way:empty { display: none; }
+.mk-way { min-height: 24px; }
+.mk-way .mk-sub { margin: 0; font-size: 12.5px; }
 .mk-training-col { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .mk-cur-icon { width: 32px; height: 32px; flex: none; }
 .mk-queue { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
@@ -559,12 +596,16 @@ kbd {
     inset 0 0 12px rgba(0, 0, 0, 0.8),
     0 3px 8px rgba(0, 0, 0, 0.5);
 }
-.mk-mini { position: relative; width: 100%; aspect-ratio: 2 / 1; }
+.mk-mini { position: relative; width: 100%; aspect-ratio: 2 / 1; cursor: crosshair; touch-action: none; }
+.mk-mini.mk-dragging { cursor: grabbing; }
+.mk-mini-view { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+.mk-mini-view polygon { fill: rgba(255, 240, 200, 0.1); stroke: #fff2c8; stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .mk-mini-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .mk-mini-north {
   position: absolute;
   transform: translate(-50%, -50%);
-  font: 700 11px/1 var(--mk-f-num);
+  pointer-events: none;
+  font: 700 12px/1 var(--mk-f-num);
   color: var(--mk-gold);
   text-shadow: 0 1px 0 #000;
 }
@@ -622,6 +663,47 @@ kbd {
   background: linear-gradient(rgba(38, 24, 13, 0.92), rgba(24, 15, 8, 0.94));
   box-shadow: inset 0 0 0 1px #4d3219, inset 0 3px 8px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.1);
 }
+.mk-cards-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+/* Schattenkanten als Hinweis auf weiteren Inhalt */
+.mk-cards-wrap::before, .mk-cards-wrap::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 28px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+.mk-cards-wrap::before { left: 0; background: linear-gradient(90deg, rgba(12, 7, 3, 0.85), transparent); }
+.mk-cards-wrap::after { right: 0; background: linear-gradient(-90deg, rgba(12, 7, 3, 0.85), transparent); }
+.mk-cards-wrap.mk-more-left::before, .mk-cards-wrap.mk-more-right::after { opacity: 1; }
+.mk-scroll {
+  appearance: none;
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 24px; height: 48px;
+  margin-top: -24px;
+  border: 1px solid #0d0804;
+  border-radius: 3px;
+  background: linear-gradient(#6a4528, #3a2414);
+  box-shadow: inset 0 1px 0 rgba(255, 222, 160, 0.28), 0 2px 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.mk-scroll:hover { background: linear-gradient(#7e5432, #4f3119); }
+.mk-scroll::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  border: 7px solid transparent;
+  transform: translate(-50%, -50%);
+}
+.mk-scroll-prev { left: 2px; }
+.mk-scroll-prev::after { border-right-color: var(--mk-gold); margin-left: -4px; }
+.mk-scroll-next { right: 2px; }
+.mk-scroll-next::after { border-left-color: var(--mk-gold); margin-left: 4px; }
+.mk-scroll:focus-visible { outline: 2px solid var(--mk-gold); outline-offset: 1px; }
 .mk-cards {
   flex: 1;
   min-width: 0;
@@ -720,8 +802,8 @@ kbd {
     radial-gradient(ellipse 60% 30% at 70% 30%, currentColor 60%, transparent 62%);
 }
 
-/* Einheitenraster */
-.mk-ugrid { display: flex; gap: 10px; padding-left: 10px; margin-left: 4px; border-left: 2px solid rgba(0, 0, 0, 0.5); }
+/* Einheitenraster: je Gruppe zwei Zeilen kompakter Karten (Icon links, Name, Kosten bzw. Voraussetzung) */
+.mk-ugrid { display: flex; gap: 8px; padding-left: 8px; margin-left: 2px; border-left: 2px solid rgba(0, 0, 0, 0.5); }
 .mk-ugroup { display: flex; gap: 4px; }
 .mk-ugroup-title {
   margin: 0;
@@ -733,19 +815,34 @@ kbd {
   font: 400 15px/1 var(--mk-f-head);
   color: var(--mk-gold);
   text-shadow: 0 1px 0 #000;
+  max-height: 100%;
 }
-.mk-ugroup-cards { display: flex; gap: 5px; flex: 1; }
-.mk-ucard { width: 86px; padding-top: 3px; }
-.mk-ucard-icon { width: 56px; height: 52px; }
-.mk-ucard .mk-ucard-name { font-size: 11.5px; }
-.mk-need { font-size: 11px; color: #ffb38a; text-align: center; line-height: 1.1; }
+.mk-ugroup-cards { display: grid; grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-auto-columns: 142px; gap: 4px; }
+.mk-ucard {
+  width: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: 1fr auto auto;
+  align-items: center;
+  column-gap: 4px;
+  row-gap: 1px;
+  padding: 3px 4px 3px 2px;
+  text-align: left;
+}
+.mk-ucard:hover { transform: translateY(-1px); }
+.mk-ucard-icon { grid-row: 1 / 4; width: 42px; height: 46px; }
+.mk-ucard .mk-ucard-name { grid-column: 2; align-self: end; font-size: 11px; line-height: 1.05; text-align: left; hyphens: auto; overflow-wrap: break-word; }
+.mk-ucard .mk-cost, .mk-ucard .mk-lock-note { grid-column: 2; justify-content: flex-start; }
+.mk-ucard .mk-cost { gap: 0 5px; }
+.mk-need { grid-column: 2; font-size: 10.5px; color: #ffb38a; text-align: left; line-height: 1.05; }
 .mk-need:empty { display: none; }
 .mk-ucard.mk-locked { cursor: help; }
 .mk-ucard.mk-locked .mk-ucard-icon { filter: grayscale(1) brightness(0.65) contrast(0.9); }
 .mk-ucard.mk-locked .mk-ucard-name { color: #a99a80; }
-.mk-lock-note { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 11px; color: #a99a80; }
-.mk-ucard.mk-locked .mk-lock { position: absolute; top: 5px; right: 7px; margin: 0; }
-.mk-lock-note .mk-lock { position: static !important; transform: scale(0.8); }
+.mk-lock-note { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 10.5px; color: #a99a80; }
+.mk-ucard.mk-locked .mk-lock { position: absolute; top: 4px; left: 4px; margin: 0; }
+.mk-lock-note .mk-lock { position: static !important; transform: scale(0.8); margin-top: 3px; }
 
 /* Detailkarte */
 .mk-detail {
@@ -758,7 +855,9 @@ kbd {
 @keyframes mk-pop { from { opacity: 0; transform: translateY(6px); } }
 .mk-detail-head { display: flex; align-items: center; gap: 10px; padding-right: 20px; }
 .mk-detail .mk-title { font-size: 20px; }
-.mk-title { overflow-wrap: anywhere; }
+.mk-title { overflow-wrap: break-word; hyphens: auto; }
+.mk-title.mk-fit { white-space: nowrap; overflow: hidden; }
+.mk-head-text { flex: 1; }
 .mk-detail-icon {
   flex: none;
   padding: 2px;
@@ -800,7 +899,7 @@ kbd {
 .mk-tips li { margin: 3px 0; }
 
 /* ------------------------------------------------------------------ Hinweise */
-.mk-toasts { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+.mk-toasts { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
 .mk-toast {
   position: fixed;
   max-width: 320px;
@@ -834,15 +933,21 @@ kbd {
   .mk-top-res { gap: 6px; }
   .mk-bar-cap { width: 48px; }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1365px) {
   .mk-ev-text { display: none; }
+  .mk-events { flex: 0 1 auto; }
+}
+@media (max-width: 1100px) {
   .mk-sep, .mk-res-cap .mk-icon { display: none; }
   .mk-btn { min-width: 26px; padding: 0 6px; }
   .mk-events { flex: 0 1 auto; }
 }
+@media (max-width: 1180px) {
+  .mk-res-group:nth-of-type(2), .mk-res-group + .mk-sep { display: none; }
+  .mk-raid-next-pre { display: none; }
+}
 @media (max-width: 1023px) {
   .mk-root { --mk-side-w: 248px; --mk-top-h: 44px; }
-  .mk-res-group:nth-of-type(2), .mk-res-group + .mk-sep { display: none; }
   .mk-mini-frame { width: 170px; }
   .mk-raid { font-size: 11px; }
   .mk-card { width: 84px; }
@@ -858,3 +963,39 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .mk-root *, .mk-root *::before, .mk-root *::after { animation: none !important; transition: none !important; }
 }
+
+/* ------------------------------------------------------------------ Klang */
+.mk-audio { position: relative; display: flex; }
+.mk-btn-audio { width: 30px; padding: 0; }
+.mk-speaker { display: block; }
+.mk-speaker .mk-sp-body, .mk-speaker .mk-sp-wave { fill: currentColor; }
+.mk-speaker .mk-sp-x { fill: var(--mk-red-light); }
+.mk-btn.mk-on .mk-speaker .mk-sp-x { fill: var(--mk-red-ink); }
+.mk-btn-audio.mk-muted-btn:not(.mk-on) { color: var(--mk-light-soft); }
+.mk-audio-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: -6px;
+  z-index: 4;
+  width: 260px;
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  animation: mk-pop 0.14s ease-out;
+}
+.mk-audio-row { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--mk-ink); cursor: pointer; }
+.mk-range-val { text-align: right; font-size: 14px; color: var(--mk-ink); }
+.mk-audio-muted .mk-audio-row { opacity: 0.55; }
+.mk-audio-track { margin: 0; font-size: 13px; font-style: italic; color: var(--mk-ink-soft); }
+.mk-btn-mute { height: 30px; font-size: 14px; }
+/* Regler: Holzschiene mit Messingknauf */
+.mk-range { appearance: none; -webkit-appearance: none; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
+.mk-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(#4a311b, #6b4a2b); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); }
+.mk-range::-moz-range-track { height: 6px; border-radius: 3px; background: linear-gradient(#4a311b, #6b4a2b); }
+.mk-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b0, #c7922a 70%); box-shadow: 0 0 0 1px #4a3208, 0 1px 2px rgba(0, 0, 0, 0.5); }
+.mk-range::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b0, #c7922a 70%); box-shadow: 0 0 0 1px #4a3208; }
+.mk-range:focus-visible { outline: 2px solid var(--mk-gold-deep); outline-offset: 2px; }
+.mk-top { z-index: 2; }
+.mk-btn-rot { font-size: 20px; font-family: "Segoe UI Symbol", "Apple Symbols", system-ui, sans-serif; padding-bottom: 2px; }

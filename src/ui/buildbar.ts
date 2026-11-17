@@ -66,15 +66,36 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     onclick: () => { tab = t.cat; el.classList.remove("mk-collapsed"); try { localStorage.setItem("mk-ui-tab", tab); } catch { /* egal */ } layout(); },
   }));
   const strip = h("div.mk-cards", { role: "tabpanel" });
+  // Weiterblättern: Mausrad (senkrecht → waagrecht) und Pfeilknöpfe an den Rändern, sobald es mehr gibt als Platz.
+  const scrollBy = (dir: number) => strip.scrollBy({ left: dir * Math.max(120, strip.clientWidth * 0.7), behavior: "smooth" });
+  const prev = h("button.mk-scroll.mk-scroll-prev", { type: "button", title: "Weiter links", "aria-label": "Weiter links", onclick: () => scrollBy(-1) });
+  const next = h("button.mk-scroll.mk-scroll-next", { type: "button", title: "Weiter rechts", "aria-label": "Weiter rechts", onclick: () => scrollBy(1) });
+  const stripWrap = h("div.mk-cards-wrap", null, strip, prev, next);
+  const updateArrows = () => {
+    const max = strip.scrollWidth - strip.clientWidth;
+    prev.hidden = strip.scrollLeft <= 2;
+    next.hidden = strip.scrollLeft >= max - 2;
+    setClass(stripWrap, "mk-more-left", !prev.hidden);
+    setClass(stripWrap, "mk-more-right", !next.hidden);
+  };
+  strip.addEventListener("wheel", (e) => {
+    if (strip.scrollWidth <= strip.clientWidth) return;
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!d) return;
+    e.preventDefault();
+    strip.scrollLeft += e.deltaMode === 1 ? d * 32 : d;
+  }, { passive: false });
+  strip.addEventListener("scroll", updateArrows, { passive: true });
+  window.addEventListener("resize", updateArrows);
   const grid = createUnitGrid(ctx);
   const collapse = h("button.mk-collapse", {
     type: "button", title: "Fußleiste ein- oder ausklappen", "aria-label": "Fußleiste ein- oder ausklappen",
-    onclick: () => { el.classList.toggle("mk-collapsed"); },
+    onclick: () => { el.classList.toggle("mk-collapsed"); requestAnimationFrame(updateArrows); },
   });
 
   const el = h("div.mk-build", null,
     h("div.mk-tabs", { role: "tablist" }, ...tabBtns, h("span.mk-tabs-fill"), collapse),
-    h("div.mk-build-body", null, strip, h("div.mk-tools", null, selBtn, delBtn)));
+    h("div.mk-build-body", null, stripWrap, h("div.mk-tools", null, selBtn, delBtn)));
 
   function layout(): void {
     tabBtns.forEach((b) => { const on = b.dataset.cat === tab; setClass(b, "mk-on", on); setAttr(b, "aria-selected", String(on)); });
@@ -82,6 +103,7 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     for (const c of cards) if (c.def.category === tab) strip.append(c.el);
     if (tab === "militaer") strip.append(grid.el);
     strip.scrollLeft = 0;
+    requestAnimationFrame(updateArrows);
   }
   layout();
 

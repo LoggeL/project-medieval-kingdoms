@@ -35,8 +35,11 @@ export function createScene(canvas: HTMLCanvasElement, bridge: UiBridge, sprites
     const { r: rr, zoom } = bridge.view();
     const r = (rr & 3) as Rot;
     k = zoom;
-    ox = canvas.width / 2 - 20 * k;
-    oy = canvas.height / 2 - (s.w + s.h) * 8 * k;
+    // Bildmitte = Kamerapunkt der Mock-Brücke (lookAt aus der Übersichtskarte)
+    const cam = bridge.camera();
+    const [cu, cv] = toView(cam.x, cam.y, r, s.w, s.h);
+    ox = canvas.width / 2 - (cu - cv) * 32 * k;
+    oy = canvas.height / 2 - (cu + cv) * 16 * k;
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = "#24331b";
     g.fillRect(0, 0, canvas.width, canvas.height);
@@ -115,6 +118,12 @@ export function createScene(canvas: HTMLCanvasElement, bridge: UiBridge, sprites
     }
   }
 
+  /** Ecken des sichtbaren Bereichs in Welt-Tiles, im Uhrzeigersinn ab oben links (wie UiBridge.camera). */
+  function corners(): [number, number][] {
+    const W = canvas.width, H = canvas.height;
+    return [pick(0, 0), pick(W, 0), pick(W, H), pick(0, H)];
+  }
+
   requestAnimationFrame(draw);
-  return { pick };
+  return { pick, corners };
 }
