@@ -114,6 +114,33 @@ describe("Rückzug der Angreifer", () => {
     expect(g.state.messages.some((m) => m.text === "Die Angreifer weichen zurück!")).toBe(true);
   });
 
+  it("ein unverletzter Letzter der Welle zieht nicht ab, sondern kämpft weiter", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    buildNow(g, "haus", 6, 19, 0);
+    const ids = g.dispatch({ t: "ueberfall" }).ids!;
+    run(g, 5 * TPS);
+    const w = worldOf(g);
+    for (const id of ids.slice(0, 3)) kill(w, unit(g, id)!);
+    const last = unit(g, ids[3])!;
+    run(g, 10 * TPS);
+    expect(last.ai.retreat).toBeFalsy();
+    expect(g.state.raid.active).toBe(true);
+  });
+
+  it("ohne Rückweg stellt sich der Fliehende und kämpft weiter", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    buildNow(g, "haus", 6, 19, 0);
+    const ids = g.dispatch({ t: "ueberfall" }).ids!;
+    run(g, 2 * TPS);
+    const hurt = unit(g, ids[0])!;
+    hurt.hp = hurt.maxHp * 0.2;
+    // Anmarschpunkt unerreichbar machen: mitten in einen Fels legen ist nicht nötig, ein Punkt außerhalb des Laufrasters genügt
+    worldOf(g).meta.raidSpawn = [-50, -50];
+    run(g, 5 * TPS);
+    expect(hurt.ai.cornered).toBe(true);
+    expect(hurt.ai.retreat).toBe(false);
+  });
+
   it("schwer Verwundete weichen auch mitten in der Welle, der Rest kämpft weiter", () => {
     const g = createGame({ scenario: "leer", size: 40 });
     buildNow(g, "haus", 6, 19, 0);

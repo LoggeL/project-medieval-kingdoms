@@ -6,8 +6,9 @@
  * Mauern und Tore sind dort teuer, aber passierbar. Steht er vor einem solchen Hindernis, greift er es an, bis es fällt.
  *
  * Rückzug: Wer unter TUNING.retreatHp seiner Lebenspunkte fällt oder als Letzter seiner Welle übrig ist, nachdem
- * andere gefallen sind, zieht sich zum Anmarschpunkt am Kartenrand zurück und verlässt die Karte. Er kämpft dabei
- * nicht mehr. Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
+ * andere gefallen sind, und dabei unter TUNING.retreatLoneHp liegt, zieht sich zum Anmarschpunkt am Kartenrand zurück
+ * und verlässt die Karte. Er kämpft dabei nicht mehr. Ist der Rückweg versperrt, stellt er sich und kämpft bis zuletzt.
+ * Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
  */
 import { BUILDINGS, START, TUNING } from "../data";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, strikeBuilding, strikeUnit, vanish } from "./combat";
@@ -104,8 +105,9 @@ export function raiderAct(w: World, u: SUnit): void {
 
 /** Zu schwer verwundet, oder als Letzter übrig, nachdem andere der Welle gefallen oder geflohen sind? */
 function shouldRetreat(w: World, u: SUnit): boolean {
+  if (u.ai.cornered) return false;
   if (u.hp < TUNING.retreatHp * u.maxHp) return true;
-  if (!w.meta.raidLosses) return false;
+  if (!w.meta.raidLosses || u.hp >= TUNING.retreatLoneHp * u.maxHp) return false;
   for (const o of w.s.units) if (o !== u && o.team === u.team && !o.dead && !o.ai.retreat) return false;
   return true;
 }
@@ -126,7 +128,10 @@ function retreatAct(w: World, u: SUnit): void {
   const edge = u.x < 1 || u.y < 1 || u.x > w.s.w - 1 || u.y > w.s.h - 1;
   if (r === "arrived" || (edge && u.layer === 0)) { vanish(u); return; }
   if (r === "blocked") breakThrough(w, u);
-  else if (r === "unreachable") setAnim(u, "stehen");
+  else if (r === "unreachable") {
+    // Kein Weg zurück (z. B. Treppe hinter ihm zerstört): Er stellt sich und kämpft weiter, sonst endete die Welle nie.
+    u.ai.retreat = false; u.ai.cornered = true;
+  }
 }
 
 /** Das Gebäude, das den Weg versperrt, angreifen. */

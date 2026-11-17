@@ -3,6 +3,9 @@ import { DepthSorter, relation, type DepthItem } from "../../src/render/depth";
 import { toView, type Rot } from "../../src/sim/geom";
 import { worldToScreen } from "../../src/render/iso";
 
+// MK_ZEITGRENZEN=aus (Docker-Build) prüft nur die Funktion, nicht die Millisekunden, siehe tests/sim/perf.test.ts.
+const zeitgrenzen = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.MK_ZEITGRENZEN !== "aus";
+
 const W = 32, H = 32;
 
 /** Objekt aus Welt-Rechteck (Tiles) mit einem hohen Bildrechteck darüber. */
@@ -72,6 +75,6 @@ describe("Tiefensortierung", () => {
     const t0 = performance.now();
     const order = new DepthSorter().sort(items);
     expect(new Set(order).size).toBe(600);
-    expect(performance.now() - t0).toBeLessThan(200);
+    if (zeitgrenzen) expect(performance.now() - t0).toBeLessThan(200);
   });
 });

@@ -301,4 +301,6 @@ export const TUNING = {
   postGuardRadius: 7,
   /** Angreifer ziehen sich unter diesem Anteil ihrer Lebenspunkte zurück (und wenn sie allein übrig sind). */
   retreatHp: 0.3,
+  /** Wer als Letzter seiner Welle übrig ist, zieht erst unter diesem LP-Anteil ab (bei voller Kraft kämpft er weiter). */
+  retreatLoneHp: 0.7,
 };

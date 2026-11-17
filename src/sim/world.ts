@@ -67,6 +67,8 @@ export interface UnitAI {
   lock?: number;
   /** Angreifer auf dem Rückzug zum Kartenrand. */
   retreat?: boolean;
+  /** Rückzug unmöglich, kämpft bis zuletzt. */
+  cornered?: boolean;
   /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
   sortie?: boolean;
 }
