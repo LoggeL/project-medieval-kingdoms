@@ -18,7 +18,7 @@ describe("Lagerhaus (geschlossen, Zugang nur durch das Tor)", () => {
       expect(found.length, sb.key).toBeGreaterThan(0);
     }
     expect(g.state.buildings.filter((b) => b.key === "lager")).toHaveLength(START.buildings.filter((b) => b.key === "lager").length);
-    expect(BUILDINGS.lager.access).toBeDefined();
+    expect(BUILDINGS.lager.door).toBeDefined();
     expect(BUILDINGS.lager.storage!.shelves).toHaveLength(BUILDINGS.lager.storage!.slots);
   });
 

@@ -42,16 +42,44 @@ export function center(key: BuildingKey, x: number, y: number, o: number): [numb
   return [x + w / 2, y + h / 2];
 }
 
+/** Tür in Modellachsen ab Grundrissmitte (Daten `door`, sonst mittig vor der Vorderkante). */
+export function doorModel(key: BuildingKey): [number, number] {
+  const def = BUILDINGS[key];
+  return def.door ?? [0, -(def.footprint[1] / 2 + 0.5)];
+}
+
 /**
- * Eingang (Zugangskachel): BuildingDef.access (Modellachsen ab Grundrissmitte), sonst der Tile mittig vor der
- * Vorderkante (Modell −y, im Sprite die Tür). Liegt außerhalb des Grundrisses und dreht mit der Ausrichtung.
+ * Eingang: die Tür- bzw. Zugangskachel (Daten `door`, dreht mit der Ausrichtung). Meist der Tile vor der Vorderseite
+ * (Modell −y, im Sprite die Tür, beim Lagerhaus vor dem Tor). Figuren betreten und verlassen Gebäude nur hier.
  */
 export function entrance(key: BuildingKey, x: number, y: number, o: number): [number, number] {
-  const def = BUILDINGS[key];
+  const [mx, my] = doorModel(key);
   const [cx, cy] = center(key, x, y, o);
-  const [ax, ay] = def.access ?? [0, -(def.footprint[1] / 2 + 0.5)];
-  const [ox, oy] = modelToWorld(ax, ay, o);
+  const [ox, oy] = modelToWorld(mx, my, o);
   return [Math.floor(cx + ox), Math.floor(cy + oy)];
+}
+
+/** Liegt (tx, ty) im Grundriss des Gebäudes? */
+export function inFootprint(key: BuildingKey, x: number, y: number, o: number, tx: number, ty: number): boolean {
+  const [w, h] = footprint(key, o);
+  return tx >= x && ty >= y && tx < x + w && ty < y + h;
+}
+
+/** Tür im Grundriss (offene Einfahrt, die als einziger Tile des Grundrisses begehbar bleibt)? */
+export function doorInside(key: BuildingKey, x: number, y: number, o: number): boolean {
+  const [ex, ey] = entrance(key, x, y, o);
+  return inFootprint(key, x, y, o, ex, ey);
+}
+
+/**
+ * Vorplatz: der erste Tile vor der Tür außerhalb des Grundrisses (Modell −y). Liegt die Tür schon draußen (alle
+ * Gebäude der Daten, auch das Lagerhaus), ist es die Tür selbst. Er muss frei bleiben.
+ */
+export function approach(key: BuildingKey, x: number, y: number, o: number): [number, number] {
+  let [ex, ey] = entrance(key, x, y, o);
+  const [fx, fy] = modelToWorld(0, -1, o);
+  for (let i = 0; i < 8 && inFootprint(key, x, y, o, ex, ey); i++) { ex += fx; ey += fy; }
+  return [ex, ey];
 }
 
 /** Modellpunkt (Tiles ab Grundrissmitte) → Weltpunkt. */

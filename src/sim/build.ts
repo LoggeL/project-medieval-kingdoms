@@ -6,7 +6,7 @@
  */
 import { BUILDINGS, GOODS, TECHS, TERRAIN, levelDef, type BuildingKey, type Cost, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
-import { NEIGHBOURS, center, entrance, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
+import { NEIGHBOURS, approach, center, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
 import { abortJobsAt } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
@@ -38,6 +38,22 @@ function gateReason(w: World, x: number, y: number): string | null {
   return old ? "Ein Tor passt nur in ein gerades Mauerstück, nicht in Ecken oder Enden" : "Ein Tor gehört in eine gerade Mauerlinie";
 }
 
+/** Gebäude mit Tür, durch die Figuren ein- und ausgehen (Werkstatt, Kaserne, Wohnhaus, Lagerhaus, Bergfried). */
+export function hasDoor(key: BuildingKey): boolean {
+  const def = BUILDINGS[key];
+  return !!(def.workers || def.trains || def.housing || def.storage || def.seat);
+}
+
+/** Gebäude, dessen Tür bzw. Vorplatz (vor einer Einfahrt im Grundriss) auf (x, y) liegt, oder undefined. */
+function doorAt(w: World, x: number, y: number): SBuilding | undefined {
+  for (const b of w.s.buildings) {
+    if (!hasDoor(b.key)) continue;
+    const [ax, ay] = approach(b.key, b.x, b.y, b.o);
+    if (ax === x && ay === y) return b;
+  }
+  return undefined;
+}
+
 function tileReason(w: World, x: number, y: number, key: BuildingKey): string | null {
   if (!w.inMap(x, y)) return "Außerhalb der Karte";
   const t = w.s.tiles[w.idx(x, y)];
@@ -47,6 +63,9 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
     if (!(key === "tor" && b && b.key === "mauer" && b.team === 0)) return "Hier steht schon etwas";
   }
   if (key === "tor") { const r = gateReason(w, x, y); if (r) return r; }
+  // Nichts vor eine Tür setzen: Figuren betreten Gebäude nur dort, nicht durch die Wand
+  const d = doorAt(w, x, y);
+  if (d) return `Versperrt den Eingang: ${BUILDINGS[d.key].name}`;
   if (w.s.rocks.some((r) => r.x === x && r.y === y && r.amount > 0)) return "Felsbrocken im Weg";
   if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf")) return "Bäume im Weg";
   return null;
@@ -92,8 +111,9 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
     if (r && !reason) reason = r;
     return { x: tx, y: ty, ok: !r };
   });
-  if (!reason && (def.workers || def.trains || def.housing || def.storage || def.seat)) {
-    const [ex, ey] = entrance(key, x, y, o);
+  if (!reason && hasDoor(key)) {
+    // Tür bzw. Vorplatz einer Einfahrt im Grundriss (Daten `door`) muss frei und begehbar sein
+    const [ex, ey] = approach(key, x, y, o);
     if (!w.inMap(ex, ey) || !TERRAIN[w.s.tiles[w.idx(ex, ey)].terrain].walkable || w.s.tiles[w.idx(ex, ey)].building
       || w.s.rocks.some((r) => r.x === ex && r.y === ey && r.amount > 0)) reason = "Der Eingang ist versperrt";
   }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { entrance, footprint, footprintTiles, modelToWorld, shelfWorld, stairEnds, storeWalk, turn, viewOf } from "../src/sim/geom";
+import { BUILDINGS, type BuildingKey } from "../src/data";
+import { approach, doorInside, entrance, footprint, footprintTiles, modelToWorld, shelfWorld, stairEnds, storeWalk, turn, viewOf } from "../src/sim/geom";
 
 describe("geom", () => {
   it("dreht Versätze im Sinn der Gebäudeansichten", () => {
@@ -12,7 +13,50 @@ describe("geom", () => {
     expect(footprint("kaserne", 1)).toEqual([3, 4]);
   });
   it("legt den Eingang vor die Vorderseite", () => {
-    expect(entrance("lager", 10, 10, 0)).toEqual([11, 13]); // Vorderseite Modell −y = Welt +y
+    expect(entrance("kaserne", 10, 10, 0)).toEqual([12, 13]); // Vorderseite Modell −y = Welt +y
+    expect(approach("kaserne", 10, 10, 0)).toEqual([12, 13]);
+    // Lagerhaus: Tür (Daten door [0, −2]) vor dem Tor, außerhalb des Grundrisses; der Vorplatz ist die Tür selbst
+    expect(entrance("lager", 10, 10, 0)).toEqual([11, 13]);
+    expect(approach("lager", 10, 10, 0)).toEqual([11, 13]);
+    expect(doorInside("lager", 10, 10, 0)).toBe(false);
+    expect(doorInside("haus", 10, 10, 0)).toBe(false);
+    expect(doorInside("bergfried", 10, 10, 0)).toBe(false);
+  });
+  it("Tür aller Gebäude mit Tür liegt vor dem Grundriss, an der Vorderseite, kein Fach darauf (alle Ausrichtungen)", () => {
+    for (const key of Object.keys(BUILDINGS) as BuildingKey[]) {
+      if (!BUILDINGS[key].door) continue;
+      for (let o = 0; o < 4; o++) {
+        const door = entrance(key, 10, 10, o);
+        expect(doorInside(key, 10, 10, o), `${key} o ${o}`).toBe(false);
+        expect(approach(key, 10, 10, o)).toEqual(door);
+        // direkt an der Vorderkante: der Tile dahinter (Modell +y) gehört zum Grundriss
+        const [bx, by] = modelToWorld(0, 1, o);
+        const fp = new Set(footprintTiles(key, 10, 10, o).map(([x, y]) => `${x},${y}`));
+        expect(fp.has(`${door[0] + bx},${door[1] + by}`), `${key} o ${o}`).toBe(true);
+      }
+    }
+    for (let o = 0; o < 4; o++) {
+      const door = entrance("lager", 10, 10, o);
+      for (let k = 0; k < 8; k++) {
+        const [x, y] = shelfWorld("lager", 10, 10, o, k);
+        expect([Math.floor(x), Math.floor(y)]).not.toEqual(door);
+      }
+    }
+  });
+  it("offene Einfahrt im Grundriss: Vorplatz liegt davor und dreht mit", () => {
+    // Kein Gebäude der Daten hat zurzeit eine Einfahrt; das Türmodell kann sie (ADR 0010), hier mit einer Testtür
+    const old = BUILDINGS.lager.door;
+    BUILDINGS.lager.door = [0, -1];
+    try {
+      expect(entrance("lager", 10, 10, 0)).toEqual([11, 12]);
+      expect(approach("lager", 10, 10, 0)).toEqual([11, 13]);
+      for (let o = 0; o < 4; o++) {
+        const door = entrance("lager", 10, 10, o);
+        expect(doorInside("lager", 10, 10, o)).toBe(true);
+        const [ax, ay] = approach("lager", 10, 10, o), [fx, fy] = modelToWorld(0, -1, o);
+        expect([ax - door[0], ay - door[1]]).toEqual([fx + 0, fy + 0]);
+      }
+    } finally { BUILDINGS.lager.door = old; }
   });
   it("Zugangskachel aus den Daten dreht mit der Ausrichtung", () => {
     // Lagerhaus 3 × 3 bei (10, 10): Zugang Modell (0, −2) = Welt vor der Vorderkante, je Ausrichtung eine andere Seite

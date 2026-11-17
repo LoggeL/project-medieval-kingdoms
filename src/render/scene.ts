@@ -8,7 +8,7 @@
  */
 import { Container, type Texture } from "pixi.js";
 import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
-import { center, entrance, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -591,7 +591,7 @@ export class ObjectLayer {
       }
     }
     // Ausbau: die nächste Stufe wächst wie eine Baustelle über dem stehenden Gebäude (Umriss im Gerüstton, von unten
-    // nach oben aufgedeckt); das Material liegt vor der Tür (upgradeItems)
+    // nach oben aufgedeckt); das Material liegt an den vorderen Ecken neben der Tür (upgradeItems)
     if (b.upgrade && b.built >= 1 && open < 0.5) {
       const key = this.bs?.has(levelDef(b.key, b.upgrade.level).sprite) ? levelDef(b.key, b.upgrade.level).sprite : null;
       if (key) {
@@ -897,20 +897,22 @@ export class ObjectLayer {
   }
 
   /**
-   * Ausbau (Bergfried): Das Gebäude steht und bleibt in Betrieb, also liegt das gelieferte Material vor der Tür
-   * (nebeneinander quer zum Zugang), als Baustoffstapel im Verhältnis zu den Kosten der neuen Stufe.
+   * Ausbau (Bergfried): Das Gebäude steht und bleibt in Betrieb. Das gelieferte Material liegt im Grundriss an den
+   * vorderen Ecken links und rechts der Tür (ADR 0010: nicht auf der Zugangskachel, sonst liefen die Träger durch die
+   * Stapel), als Baustoffstapel im Verhältnis zu den Kosten der neuen Stufe.
    */
   private upgradeItems(b: Building): void {
     const goods = (Object.keys(b.site) as Good[]).filter((g) => (b.site[g] ?? 0) > 0);
     if (!goods.length || !b.upgrade) return;
     const cost = BUILDINGS[b.key].levels?.[b.upgrade.level - 1]?.upgrade?.cost ?? {};
-    const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
-    const [lx, ly] = modelToWorld(1, 0, b.o);
+    const [fw, fd] = BUILDINGS[b.key].footprint;
+    const [cx, cy] = center(b.key, b.x, b.y, b.o);
     goods.forEach((g, k) => {
-      const off = (k - (goods.length - 1) / 2) * 0.7;
-      const x = ex + 0.5 + lx * off, y = ey + 0.5 + ly * off;
+      const side = k % 2 ? 1 : -1, row = Math.floor(k / 2);
+      const [dx, dy] = modelToWorld(side * (fw / 2 - 0.5), -(fd / 2 - 0.5) + row * 0.7, b.o);
+      const x = cx + dx, y = cy + dy;
       const [cu, cv] = toView(x, y, this.r, this.W, this.H);
-      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3);
+      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3, false, false, 0.05);
       const [X, Y] = this.scr(x, y);
       const n = b.site[g] ?? 0;
       const st = this.sitePileTexture(g, pileLevel(n, cost[g] ?? n), b.o);

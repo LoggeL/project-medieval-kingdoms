@@ -267,6 +267,10 @@ export function separate(w: World): void {
     if (!px && !py) continue;
     const nx = u.x + px, ny = u.y + py;
     if (Math.floor(nx) === Math.floor(u.x) && Math.floor(ny) === Math.floor(u.y)) { u.x = nx; u.y = ny; continue; }
-    if (w.inMap(Math.floor(nx), Math.floor(ny)) && w.nav.open(w.nav.node(u.layer, Math.floor(nx), Math.floor(ny)), u.team)) { u.x = nx; u.y = ny; }
+    const fx = Math.floor(nx), fy = Math.floor(ny), ox = Math.floor(u.x), oy = Math.floor(u.y);
+    if (!w.inMap(fx, fy) || !w.nav.open(w.nav.node(u.layer, fx, fy), u.team)) continue;
+    // nicht diagonal an einer gesperrten Ecke vorbei
+    if (fx !== ox && fy !== oy && (!w.nav.open(w.nav.node(u.layer, fx, oy), u.team) || !w.nav.open(w.nav.node(u.layer, ox, fy), u.team))) continue;
+    u.x = nx; u.y = ny;
   }
 }

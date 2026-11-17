@@ -127,14 +127,17 @@ export interface BuildingDef {
   construction: ConstructionDef;
   /** Sprite-Schlüssel im Gebäudeblatt (assets/buildings/<stil>/sheet.json). Mauerteile wählt die Darstellung selbst. */
   sprite: string;
+  /**
+   * Tür bzw. Zugang (ADR 0010): Mitte der Zugangskachel in Modellachsen ab Grundrissmitte (Tiles, Modell −y =
+   * Vorderseite), dreht mit der Ausrichtung und gilt für alle Ausbaustufen. Figuren betreten und verlassen das Gebäude
+   * nur hier, Waren werden hier abgegeben und abgeholt (beim Lagerhaus geht es von hier durchs Tor zum Fach). Meist
+   * liegt die Kachel vor der Tür, außerhalb des Grundrisses. Läge sie im Grundriss (offene Einfahrt), bliebe nur sie
+   * begehbar und würde von der Vorderseite her betreten. Fehlt der Eintrag, liegt die Tür mittig vor der Vorderkante.
+   */
+  door?: [number, number];
   /** Platzierungsregeln. */
   placement?: { nearTag?: { tag: "tree" | "rock"; count: number; radius: number }; adjacentTerrain?: TerrainKey };
   workers?: { unit: UnitKey; count: number; cycle: CycleStep[] };
-  /**
-   * Zugang: Kachel vor der Tür in Tiles ab Grundrissmitte (Modellachsen, dreht mit der Ausrichtung).
-   * Fehlt er, liegt der Zugang mittig vor der Vorderkante (Modell −y). Träger liefern und holen nur hier.
-   */
-  access?: [number, number];
   /** Hofstapel (Ausgang) mit Kapazität; Träger holen von hier ab. */
   output?: { good: Good; capacity: number };
   /**
@@ -182,7 +185,7 @@ export interface BuildingDef {
 export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   bergfried: {
     name: "Bergfried", desc: "Wohnturm des Burgherrn und Herz der Siedlung: Hier wird geforscht, hier wohnen die ersten Leute, von hier kommen die Steuern. Fällt er, ist die Burg verloren.",
-    category: "zentrum", footprint: [3, 3], cost: {}, buildSeconds: 1, sprite: "bergfried_holz", seat: true,
+    category: "zentrum", footprint: [3, 3], cost: {}, buildSeconds: 1, sprite: "bergfried_holz", door: [0, -2], seat: true,
     housing: 10, income: 4, interior: { sprite: "bergfried_holz_innen" }, hp: 2500,
     // wird nie als Baustelle gesetzt (steht ab Beginn); das Fundament bleibt nach der Zerstörung als Grundmauer stehen
     construction: { ground: "baustelle_bergfried", foundation: 0.15, piles: [] },
@@ -206,7 +209,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   lager: {
     name: "Lagerhaus", desc: "Geschlossenes Lagerhaus mit acht Fächern für Holz, Stein, Eisen und Waffen. Träger kommen nur durch das Tor. Maus darüber zeigt die Fächer.",
-    category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lagerhaus", access: [0, -2],
+    category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lagerhaus", door: [0, -2],
     construction: { ground: "baustelle_lagerhaus", scaffold: "geruest_lagerhaus", foundation: 0.15, piles: [[0.62, -1.32]] },
     storage: {
       slots: 8, perSlot: 20,
@@ -216,7 +219,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   holzfaeller: {
     name: "Holzfällerhütte", desc: "Ein Holzfäller fällt Bäume in der Nähe, zerlegt sie und legt die Stämme auf seinen Hof.",
-    category: "wirtschaft", footprint: [2, 2], cost: { holz: 6 }, buildSeconds: 12, sprite: "holzfaeller",
+    category: "wirtschaft", footprint: [2, 2], cost: { holz: 6 }, buildSeconds: 12, sprite: "holzfaeller", door: [0, -1.5],
     construction: { ground: "baustelle_holzfaeller", scaffold: "geruest_holzfaeller", foundation: 0.15, piles: [[0.45, -0.35]] },
     placement: { nearTag: { tag: "tree", count: 4, radius: 10 } },
     workers: {
@@ -233,7 +236,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   steinbruch: {
     name: "Steinbruch", desc: "Zwei Steinmetze brechen Blöcke aus dem Fels. Muss an Fels grenzen.",
-    category: "wirtschaft", footprint: [3, 3], cost: { holz: 12 }, buildSeconds: 18, sprite: "steinbruch",
+    category: "wirtschaft", footprint: [3, 3], cost: { holz: 12 }, buildSeconds: 18, sprite: "steinbruch", door: [0, -2],
     construction: { ground: "baustelle_steinbruch", foundation: 0.2, piles: [[-0.15, -0.7]] },
     placement: { adjacentTerrain: "fels", nearTag: { tag: "rock", count: 1, radius: 6 } },
     workers: {
@@ -249,13 +252,13 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   kaserne: {
     name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt die Waffe aus dem Lager und tritt hier ein.",
-    category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne",
+    category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne", door: [0, -2],
     construction: { ground: "baustelle_kaserne", scaffold: "geruest_kaserne", foundation: 0.12, piles: [[-0.55, -0.8], [0.55, -0.8]] },
     trains: ["speer", "schwert", "bogen"], interior: { sprite: "kaserne_innen", spots: [[0.24, 0.51]] }, hp: 500,
   },
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
-    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus",
+    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],
     construction: { ground: "baustelle_haus", scaffold: "geruest_haus", foundation: 0.15, piles: [[0.35, -0.82]] }, housing: 4,
     interior: { sprite: "haus_innen" }, hp: 150,
   },
@@ -278,7 +281,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   turm: {
     name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
-    category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm",
+    category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm", door: [0, -1.5],
     construction: { ground: "baustelle_turm", scaffold: "geruest_turm", foundation: 0.12, courses: 14, piles: [[0.5, -0.5]] },
     walkway: 2, posts: [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]], hp: 1200,
   },

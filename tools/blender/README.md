@@ -82,7 +82,7 @@ tools/blender/build_buildings.sh wappen
 | `fels` | unberührt, angebrochen, halb abgebaut, fast abgebaut | einzelner Brocken 1 × 1 mit frischer Schnittfläche und Schutt |
 | `stapel_holz`, `stapel_stein`, `stapel_eisen`, `stapel_speer`, `stapel_schwert`, `stapel_bogen` | Füllstufe 0–4 | 1 × 1, Stufe 0 leer (transparent), stehen auf den Fächern von `lagerhaus_innen` (Höhe 0,06 m); Speere im hohen Gestell, Schwerter im niedrigen Ständer mit Parierstange und Goldknauf (ab Stufe 3 Kiste), Bögen hängend mit Pfeilfass ab Stufe 2 |
 | `lager_boden` | 1 | Früherer offener Lagerplatz 3 × 3 (Zaun, acht Bohlenflächen). Seit ADR 0005 nicht mehr im Spiel, bleibt im Blatt als Bezug |
-| `lagerhaus` | Füllstand 0–4 | geschlossenes Fachwerk-Lagerhaus 3 × 3 mit Satteldach und Tor an Modell (0, −1,5) (Zugang `access` [0, −2] in `src/data`); vor dem Tor Kisten, Fässer und Säcke als Füllstandsanzeige |
+| `lagerhaus` | Füllstand 0–4 | geschlossenes Fachwerk-Lagerhaus 3 × 3 mit Satteldach und Tor an Modell (0, −1,5) (Tür bzw. Zugang `door` [0, −2] in `src/data`, ADR 0010); vor dem Tor Kisten, Fässer und Säcke als Füllstandsanzeige |
 | `lagerhaus_innen` | Füllstand 0–4 | Schnittbild ohne Dach: Bohlenboden, acht Fächer an `shelves` (dieselben Werte wie `BUILDINGS.lager.storage.shelves`), Regale an den hohen Wänden, Mittelgang zum Tor. Waren (`stapel_*`) und Figuren zeichnet das Spiel darauf, dann `lagerhaus_innen_front.png` |
 | `haus_innen` | 0–4 Bewohner | Wohnhaus ohne Dach: Herd am Schornstein, Tisch mit Bank, Truhe, Betten; Variante = belegte Betten |
 | `holzfaeller_innen` | Hof leer, halb, voll | Holzfällerhütte ohne Dach: Werkbank mit Säge und Stamm, Äxte an der Rückwand, Scheite, Strohlager; Hof wie beim Außenbild |

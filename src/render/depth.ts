@@ -15,7 +15,10 @@ export interface DepthItem {
   x0: number; y0: number; x1: number; y1: number;
   /** Flach am Boden (Lagerboden): wird vor allem gezeichnet, was seine Box überlappt. */
   flat: boolean;
-  /** Figur (klein, beweglich): steht sie in einer Box (Hof), kommt sie nach dem Gebäude. */
+  /**
+   * Figur (klein, beweglich): steht sie in einer Box (Hof, Einfahrt) oder davor, kommt sie nach dem Gebäude; ragt nur
+   * ihre Sortierbox von hinten hinein (Fußpunkt hinter der Box), davor.
+   */
   fig: boolean;
   /** Feinsortierung bei Gleichstand (z. B. Höhe). */
   bias: number;
@@ -39,7 +42,15 @@ export function relation(a: DepthItem, b: DepthItem): number {
   // Boxen überlappen sich
   if (!!a.cover !== !!b.cover) return a.cover ? -1 : 1;
   if (a.flat !== b.flat) return a.flat ? 1 : -1;
-  if (a.fig !== b.fig) return a.fig ? -1 : 1;
+  if (a.fig !== b.fig) {
+    // Figur dicht an einem Objekt: Nur ihre Sortierbox ragt hinein, der Fußpunkt liegt dahinter (z. B. ein Angreifer
+    // direkt an der Rückwand) → Figur zuerst. Steht sie wirklich darin (Einfahrt des Lagers, Hof) oder davor → danach.
+    const f = a.fig ? a : b, o = a.fig ? b : a;
+    const cu = (f.u0 + f.u1) / 2, cv = (f.v0 + f.v1) / 2;
+    const behind = cu <= o.u0 + EPS || cv <= o.v0 + EPS, ahead = cu >= o.u1 - EPS || cv >= o.v1 - EPS;
+    const figFirst = behind && !ahead;
+    return figFirst === a.fig ? 1 : -1;
+  }
   const da = a.u0 + a.u1 + a.v0 + a.v1 + a.bias, db = b.u0 + b.u1 + b.v0 + b.v1 + b.bias;
   return da < db ? 1 : da > db ? -1 : 0;
 }
