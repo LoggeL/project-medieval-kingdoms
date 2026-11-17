@@ -11,6 +11,7 @@
   "180",
   "270"
  ],
+ "atlas": null,
  "anchor": [
   144,
   184
@@ -201,6 +202,317 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "baum_liegt",
+   "name": "Gefällter Baum",
+   "frames": 3,
+   "variants": [
+    "3 Stämme",
+    "2 Stämme",
+    "1 Stamm"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baum_stumpf",
+   "name": "Baumstumpf",
+   "frames": 2,
+   "variants": [
+    "Laubbaum",
+    "Tanne"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "fels",
+   "name": "Felsbrocken",
+   "frames": 4,
+   "variants": [
+    "unberührt",
+    "angebrochen",
+    "halb abgebaut",
+    "fast abgebaut"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_holz",
+   "name": "Stapel Holz",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_stein",
+   "name": "Stapel Stein",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_eisen",
+   "name": "Stapel Eisen",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_speer",
+   "name": "Stapel Speere",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_schwert",
+   "name": "Stapel Schwerter",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_bogen",
+   "name": "Stapel Bögen",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "lager_boden",
+   "name": "Lagerplatz (Boden)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "mauer_gerade",
+   "name": "Mauer gerade",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_ende",
+   "name": "Mauerende",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_ecke",
+   "name": "Mauerecke",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_t",
+   "name": "Mauer T-Stück",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_kreuz",
+   "name": "Mauerkreuzung",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_einzel",
+   "name": "Mauerblock",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "tor",
+   "name": "Tor",
+   "frames": 2,
+   "variants": [
+    "geschlossen",
+    "offen"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
   }
  ],
  "team_swap": {
@@ -305,7 +617,7 @@
    ]
   ]
  },
- "colours": 155,
+ "colours": 176,
  "shadow": false,
  "ground": null
 }
