@@ -25,3 +25,5 @@ Ein eigenständiges, isometrisches 2D-Pixelart-RTS mit sichtbarer Wirtschaft und
 ## Grenzen
 
 Nur in diesem Projekt arbeiten. Keine anderen Projekte, globalen Einstellungen, Zugangsdaten oder Infrastruktur verändern. Lokale Pakete, lokale Server, Tests, Screenshots und lokale Commits sind erlaubt. Nichts veröffentlichen, keine Remote-Repositories anlegen und keine Nachrichten verschicken ohne ausdrückliche Freigabe.
+
+Das Repo `LoggeL/project-medieval-kingdoms` ist **öffentlich**, jeder Push auf `main` geht per Dokploy live auf medieval-kingdoms.logge.top (siehe [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)). Pushen nur mit Freigabe. Keine Zugangsdaten, Klarnamen Dritter oder privaten Nachrichten einchecken.
