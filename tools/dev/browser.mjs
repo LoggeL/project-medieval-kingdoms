@@ -17,6 +17,9 @@
  *
  * Ton ist immer stumm (--mute-audio): Audio wird nur über Zustand und Elemente geprüft, nie hörbar.
  *
+ * Adressen (Dev-Server wie Auslieferung, siehe docs/DEPLOYMENT.md): Spiel unter /, Konzeptseite unter /konzept/,
+ * alte Adressen /spiel/… leiten auf /… um. Also z. B. http://127.0.0.1:5173/?direkt=1, nicht mehr /spiel/.
+ *
  * Das Spiel startet mit Lade- und Titelbildschirm; window.mk gibt es erst nach „Neues Spiel“. Für Spieltests die URL
  * mit ?direkt=1 aufrufen (überspringt den Titel, nur im Entwicklungsmodus). Weitere Schalter: ?halten=1 hält den
  * Ladebildschirm nach 100 %, ?fehlertest=<schritt> erzwingt die Fehlermeldung; window.mkStart steuert den Start.

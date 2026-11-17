@@ -3,7 +3,7 @@
 <!-- SCHRIFTEN: selbst gehostet, keine Anfrage an Google Fonts (DSGVO). Die woff2-Dateien kopiert das Dockerfile
      aus den npm-Paketen @fontsource/* nach /fonts/ (dieselben Schnitte wie src/ui/fonts.css im Spiel).
      Artifact-Fassung (claude.ai erlaubt Stylesheets nur von Google Fonts): den Block von SCHRIFTEN bis /SCHRIFTEN
-     durch den Google-Fonts-Link ersetzen und den Link „Prototyp spielen“ absolut machen. Fertiger Befehl dafür
+     durch den Google-Fonts-Link ersetzen und die Links aufs Spiel (href="/") absolut machen. Fertiger Befehl dafür
      in docs/DEPLOYMENT.md, Abschnitt „Konzeptseite als Artifact“. -->
 <style>
 @font-face { font-family: "Alegreya Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/alegreya-sans-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
@@ -108,7 +108,12 @@ p { margin: 0; }
 .hero h1 .pre { display: block; font-size: 0.42em; color: var(--gold); letter-spacing: 0.18em; margin-bottom: 0.35rem; }
 .lede { font-size: clamp(1.15rem, 2.2vw, 1.4rem); line-height: 1.5; max-width: 44rem; }
 .lede strong { color: var(--accent); font-weight: 700; }
-/* Link zum spielbaren Prototyp (/spiel/), im Stil der Knöpfe, aber größer und in Wappenblau */
+/* Rücklink oben (die Seite liegt unter /konzept/, das Spiel unter /) */
+.topnav { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: 1rem; font-family: var(--f-display); font-size: 0.9rem; }
+.topnav a { color: var(--accent); text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
+.topnav a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.topnav .tri-l { width: 0; height: 0; border-block: 0.35em solid transparent; border-right: 0.55em solid currentColor; }
+/* Link zum spielbaren Prototyp (/), im Stil der Knöpfe, aber größer und in Wappenblau */
 .play { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; }
 .play-btn {
   font-family: var(--f-display); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.03em; text-decoration: none;
@@ -480,11 +485,13 @@ footer.foot { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--l
 
 <div class="wrap" lang="de">
 
+<nav class="topnav" aria-label="Seitennavigation"><a href="/"><span class="tri-l" aria-hidden="true"></span>Zum Spiel</a></nav>
+
 <header class="hero">
   <p class="label">Spielkonzept · Entwurf v1 · 16. November 2026</p>
   <h1><span class="pre">PROJECT:</span>MEDIEVAL KINGDOMS</h1>
   <p class="lede">Ein isometrisches Pixelart-RTS über drei Jahrhunderte. Aus einer hölzernen Turmhügelburg wird eine lebendige Burgstadt. <strong>Jeder Stein wird sichtbar gebrochen, gefahren und vermauert</strong>, und jede Mauer ist ein Ort, den die eigenen Soldaten wirklich besetzen.</p>
-  <p class="play"><a class="play-btn" href="/spiel/"><span class="tri" aria-hidden="true"></span>Prototyp spielen</a><span class="play-note">Läuft direkt im Browser, am besten am Rechner mit Maus und Tastatur. Ein früher Stand: Holzfäller, Steinbruch, Lager, Kaserne und eine Mauer zum Besetzen.</span></p>
+  <p class="play"><a class="play-btn" href="/"><span class="tri" aria-hidden="true"></span>Prototyp spielen</a><span class="play-note">Läuft direkt im Browser, am besten am Rechner mit Maus und Tastatur. Ein früher Stand: Holzfäller, Steinbruch, Lager, Kaserne und eine Mauer zum Besetzen.</span></p>
 
   <figure class="scene" style="margin:0">
     <div class="scene-stage" id="stage" tabindex="0" role="group" aria-label="Isometrische Beispielszene. Mit Q und E drehen.">

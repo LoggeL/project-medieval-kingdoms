@@ -1,6 +1,6 @@
 /**
  * Titelbildschirm (DOM): Schlüsselbild vollflächig (cover, Vignette, sehr langsamer Schwenk), Wappen und Schriftzug,
- * Menü „Neues Spiel“, „Klang“, „Steuerung“ und im Build „Konzept“ (Link auf die Konzeptseite).
+ * Menü „Neues Spiel“, „Klang“, „Steuerung“ und „Design-Dokument“ (Link auf die Konzeptseite unter /konzept/).
  * „Fortsetzen“ gibt es nicht: Der Prototyp speichert keinen Spielstand im Browser.
  *
  * Tastatur: Pfeile hoch/runter wandern durchs Menü, Enter löst aus (ohne Fokus startet Enter das Spiel), Esc schließt
@@ -16,7 +16,7 @@ export interface TitelOptionen {
   musik: TitelMusik;
   /** Adresse des Schlüsselbilds oder null (dann Holzgrund). */
   bild: string | null;
-  /** Link auf die Konzeptseite zeigen (nur im ausgelieferten Build sinnvoll). */
+  /** Adresse der Konzeptseite (Menüpunkt „Design-Dokument“) oder null (kein Menüpunkt). */
   konzept: string | null;
 }
 
@@ -68,7 +68,7 @@ export class Titelbildschirm {
     this.knopfKlang = h("button.mk-menue-knopf", { type: "button", text: "Klang", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("klang") });
     this.knopfSteuerung = h("button.mk-menue-knopf", { type: "button", text: "Steuerung", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("steuerung") });
     const items: HTMLElement[] = [neu, this.knopfKlang, this.knopfSteuerung];
-    if (o.konzept) items.push(h("a.mk-menue-knopf", { href: o.konzept, text: "Konzept" }));
+    if (o.konzept) items.push(h("a.mk-menue-knopf", { href: o.konzept, text: "Design-Dokument", title: "Spiel- und Technikkonzept mit Schaubildern" }));
     this.knoepfe = items;
     this.menue = h("nav.mk-menue", { "aria-label": "Hauptmenü" }, ...items);
     this.panelHost = h("div", { id: "mk-tafel" });

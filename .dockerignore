@@ -1,6 +1,7 @@
 *
 !Dockerfile
 !deploy/nginx.conf
+!deploy/konzeptseite.ts
 !docs/konzept-seite.html
 !package.json
 !package-lock.json

@@ -172,8 +172,8 @@ export class Startbildschirm {
       return;
     }
     this.musik = new TitelMusik(() => bridge.audio());
-    const konzept = import.meta.env.PROD ? "../" : null;
-    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept });
+    // Konzeptseite liegt neben dem Spiel unter /konzept/ (Build: nginx, Entwicklung: Middleware in vite.config.ts)
+    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept: "./konzept/" });
     const gewaehlt = this.titelbild.zeigen();
     this.phase = "titel";
     await this.laden.ausblenden(600);

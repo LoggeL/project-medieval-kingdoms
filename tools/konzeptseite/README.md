@@ -23,10 +23,10 @@ Braucht Python 3 mit Pillow. Vorher müssen Figuren und Gebäude gebaut sein (`t
 
 **Der Rest der Seite** (Texte, Schaubilder, Gerüst des UI-Modells, Canvas-Elemente) hat keine eigene Quelle, `docs/konzept-seite.html` ist selbst die Quelle. Änderungen daran direkt in der Datei machen, außerhalb der Marker.
 
-**Format:** Die Seite ist eine Artifact-Quelle ohne `<!doctype>`, `<html>` und `<body>`, das Gerüst ergänzt erst die Veröffentlichung. Zum lokalen Ansehen in ein Gerüst packen:
+**Format:** Die Seite ist eine Artifact-Quelle ohne `<!doctype>`, `<html>` und `<body>`, das Gerüst ergänzt erst die Veröffentlichung (im Spiel-Build `deploy/konzeptseite.ts`, ausgeliefert unter `/konzept/`). Am einfachsten lokal ansehen: `npm run dev` und http://localhost:5173/konzept/ öffnen (mit den echten Schriften, „Zum Spiel“ führt ins Spiel). Ohne Dev-Server in ein Gerüst packen (dann mit Ersatzschriften):
 
 ```sh
 mkdir -p .local/vorschau && { printf '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>'; cat docs/konzept-seite.html; printf '</body></html>'; } > .local/vorschau/index.html
 ```
 
-Veröffentlicht ist die Seite als Artifact (Link in [docs/STATUS.md](../../docs/STATUS.md)), neu veröffentlicht wird von Hand. Die Seite im Repo bindet selbst gehostete Schriften ein (Block `<!-- SCHRIFTEN -->` am Anfang); für das Artifact diesen Block durch den Google-Fonts-Link ersetzen und den Link „Prototyp spielen“ auf die Live-Adresse zeigen lassen, siehe Abschnitt „Konzeptseite als Artifact“ in [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
+Veröffentlicht ist die Seite als Artifact (Link in [docs/STATUS.md](../../docs/STATUS.md)), neu veröffentlicht wird von Hand. Die Seite im Repo bindet selbst gehostete Schriften ein (Block `<!-- SCHRIFTEN -->` am Anfang); für das Artifact diesen Block durch den Google-Fonts-Link ersetzen und die Links aufs Spiel („Zum Spiel“, „Prototyp spielen“, `href="/"`) auf die Live-Adresse zeigen lassen, siehe Abschnitt „Konzeptseite als Artifact“ in [docs/DEPLOYMENT.md](../../docs/DEPLOYMENT.md).

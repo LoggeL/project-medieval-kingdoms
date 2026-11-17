@@ -6,13 +6,15 @@ Idee und Anforderungen: Sebastian (Auftraggeber). Das vollständige Briefing ste
 
 ## Stand
 
-Erster spielbarer Prototyp nach Briefing §14 (Browser, TypeScript + PixiJS). Aktueller Stand: [docs/STATUS.md](docs/STATUS.md). Das Spiel startet mit Lade- und Titelbildschirm; `?direkt=1` überspringt ihn im Entwicklungsmodus.
+Erster spielbarer Prototyp nach Briefing §14 (Browser, TypeScript + PixiJS). Aktueller Stand: [docs/STATUS.md](docs/STATUS.md). Live unter https://medieval-kingdoms.logge.top/: Die Hauptadresse öffnet das Spiel mit Lade- und Titelbildschirm, das Design-Dokument (Konzeptseite) ist dort ein Menüpunkt und liegt unter `/konzept/`. `?direkt=1` überspringt den Titel im Entwicklungsmodus.
 
 ```bash
 npm install
-npm run dev      # Spiel unter http://localhost:5173/
+npm run dev      # Spiel unter http://localhost:5173/, Konzeptseite unter http://localhost:5173/konzept/
 npm test         # Vitest
 ```
+
+Auslieferung (Docker, nginx, Adressen): [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Aufbau
 
