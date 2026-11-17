@@ -2721,6 +2721,81 @@ def b_baustoff_stein(mb, var):
         mb.box("stone2" if i % 4 == 1 else "stone", (x, y, 0.12 + 0.15 + lv * 0.3), (0.38, 0.36, 0.28), rot=(0, 0, rz))
 
 
+# ---------------------------------------------------------------- landscape (ADR 0012): mountain massif, one piece per tile
+GEBIRGE_H = [(1.3, 2.1), (2.8, 3.6), (4.2, 5.4)]   # height range (m) per class: edge, slope, summit
+
+
+def crag(mb, r, cx, cy, rb, h, n=7, cap=None, lean=(0.0, 0.0)):
+    """Faceted rock spire without a bottom: base ring on the ground, two rings above, apex. Facets alternate between
+    rock and dark rock; cap = material of the top facets (snow on the summits)."""
+    rings = [(0.0, rb, 0.0), (h * r.uniform(0.38, 0.5), rb * r.uniform(0.55, 0.68), 0.35),
+             (h * r.uniform(0.68, 0.78), rb * r.uniform(0.26, 0.36), 0.7)]
+    phase = r.uniform(0, 2 * math.pi)
+    pts = []
+    for z, rr, t in rings:
+        for i in range(n):
+            a = phase + 2 * math.pi * i / n + r.uniform(-0.18, 0.18)
+            k = rr * r.uniform(0.8, 1.15)
+            pts.append((cx + lean[0] * t + k * math.cos(a), cy + lean[1] * t + k * math.sin(a), max(0.0, z + r.uniform(-0.08, 0.08) * h * (t > 0))))
+    apex = (cx + lean[0] + r.uniform(-0.1, 0.1), cy + lean[1] + r.uniform(-0.1, 0.1), h)
+    for j in range(2):
+        for i in range(n):
+            a, b = j * n + i, j * n + (i + 1) % n
+            q = [pts[a], pts[b], pts[b + n], pts[a + n]]
+            mb.add("rock_dk" if r.random() < 0.4 else "rock", q, [(0, 1, 2, 3)])
+    for i in range(n):
+        a, b = 2 * n + i, 2 * n + (i + 1) % n
+        mb.add(cap or ("rock_dk" if r.random() < 0.3 else "rock"), [pts[a], pts[b], apex], [(0, 1, 2)])
+
+
+def b_gebirge(mb, var):
+    """Piece of the mountain massif on one tile (variants: class * 4 + v; class 0 edge, 1 slope, 2 summit with snow).
+    The game picks the class from the distance to the edge of the massif, so it rises towards the middle; pieces
+    reach a little over their tile so neighbours close up."""
+    cls, v = divmod(var, 4)
+    r = random.Random(3000 + 37 * var)
+    mb.rnd = random.Random(3100 + 41 * var)
+    lo, hi = GEBIRGE_H[cls]
+    h = r.uniform(lo, hi)
+    L = T / 2
+    if cls == 0:
+        for k in range(r.randint(2, 3)):
+            a = r.uniform(0, 2 * math.pi)
+            d = r.uniform(0.2, 0.55)
+            crag(mb, r, d * math.cos(a), d * math.sin(a), r.uniform(0.7, 1.05), h * r.uniform(0.6, 1.0), n=6)
+        for k in range(2):
+            a = r.uniform(0, 2 * math.pi)
+            mb.blob("leaf_dk", (0.95 * math.cos(a), 0.95 * math.sin(a), 0.1), (0.3, 0.26, 0.22), seg=6, rings=4, jitter=0.25)
+        if v % 2 == 0:
+            # a stunted pine on the edge of the rock
+            a = r.uniform(0, 2 * math.pi)
+            x, y = 0.9 * math.cos(a), 0.9 * math.sin(a)
+            mb.cyl("bark", (x, y, 0.25), 0.07, 0.5, n=5)
+            for i, (rr_, hh) in enumerate(((0.42, 0.75), (0.32, 0.65), (0.2, 0.5))):
+                mb.cyl("needle", (x, y, 0.35 + i * 0.35 + hh / 2), rr_, hh, n=6, r2=0)
+    else:
+        main_rb = 1.95 if cls == 1 else 2.2
+        lean = (r.uniform(-0.25, 0.25), r.uniform(-0.25, 0.25))
+        crag(mb, r, 0.0, 0.0, main_rb, h, n=8, cap="snow" if cls == 2 else None, lean=lean)
+        for k in range(2 if cls == 1 else 3):
+            a = r.uniform(0, 2 * math.pi)
+            d = r.uniform(0.7, 1.1)
+            hh = h * r.uniform(0.35, 0.6)
+            crag(mb, r, d * math.cos(a), d * math.sin(a), r.uniform(0.8, 1.15), hh, n=6,
+                 cap="snow" if cls == 2 and hh > 3.0 else None)
+        if cls == 2:
+            # snow in the gullies below the cap
+            for k in range(3):
+                a = r.uniform(0, 2 * math.pi)
+                mb.blob("snow", (0.45 * math.cos(a) + lean[0] * 0.6, 0.45 * math.sin(a) + lean[1] * 0.6, h * 0.62),
+                        (0.28, 0.22, 0.12), seg=6, rings=3, jitter=0.25)
+    # scree at the foot, inside the tile
+    for k in range(5 + cls * 2):
+        x, y = r.uniform(-L + 0.2, L - 0.2), r.uniform(-L + 0.2, L - 0.2)
+        rr = r.uniform(0.08, 0.2)
+        mb.blob("rock" if rr > 0.13 else "gravel", (x, y, rr * 0.45), (rr, rr * 0.85, rr * 0.7), seg=5, rings=3, jitter=0.25)
+
+
 BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruch, "lager": b_lager, "kaserne": b_kaserne,
          "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne,
          "baum_liegt": b_baum_liegt, "baum_stumpf": b_baum_stumpf, "fels": b_fels,
@@ -2739,6 +2814,7 @@ BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
 BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
+BUILD.update({"gebirge": b_gebirge})
 
 
 # ---------------------------------------------------------------- scene and render

@@ -8,13 +8,14 @@ import type { Good, StoreKey } from "./goods";
 import type { ProductionDef } from "./recipes";
 import type { TechKey } from "./research";
 import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
+import { GELAENDE, type GelaendeKey } from "./gelaende";
 
 export * from "./research";
 
 export const TICKS_PER_SECOND = 20;
 
 // ---------------------------------------------------------------- Gelände
-export type TerrainKey = "gras" | "wiese" | "waldboden" | "erde" | "fels" | "wasser";
+export type TerrainKey = "gras" | "wiese" | "waldboden" | "erde" | "fels" | "wasser" | GelaendeKey;
 
 export interface TerrainDef {
   name: string;
@@ -33,7 +34,10 @@ export const TERRAIN: Record<TerrainKey, TerrainDef> = {
   erde: { name: "Weg", walkable: true, buildable: true, cost: 0.7 },
   fels: { name: "Fels", walkable: true, buildable: false, cost: 1.6 },
   wasser: { name: "Wasser", walkable: false, buildable: false, cost: 99 },
+  ...GELAENDE,
 };
+
+export * from "./gelaende";
 
 // ---------------------------------------------------------------- Waren, Lagertypen, Rezepte (eigene Dateien)
 export * from "./goods";

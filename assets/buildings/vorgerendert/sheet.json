@@ -1251,6 +1251,31 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "gebirge",
+   "name": "Felsmassiv",
+   "frames": 12,
+   "variants": [
+    "Rand 1",
+    "Rand 2",
+    "Rand 3",
+    "Rand 4",
+    "Hang 1",
+    "Hang 2",
+    "Hang 3",
+    "Hang 4",
+    "Gipfel 1",
+    "Gipfel 2",
+    "Gipfel 3",
+    "Gipfel 4"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
   }
  ],
  "team_swap": {

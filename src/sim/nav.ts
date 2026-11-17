@@ -98,6 +98,18 @@ export class Nav {
   /** Ist der Knoten ohne Einreißen begehbar? */
   open(n: number, team: Team): boolean { return this.pass(n, team, false) >= 0; }
 
+  /** Schneidet der Schritt a → b (Diagonale in einer Ebene) eine gesperrte Ecke? Gleiche Regel wie neighbors(). */
+  cutsCorner(a: number, b: number, team: Team): boolean {
+    const N = this.N, W = this.W;
+    const la = (a / N) | 0, lb = (b / N) | 0;
+    if (la !== lb) return false;
+    const ia = a - la * N, ib = b - lb * N;
+    const ax = ia % W, ay = (ia / W) | 0, bx = ib % W, by = (ib / W) | 0;
+    if (Math.abs(ax - bx) !== 1 || Math.abs(ay - by) !== 1) return false;
+    const base = la * N, c1 = base + ay * W + bx, c2 = base + by * W + ax;
+    return !!this.linkOnly[c1] || !!this.linkOnly[c2] || this.pass(c1, team, false) < 0 || this.pass(c2, team, false) < 0;
+  }
+
   // ------------------------------------------------------------ Aufbau
   rebuild(bump = true): void {
     const s = this.w.s, N = this.N, W = this.W;

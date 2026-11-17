@@ -73,6 +73,10 @@ tools/blender/build_buildings.sh wappen
 
 **Nachbarmaske:** Mauerteile und Tor rendern zusätzlich `_n.png`, die Stellen der angeschlossenen Nachbarn (unsichtbare Platzhalter, Gruppe `ghost`). Dort entfällt der Bodenschatten des Teils, sonst läge er im Spiel über der Wand des Nachbarn. Ebenso entfallen dort Randabdunklung (`rim`) und Konturring: Zum Nachbarn hin läuft die Mauer weiter, die Kante ist keine Silhouette. Vorher lag in den Ansichten 1 und 3 an jeder Kachelgrenze eine senkrechte dunkle Naht (der abgedunkelte rechte Rand des vorderen Stücks über der Wand des hinteren).
 
+### Felsmassiv (ADR 0012)
+
+`gebirge` (Seed 300, `b_gebirge` mit `crag`): ein Teil des Massivs je Gebirgsfeld, 12 Bilder = 3 Höhenklassen × 4 Varianten. Rand (Bild 0–3): flache Felsrippen mit Büschen, teils einer Krüppelkiefer, 1,3–2,1 m. Hang (4–7): facettierte Felsspitze mit zwei Nebenspitzen, 2,8–3,6 m. Gipfel (8–11): breite Spitze mit Schneekappe und Schneeresten in den Rinnen, 4,2–5,4 m. Die Teile reichen etwas über ihr Feld hinaus, damit Nachbarn zu einem Massiv zusammenwachsen; die Darstellung wählt die Klasse nach dem Abstand zum Rand (`mountainClass`). Neue Palettenfarbe `snow`.
+
 ### Objekte für den Prototyp
 
 | Schlüssel | Varianten (Spalten) | Hinweise |
@@ -121,6 +125,8 @@ tools/blender/build_terrain.sh            # alle Stile (braucht die Figuren-Rend
 ```
 
 `erz` (Fels mit rostroten Adern und Erzbrocken), `sumpf` (Moorboden mit trüben Pfützen, Schilf und Rohrkolben) und `acker` (Furchen mit junger Saat) sind später angehängt, die Zeilen 0–5 sind unverändert. Die Furchen haben eine Richtung: Varianten 0 und 1 verlaufen entlang Welt-x, 2 und 3 entlang Welt-y. Geländekacheln werden beim Drehen nicht mitgedreht, für die Ansichten r = 1 und r = 3 nimmt die Darstellung deshalb die andere Hälfte (Variante xor 2).
+
+**Landschaft (ADR 0012), eigenes Bild `gelaende.png`:** `huegel` (trockenes Olivgras auf breiten Buckeln, Heide, Steine), `fruchtbar` (sattes Auengras, Maulwurfshügel, Hahnenfuß), `sand` (Strand mit Rippeln, Kieseln, Muscheln, Strandhafer, Treibholz) und `gebirge` (Geröll unter den Massivteilen), je 4 Varianten. Damit `terrain.png` und `blend.png` bytegleich bleiben, stehen sie in einem eigenen Bild: Im `sheet.json` tragen diese Schlüssel `"image": "gelaende.png"` (Zeilen zählen in diesem Bild), `images` nennt die Farbzahl. Erzeugen: in Blender mit `--only huegel,fruchtbar,sand,gebirge` rendern, dann `python3 tools/blender/terrain.py --style … --src .local/blender/terrain --out assets/terrain/vorgerendert --lref-src .local/blender/vorgerendert --only huegel,fruchtbar,sand,gebirge --image gelaende.png --merge` (hängt nur die Schlüssel an, schreibt kein `blend.png`). Übergangsvorrang im Spiel: wasser < sumpf < sand < erde < gebirge < fels < huegel < waldboden < fruchtbar < gras < wiese (`BLEND_ORDER` in `src/render/blend.ts`).
 
 Zeile = Geländetyp, Variante v und Bild f in Spalte v · frames + f. Wasser hat 4 Varianten zu je 8 Bildern (Spalten 0–31 der Zeile 5). Ein Pixel (x, y) gehört zur Kachel, wenn |x + 0,5 − 32| / 32 + |y + 0,5 − 16| / 16 < 1; Kacheln im Abstand (32, 16) schließen dann ohne Lücke und Überlappung. Der Anker (32, 16) ist die Kachelmitte.
 

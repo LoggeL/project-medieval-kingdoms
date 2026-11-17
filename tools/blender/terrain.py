@@ -20,6 +20,12 @@ with murky puddles and reeds), acker (ploughed field with young crop). The acker
 variants 0 and 1 run along world x, variants 2 and 3 along world y. Terrain tiles are not turned with the camera,
 so a renderer swaps the pair (v xor 2) for the views r = 1 and r = 3.
 
+Added for the landscape (ADR 0012), in their own image gelaende.png so terrain.png stays byte-identical: huegel (dry
+olive grass on broad bumps with heather and stones), fruchtbar (lush dark green with loam patches and molehills), sand
+(beach with ripples, pebbles, shells, beach grass and driftwood) and gebirge (dark scree under the mountain sprites).
+Render them with --only and pixelize with --only huegel,fruchtbar,sand,gebirge --image gelaende.png --merge: the keys
+are added to the existing sheet.json with "image": "gelaende.png" (rows count inside that image), the rest is kept.
+
 Transitions: the pixelize step also writes blend.png (edge masks ne, se, sw, nw x 4 variants, white with hard alpha,
 see blend_masks()) and the "blend" entry of sheet.json; tools/blender/preview_blend.py composes a check picture.
 """
@@ -41,7 +47,8 @@ WATER_FRAMES = 8                                # wave loop, one frame per 1/8 o
 WIND = (0.83, 0.55)                             # direction (model x, y) the wavelets travel in
 # key, variants, frames (row order in the sheet)
 TYPES = [("gras", 4, 1), ("wiese", 4, 1), ("waldboden", 4, 1), ("erde", 4, 1), ("fels", 4, 1), ("wasser", 4, WATER_FRAMES),
-         ("erz", 4, 1), ("sumpf", 4, 1), ("acker", 4, 1)]
+         ("erz", 4, 1), ("sumpf", 4, 1), ("acker", 4, 1),
+         ("huegel", 4, 1), ("fruchtbar", 4, 1), ("sand", 4, 1), ("gebirge", 4, 1)]
 # ground tones (low, mid, high noise value) with their thresholds, relief amplitude (m), relief noise frequency limit
 GROUND = {
     "gras": (("gras2", "gras1", "gras3"), (-0.45, 0.5), 0.035, 5),
@@ -52,6 +59,10 @@ GROUND = {
     "erz": (("erzboden3", "erzboden1", "erzboden2"), (-0.45, 0.5), 0.06, 4),
     "sumpf": (("sumpfwasser", "sumpf1", "sumpf2"), (-0.5, 0.55), 0.02, 4),
     "acker": (("acker_dk", "acker1", "acker_hell"), (-0.45, 0.5), 0.05, 5),   # tone and relief: furrows, see ground()
+    "huegel": (("huegel2", "huegel1", "huegel3"), (-0.5, 0.45), 0.13, 2),     # broad bumps: the light shows the slopes
+    "fruchtbar": (("auboden", "aue1", "aue2"), (-1.3, 0.4), 0.03, 5),
+    "sand": (("sand2", "sand1", "sand3"), (-0.5, 0.5), 0.02, 6),
+    "gebirge": (("schotter3", "schotter1", "schotter2"), (-0.45, 0.45), 0.07, 4),
 }
 FURROWS = 4                                     # furrows per tile edge (integer, so the tile stays seamless)
 
@@ -380,6 +391,58 @@ def blender_main():
                 rr = rnd.uniform(0.04, 0.07)
                 mb.blob("acker_dk", (x, y, zf(x, y) + rr * 0.4), (rr, rr * 0.8, rr * 0.6), rnd, seg=5, rings=3)
 
+        if key == "huegel":
+            # dry tufts, heather cushions and a few stones on the bumps
+            for (x, y) in spots(rnd, 5, 0.45, 0.4):
+                tuft(mb, rnd, x, y, zf(x, y), rnd.uniform(0.14, 0.22), mats=("halm", "huegel3"))
+            for (x, y) in spots(rnd, 3, 0.5, 0.45):
+                mb.blob("heide", (x, y, zf(x, y) + 0.03), (0.13, 0.11, 0.07), rnd, seg=6, rings=3, jitter=0.25)
+                mb.blob("heide_hi", (x + 0.03, y - 0.02, zf(x, y) + 0.08), (0.06, 0.05, 0.03), rnd, seg=5, rings=3)
+            for (x, y) in spots(rnd, 2 + var % 2, 0.55, 0.5):
+                rr = rnd.uniform(0.07, 0.13)
+                mb.blob(rnd.choice(["fels2", "fels3", "kiesel"]), (x, y, zf(x, y) + rr * 0.35), (rr, rr * 0.85, rr * 0.65), rnd, seg=6, rings=3)
+        if key == "fruchtbar":
+            # lush grass, a few buttercups, molehills of dark loam
+            for (x, y) in spots(rnd, 8, 0.4, 0.3):
+                tuft(mb, rnd, x, y, zf(x, y), rnd.uniform(0.18, 0.28), mats=("aue2", "halm_hi"))
+            for (x, y) in spots(rnd, 1 + (var % 2), 0.6, 0.6):
+                mb.blob("auboden", (x, y, zf(x, y)), (0.17, 0.15, 0.09), rnd, seg=7, rings=4, jitter=0.1)
+                mb.blob("auboden_hi", (x - 0.03, y - 0.03, zf(x, y) + 0.06), (0.08, 0.07, 0.03), rnd, seg=5, rings=3)
+            for (x, y) in spots(rnd, 2, 0.5, 0.5):
+                z = zf(x, y)
+                mb.box("halm", (x, y, z + 0.07), (0.025, 0.025, 0.14))
+                mb.blob("bluete_g", (x, y, z + 0.16), (0.05, 0.05, 0.035), rnd, seg=5, rings=3, jitter=0.1)
+        if key == "sand":
+            # wind ripples (low ridges across the tile), pebbles, shells, beach grass, now and then driftwood
+            a = 30 + 15 * var
+            ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+            lim = T / 2 - 0.35
+            for k in range(-4, 5):
+                d = k * 0.32
+                t = -lim
+                while t < lim:
+                    ln = rnd.uniform(0.18, 0.4)
+                    px, py = -sa * d + ca * (t + ln / 2), ca * d + sa * (t + ln / 2)
+                    if abs(px) < lim and abs(py) < lim and rnd.random() < 0.7:
+                        mb.box("sand3", (px, py, zf(px, py) + 0.006), (ln, 0.035, 0.012), rot=(0, 0, a))
+                    t += ln + rnd.uniform(0.05, 0.2)
+            for (x, y) in spots(rnd, 6, 0.3, 0.15):
+                rr = rnd.uniform(0.03, 0.06)
+                mb.blob(rnd.choice(["kiesel", "kiesel_dk", "muschel"]), (x, y, zf(x, y) + rr * 0.3), (rr, rr * 0.8, rr * 0.5), rnd, seg=5, rings=3)
+            for (x, y) in spots(rnd, 2, 0.55, 0.5):
+                tuft(mb, rnd, x, y, zf(x, y), rnd.uniform(0.2, 0.3), mats=("strandhafer", "halm_hi"))
+            if var == 1:
+                (x, y), = spots(rnd, 1, 0.65)
+                mb.box("treibholz", (x, y, zf(x, y) + 0.03), (0.55, 0.06, 0.05), rot=(0, 0, rnd.uniform(0, 180)))
+        if key == "gebirge":
+            # coarse scree: many angular stones, the mountain sprite stands on top
+            for (x, y) in spots(rnd, 4, 0.5, 0.4):
+                rr = rnd.uniform(0.12, 0.2)
+                mb.blob(rnd.choice(["fels3", "schotter3"]), (x, y, zf(x, y) + rr * 0.35), (rr, rr * 0.8, rr * 0.6), rnd, seg=6, rings=4)
+            for (x, y) in spots(rnd, 16, 0.3, 0.1):
+                rr = rnd.uniform(0.04, 0.08)
+                mb.blob(rnd.choice(["geroell", "schotter2"]), (x, y, zf(x, y) + rr * 0.3), (rr, rr, rr * 0.6), rnd, seg=5, rings=3)
+
     class Waves:
         """Sum of travelling plane waves, periodic over the tile (integer wave numbers) and over WATER_FRAMES frames
         (each component advances `speed` whole periods per loop). Wavelets travel roughly along WIND."""
@@ -543,6 +606,10 @@ def pixel_main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--lref-src", required=True, help="figure renders of the style (light reference, as for the buildings)")
     ap.add_argument("--lscale", type=float, default=1.06)
+    ap.add_argument("--only", help="comma separated terrain types (default: all in render.json)")
+    ap.add_argument("--image", default="terrain.png", help="image to write the rows into")
+    ap.add_argument("--merge", action="store_true",
+                    help="add the keys to the existing sheet.json (with their image) instead of writing a new one")
     a = ap.parse_args()
     style = json.load(open(a.style))
     px = style.get("pixel", {})
@@ -565,7 +632,8 @@ def pixel_main():
     if len({tuple(m) for m in mats.tolist()}) != len(names):
         sys.exit("terrain palette: two materials share a colour in style %s" % style.get("label"))
     prio_names = ["bluete_w", "bluete_g", "bluete_v", "bluete_r", "schaum", "halm_hi", "laub_o", "laub_g",
-                  "erz_rost", "rohrkolben", "saat_hi"]   # appended later: the order of the earlier entries is unchanged
+                  "erz_rost", "rohrkolben", "saat_hi",
+                  "heide_hi", "muschel", "treibholz"]   # appended later: the order of the earlier entries is unchanged
     prio = np.array([1000.0 * (len(prio_names) - prio_names.index(n)) if n in prio_names else 0.0 for n in names], np.float32)
 
     def shade(base, band):
@@ -638,6 +706,12 @@ def pixel_main():
         return out
 
     meta = json.load(open(os.path.join(a.src, "render.json")))
+    if a.only:
+        want = a.only.split(",")
+        missing = [k for k in want if k not in [t["key"] for t in meta["types"]]]
+        if missing:
+            sys.exit("not rendered: %s" % ", ".join(missing))
+        meta["types"] = [t for t in meta["types"] if t["key"] in want]
     ncols = max(t["variants"] * t["frames"] for t in meta["types"])
     sheet = Image.new("RGBA", (TW * ncols, TH * len(meta["types"])), (0, 0, 0, 0))
     keys, used = {}, set()
@@ -659,9 +733,22 @@ def pixel_main():
                     if np.array_equal(fr[i], fr[j]):
                         sys.exit("water variant %d: frames %d and %d are identical" % (v, i, j))
     os.makedirs(a.out, exist_ok=True)
-    sheet.save(os.path.join(a.out, "terrain.png"), optimize=True)
+    sheet.save(os.path.join(a.out, a.image), optimize=True)
+    if a.merge:
+        # keep everything else (terrain.png, blend.png, the other keys) as it is
+        sj = os.path.join(a.out, "sheet.json")
+        old = json.load(open(sj))
+        clash = [k for k in keys if k in old["keys"] and old["keys"][k].get("image", old.get("image")) != a.image]
+        if clash:
+            sys.exit("keys already in another image: %s" % ", ".join(clash))
+        for k, v in keys.items():
+            old["keys"][k] = dict(v, image=a.image)
+        old.setdefault("images", {})[a.image] = {"colours": len(used)}
+        json.dump(old, open(sj, "w"), ensure_ascii=False, indent=1)
+        print("terrain", style.get("label"), a.image, "tiles:", sum(t["variants"] * t["frames"] for t in meta["types"]), "colours:", len(used))
+        return
     blend_masks().save(os.path.join(a.out, "blend.png"), optimize=True)
-    json.dump({"style": style.get("label"), "tile": [TW, TH], "anchor": list(ANCHOR), "image": "terrain.png", "keys": keys,
+    json.dump({"style": style.get("label"), "tile": [TW, TH], "anchor": list(ANCHOR), "image": a.image, "keys": keys,
                "layout": "row = terrain type, column = variant * frames + frame",
                "mask": "pixel (x, y) belongs to the tile if |x + 0.5 - 32| / 32 + |y + 0.5 - 16| / 16 < 1; tiles at offsets (32, 16) fit without gaps or overlaps",
                "fps": 4, "colours": len(used),

@@ -8,7 +8,7 @@
  * Ohne assets/terrain/<stil>/sheet.json: eingefärbte Rauten mit leichtem Rauschen (Ersatz, wird automatisch ersetzt).
  */
 import { Container, RenderTexture, Sprite, type Renderer, type Texture } from "pixi.js";
-import type { TerrainKey } from "../data";
+import { TERRAIN, type TerrainKey } from "../data";
 import type { Rot } from "../sim/geom";
 import type { SimState } from "../sim/types";
 import { textureFromCanvas, type TerrainSheet } from "./assets";
@@ -16,7 +16,7 @@ import { blendPlan, maskVariant } from "./blend";
 import { HALF_H, HALF_W, fromView, viewSize, viewToScreen } from "./iso";
 
 const CH = 16;
-const TERRAIN_KEYS: TerrainKey[] = ["gras", "wiese", "waldboden", "erde", "fels", "wasser"];
+const TERRAIN_KEYS = Object.keys(TERRAIN) as TerrainKey[];
 
 /** Ersatzfarben (Grundton, Akzent) je Gelände. */
 const FALLBACK: Record<TerrainKey, [string, string]> = {
@@ -26,6 +26,11 @@ const FALLBACK: Record<TerrainKey, [string, string]> = {
   erde: ["#8a6a42", "#6f5434"],
   fels: ["#868174", "#a39d8e"],
   wasser: ["#3b6d96", "#6d9cc0"],
+  huegel: ["#848c47", "#6e4f5c"],
+  gebirge: ["#615b54", "#7d756a"],
+  sumpf: ["#5b6236", "#3e5a50"],
+  sand: ["#d6c08a", "#e2d1a0"],
+  fruchtbar: ["#557f38", "#4a3a26"],
 };
 
 function rng(seed: number): () => number {

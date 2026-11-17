@@ -50,7 +50,8 @@ export function travel(w: World, u: SUnit, g: TravelGoal): TravelResult {
     // Raster hat sich geändert: Rest des Wegs prüfen
     ai.navV = w.meta.navVersion;
     for (let i = ai.pi; i < ai.path.length; i++) {
-      if (nav.pass(ai.path[i], u.team, !!g.breach) < 0) { ai.path = null; break; }
+      // auch Diagonalen, an deren Ecke inzwischen etwas steht (neue Baustelle, nachgerutschter Fels)
+      if (nav.pass(ai.path[i], u.team, !!g.breach) < 0 || (i > 0 && nav.cutsCorner(ai.path[i - 1], ai.path[i], u.team))) { ai.path = null; break; }
     }
   }
   if (!ai.path) {

@@ -5,7 +5,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | Datei | Inhalt |
 |---|---|
 | `world.ts` | Innerer Zustand: `World` (Zustand + Meta + Laufraster + Nachschlagetabellen), Aufträge (`Job`), `ai`-Feld an Einheiten und Gebäuden |
-| `mapgen.ts` | Kartengenerator: Wald im Westen, Felsfeld im Norden, Fluss mit Furt im Osten, Wege, Startlager in der Mitte |
+| `mapgen.ts` | Kartengenerator: Wald im Westen, Felsfeld im Norden, Fluss mit Furt im Osten, Wege, Startlager in der Mitte; darüber die Landschaft (ADR 0012, Lage in `LANDSCHAFT`): Felsmassiv mit Geröllhalde und Hügelsaum, Hügelkuppen mit Felskopf, See, Küste, Sumpf, fruchtbare Auen; `mountainClass` (Höhenklasse für die Darstellung) |
+| `gelaende.ts` | Geröllhalde am Gebirge und Nachrutschen von Felsbrocken nach dem Abbau (ADR 0012): deterministisch aus Tick und Seed, ohne eigenen Zustand, nie trennend, nie vor Türen oder neben Figuren |
 | `nav.ts` | Laufraster mit drei Ebenen (Boden, Wehrgang, Turm), Gebäude als feste Hindernisse (Zugang nur über die Tür, Daten `door`), Treppen- und Turmübergänge, Tore und Turmtüren (nur Team 0), A* mit Wegkosten, keine Diagonale an gesperrten Ecken, Komponenten, Cache, Belagerungsmodus |
 | `move.ts` | Gehen entlang von Pfaden (Höhe gleitet mit, auf Treppen nach den Stufen), Pfadbudget pro Tick, Ziele an Gebäuden, Einheiten aus neuen Grundrissen schieben |
 | `build.ts` | Platzierungsregeln, Baustellen, Mauerlinien (Vorschau = Bau), Tor nur in gerader Mauer, Fertigstellung, Abriss, Zerstörung, Mauer-Nachbarschaft |

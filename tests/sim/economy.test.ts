@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STEIN } from "../../src/data";
 import { createGame } from "../../src/sim";
 import { buildNow, run, spawn, stockUp } from "../../src/sim/debug";
 import { TPS, type SUnit } from "../../src/sim/world";
@@ -23,7 +24,8 @@ describe("Karte", () => {
       expect(s.trees.some((t) => t.kind === "tanne") && s.trees.some((t) => t.kind === "baum")).toBe(true);
       expect(s.rocks.length).toBeGreaterThanOrEqual(8);
       for (const r of s.rocks) {
-        expect(r.amount).toBeGreaterThanOrEqual(8); expect(r.amount).toBeLessThanOrEqual(16);
+        // Felsfeld am Start 8–16 wie vorher, die neuen Vorkommen (ADR 0012) reicher
+        expect(r.amount).toBeGreaterThanOrEqual(STEIN.field[0]); expect(r.amount).toBeLessThanOrEqual(STEIN.amount[1]);
         expect(s.tiles[r.y * s.w + r.x].terrain).toBe("fels");
       }
       const count = (t: string) => s.tiles.filter((x) => x.terrain === t).length;
@@ -104,7 +106,9 @@ describe("Steinbruch", () => {
     // Platz am Südrand des Felsfelds
     const [qx, qy] = findSpot(g, "steinbruch", Math.round(w.s.w * 0.56), Math.round(w.s.h * 0.27));
     const q = buildNow(g, "steinbruch", qx, qy, 0);
-    const rockSum = () => g.state.rocks.reduce((a, r) => a + r.amount, 0);
+    // nur die Brocken vom Anfang (am Gebirgshang rutschen neue nach, ADR 0012)
+    const first = new Set(g.state.rocks.map((r) => r.id));
+    const rockSum = () => g.state.rocks.reduce((a, r) => a + (first.has(r.id) ? r.amount : 0), 0);
     const before = rockSum();
     let sawMason = false;
     run(g, 240 * TPS, () => { sawMason ||= g.state.units.some((u) => u.key === "steinmetz" && u.carry === "stein" && u.anim === "gehen"); });

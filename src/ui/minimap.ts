@@ -6,11 +6,13 @@
 import type { UiBridge } from "../app/contract";
 import type { TerrainKey } from "../data";
 import { toView, type Rot } from "../sim/geom";
+import { mountainClass } from "../sim/mapgen";
 import type { SimState } from "../sim/types";
 import { h } from "./dom";
 
 const TERRAIN_RGB: Record<TerrainKey, [number, number, number]> = {
   gras: [92, 134, 58], wiese: [118, 150, 68], waldboden: [66, 96, 46], erde: [150, 118, 78], fels: [134, 128, 120], wasser: [52, 98, 132],
+  huegel: [140, 140, 74], gebirge: [92, 86, 80], sumpf: [80, 92, 58], sand: [214, 192, 138], fruchtbar: [70, 112, 44],
 };
 const TREE: [number, number, number] = [34, 66, 30];
 const ROCK: [number, number, number] = [176, 170, 160];
@@ -124,7 +126,9 @@ export function createMinimap(bridge: UiBridge): Minimap {
     const put = (i: number, c: [number, number, number], k = 1) => { px[i] = c[0] * k; px[i + 1] = c[1] * k; px[i + 2] = c[2] * k; px[i + 3] = 255; };
     for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) {
       const t = s.tiles[y * s.w + x];
-      put(cell(x, y), TERRAIN_RGB[t.terrain], 0.94 + (t.variant % 4) * 0.03);
+      // Gebirge: zum Gipfel hin heller (Höhenklasse wie die Massivteile der Darstellung)
+      const k = t.terrain === "gebirge" ? [1, 1.3, 1.65][mountainClass(s.tiles, s.w, s.h, x, y)] : 1;
+      put(cell(x, y), TERRAIN_RGB[t.terrain], (0.94 + (t.variant % 4) * 0.03) * k);
     }
     for (const t of s.trees) if (t.state === "stehend" || t.state === "faellt") put(cell(t.x, t.y), TREE);
     for (const k of s.rocks) if (k.amount > 0) put(cell(k.x, k.y), ROCK);

@@ -54,6 +54,30 @@
    "row": 8,
    "variants": 4,
    "frames": 1
+  },
+  "huegel": {
+   "row": 0,
+   "variants": 4,
+   "frames": 1,
+   "image": "gelaende.png"
+  },
+  "fruchtbar": {
+   "row": 1,
+   "variants": 4,
+   "frames": 1,
+   "image": "gelaende.png"
+  },
+  "sand": {
+   "row": 2,
+   "variants": 4,
+   "frames": 1,
+   "image": "gelaende.png"
+  },
+  "gebirge": {
+   "row": 3,
+   "variants": 4,
+   "frames": 1,
+   "image": "gelaende.png"
   }
  },
  "layout": "row = terrain type, column = variant * frames + frame",
@@ -74,5 +98,10 @@
   ],
   "variants": 4
  },
- "blend_note": "row = edge of the screen diamond (ne = between top and right corner), column = variant; white, alpha 0 or 255. Draw the tile of a neighbour with higher priority (wasser < erde < fels < waldboden < gras < wiese) over the tile, cut by the mask of the shared edge"
+ "blend_note": "row = edge of the screen diamond (ne = between top and right corner), column = variant; white, alpha 0 or 255. Draw the tile of a neighbour with higher priority (wasser < erde < fels < waldboden < gras < wiese) over the tile, cut by the mask of the shared edge",
+ "images": {
+  "gelaende.png": {
+   "colours": 117
+  }
+ }
 }

@@ -22,6 +22,17 @@ const TICK_EVENT_MS = 200;
 /** Kamerabewegung höchstens so oft als "view" melden (Übersichtskarte). */
 const VIEW_EVENT_MS = 100;
 
+/** Nur im Entwicklungsmodus: ?karte=96 (Kartengröße 32–128) und ?seed=7 für Versuche mit der Landschaft (ADR 0012). */
+function devMap(): { size?: number; seed?: number } {
+  if (!import.meta.env.DEV) return {};
+  const q = new URLSearchParams(location.search);
+  const size = Number(q.get("karte")), seed = Number(q.get("seed"));
+  return {
+    ...(size >= 32 && size <= 128 ? { size: Math.round(size) } : {}),
+    ...(Number.isInteger(seed) && seed > 0 ? { seed } : {}),
+  };
+}
+
 async function start(boot: Startbildschirm): Promise<void> {
   TextureSource.defaultOptions.scaleMode = "nearest";
   const host = document.getElementById("game")!;
@@ -29,7 +40,7 @@ async function start(boot: Startbildschirm): Promise<void> {
   boot.fertig("code");
   const nebenbei = boot.nebenbei();
 
-  const game = await boot.schritt("welt", () => createGame());
+  const game = await boot.schritt("welt", () => createGame(devMap()));
   if (import.meta.env.DEV) Object.assign(window, { mkStart: { boot, tick: () => game.state.tick } });
   const store = new AppStore();
   const hub = new NotifyHub();
