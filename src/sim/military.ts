@@ -7,7 +7,7 @@
  * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
  * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, GOODS, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, LIFE, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
 import { walkLayerAt } from "./build";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
@@ -155,6 +155,28 @@ function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>)
   if (r !== "arrived") return;
   u.z = pz;
   fightInPlace(w, u);
+  guardIdle(w, u);
+}
+
+/**
+ * Wache ohne Gegner (ADR 0016): dreht sich alle LIFE.guard.lookSeconds ein Stück (schaut sich um) und tritt dabei kurz
+ * von einem Fuß auf den anderen (Gehbilder auf der Stelle; die Wache verlässt ihren Posten nicht). Rein aus Tick und ID.
+ */
+function guardIdle(w: World, u: SUnit): void {
+  const ai = u.ai;
+  if (ai.target || (u.anim !== "stehen" && u.anim !== "gehen")) { delete ai.step; return; }
+  const G = LIFE.guard, per = Math.round(G.lookSeconds * TPS), len = Math.round(G.stepSeconds * TPS);
+  const k = w.s.tick + u.id * 29;
+  if (k % per === 0) {
+    const turn = [1, -1, 2, -1, -2, 1][Math.floor(k / per) % 6] * (Math.PI / 4);
+    const c = Math.cos(turn), s = Math.sin(turn);
+    const fx = u.fx * c - u.fy * s, fy = u.fx * s + u.fy * c;
+    u.fx = fx; u.fy = fy;
+    ai.step = w.s.tick + len;
+  }
+  if (ai.step && w.s.tick < ai.step) { u.anim = "gehen"; u.animT = (w.s.tick - (ai.step - len)) / TPS; return; }
+  if (ai.step) delete ai.step;
+  if (u.anim !== "stehen") setAnim(u, "stehen");
 }
 
 // ---------------------------------------------------------------- Befehle

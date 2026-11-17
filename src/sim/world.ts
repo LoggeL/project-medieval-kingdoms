@@ -9,6 +9,7 @@
 import { BUILDINGS, TICKS_PER_SECOND, UNITS, type AnimKey, type BuildingKey, type Good, type TechKey, type UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 import type { Building, Message, Projectile, SimState, Team, Unit } from "./types";
+import type { LifeMeta } from "./animals";
 import { nextRandom } from "./rng";
 import { Nav } from "./nav";
 import { Spatial } from "./spatial";
@@ -87,6 +88,8 @@ export interface UnitAI {
   visit?: { b: number; k: number; s: number; wait: number; done: boolean };
   /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
   sortie?: boolean;
+  /** Wache auf dem Posten tritt bis zu diesem Tick von einem Fuß auf den anderen (ADR 0016). Fehlt = steht. */
+  step?: number;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -147,6 +150,8 @@ export interface Meta {
   tutorial?: number;
   /** Angesammelte Steuern in Gold · Ticks je Minute (60 · TPS ergeben ein Gold), fehlt = 0. */
   tax?: number;
+  /** Lebendige Welt (Tiere, nachwachsender Wald; ADR 0016): eigener Zufallsstrom und ID-Bereich. Fehlt = aus (alte Stände). */
+  life?: LifeMeta;
 }
 
 export class World {

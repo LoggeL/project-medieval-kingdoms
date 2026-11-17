@@ -103,6 +103,33 @@ tools/blender/build_buildings.sh wappen
 
 Die Mauerteile verbinden sich nahtlos: Wandkörper 2,2 m breit bis an die Tile-Kante, Zinnenrhythmus mit halber Lücke an jeder offenen Kante. Der Mauerturm füllt seinen 2 × 2-Grundriss jetzt ganz aus (vorher 0,15 m eingerückt), damit angesetzte Mauern ohne Spalt anschließen; die oberste Treppenstufe reicht 0,17 m über den Grundriss bis an die Mauerfront.
 
+## Lebendige Welt (ADR 0016)
+
+```sh
+tools/blender/build_leben.sh      # rendert, verpixelt und hängt an die Blätter an
+```
+
+Alle Bilder dieses Abschnitts sind **neue Blatteinträge**; bestehende Bilder bleiben Byte für Byte gleich (geprüft: `mueller.png`, `baum.png`, `tanne.png`, `kaserne.png`, `turm.png`, `turm_front.png` entstehen mit den geänderten Skripten unverändert). `append_sheet.py` kopiert die neuen PNGs und hängt ihre Einträge an `sheet.json` an (ein erneuter Lauf ersetzt sie an derselben Stelle). Der Figurenatlas wird dabei nicht neu gebaut; der Lader nimmt dann die Einzelbilder. Seeds 700–799.
+
+**Figuren** (`units.json`, Einträge mit `"program"` bzw. `"animal"`, gebaut in `figures.py` `render_extra`):
+
+| Schlüssel | Spalten | Hinweise |
+|---|---|---|
+| `tageloehner_leben`, `speer_leben`, `schwert_leben`, `bogen_leben` | `stehen` 0, `rennen` 1–8, `treffer` 9–10, `geben` 11–13, `sitzen` 14, `plaudern` 15–16 | dieselbe Figur wie das Hauptblatt (`base`), eigene Posen in `leben_pose`; gehaltenes Gerät schwingt beim Rennen nur zu 25 % mit. `geben` ist gerendert, wird im Spiel noch nicht gezeigt |
+| `schaf`, `kuh`, `pferd`, `hirsch`, `reh` | `stehen` 0, `gehen` 1–8, `grasen` 9–12, `sterben` 13–15, `tot` 16, `rennen` 17–22 | Vierbeiner aus `ANIMAL_SPECS` (`build_quadruped`): Rumpf, vier Beine mit Knie, Hals, Kopf, Schwanz; Hirsch mit Geweih (drei Enden je Stange). Beim Sterben kippt das Tier zur Seite und rutscht von der Kamera weg, damit es nicht aus der Zelle ragt |
+| `kraehe` | `stehen` 0, `gehen` 1–8 (Hüpfen), `fliegen` 9–12, `picken` 13–15, `auffliegen` 16 | `CROW_S` = 1,7; ohne eingebackenen Schatten (`"shadow": false`, das Spiel zeichnet ihn am Boden, auch im Flug) |
+
+Farben der Tiere stehen in `styles/vorgerendert.json` (wool, cow, horse, deer, roe, crow …).
+
+**Gebäudeblatt** (`buildings.py`, `buildings.json`):
+
+| Schlüssel | Varianten | Hinweise |
+|---|---|---|
+| `baum_wind` | Eiche 1–4, Buche 1–4 | derselbe Baum wie `baum` (gleicher Zufallsstrom), Krone und Äste um `0,22 · sin(2π · Phase)` entlang der Diagonale verschoben (`sway`), Blattbüschel mit eigener Phase (`flutter`). Phase 0 weicht darum um wenige Pixel vom stillen Baum ab |
+| `tanne_wind` | Wind 1–4 | wie `tanne`, Kegel wiegen |
+| `baum_jung`, `tanne_jung` | Setzling, Jungbaum, halbwüchsig | der Baum auf 22 %, 42 %, 68 % verkleinert (`JUNG`) |
+| `kaserne_fahne`, `turm_fahne`, `bergfried_holz_fahne`, `bergfried_stein_fahne`, `bergfried_burg_fahne` | Wind 1–6 | das Gebäude Stein für Stein wie das Original (Seed des Originals), nur das Tuch der Banner (`wave_cloth`, 10 × 12 Kacheln) weht; `front` und `posts` wie das Original |
+
 ## Gelände
 
 ```sh

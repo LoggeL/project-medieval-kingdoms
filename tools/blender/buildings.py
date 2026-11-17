@@ -397,12 +397,75 @@ def crate(mb, x, y, z, s=0.55, rz=0.0):
         mb.box("wood", (0, 0, s + 0.01), (s * 0.12, s + 0.02, 0.03))
 
 
+# Lebendige Welt (ADR 0016): with WAVE set (phase 0..1) banners hang as a rippling cloth instead of a flat slab; with
+# SWAY set (phase 0..1) tree crowns lean in the wind. Both None = the original sprites, unchanged.
+WAVE = None
+SWAY = None
+
+
+def wave_cloth(mb, x, y0, zt, w, bh, arm, group):
+    """Hanging banner in the wind: a grid of small tiles, displaced and tilted by a travelling wave that grows towards
+    the free bottom edge; the gold chevron (house sign) follows the cloth."""
+    nx, nz = 10, 12
+    cw, ch = w / nx, bh / nz
+    A, B = 0.13, 0.06
+    sa = math.sin(math.radians(38))
+    ca = math.cos(math.radians(38))
+
+    def chevron(px, pz):
+        zc = zt - bh * 0.55
+        for k, (dx, dz) in ((-1, (ca, sa)), (1, (ca, -sa))):
+            ax = k * w * 0.22
+            along = (px - ax) * dx + (pz - zc) * dz
+            across = abs((px - ax) * dz - (pz - zc) * dx)
+            if across <= 0.065 and abs(along) <= arm / 2:
+                return True
+        return False
+
+    for i in range(nx):
+        for j in range(nz):
+            u = (i + 0.5) / nx
+            s = (j + 0.5) / nz
+            px, pz = -w / 2 + (i + 0.5) * cw, zt - (j + 0.5) * ch
+            ph = 2 * math.pi * (0.9 * u + 0.7 * s - WAVE)
+            amp = A * s ** 1.2
+            dy = amp * math.sin(ph)
+            dx = B * s * math.sin(2 * math.pi * (WAVE + 0.25))
+            # tilt with the local slope of the wave (the light on the cloth changes as the ripples run)
+            rz = math.degrees(math.atan(amp * math.cos(ph) * 2 * math.pi * 0.9 / w))
+            rx = -math.degrees(math.atan(amp * math.cos(ph) * 2 * math.pi * 0.7 / bh))
+            mat = "gold" if chevron(px, pz) else "team"
+            mb.box(mat, (x + px + dx, y0 + dy, pz), (cw * 1.08, 0.05, ch * 1.08), rot=(rx, 0, rz), group=group)
+
+
+def sway(c, base, height):
+    """Tree crown in the wind: shifted along the model diagonal, more the higher it sits above base."""
+    if SWAY is None:
+        return c
+    k = max(0.0, (c[2] - base) / height) * 0.22 * math.sin(2 * math.pi * SWAY)
+    return (c[0] + k * 0.7071, c[1] + k * 0.7071, c[2])
+
+
+def flutter(c, i):
+    """Single leaf clusters move a little on their own (fixed random phase per cluster, not from mb.rnd)."""
+    if SWAY is None:
+        return c
+    r = random.Random(7000 + i)
+    p = r.uniform(0, 1)
+    a = 0.05 * math.sin(2 * math.pi * (SWAY * 2 + p))
+    return (c[0] + a * r.uniform(-1, 1), c[1] + a * r.uniform(-1, 1), c[2] + a * 0.5)
+
+
 def banner(mb, x, y, z, h=3.2, w=0.6, bh=1.25, face="s", group=None):
     """Pole with a team-coloured cloth and a gold chevron (the house sign, not a cross)."""
     mb.cyl("wood", (x, y, z + h / 2), 0.06, h, n=6, group=group)
     mb.cyl("gold", (x, y, z + h + 0.06), 0.09, 0.12, n=6, group=group)
     zt = z + h - 0.12
     arm = w * 0.62
+    if face == "s" and WAVE is not None:
+        mb.box("wood", (x, y - 0.08, zt), (w + 0.12, 0.06, 0.06), group=group)
+        wave_cloth(mb, x, y - 0.095, zt, w, bh, arm, group)
+        return
     if face == "s":
         mb.box("wood", (x, y - 0.08, zt), (w + 0.12, 0.06, 0.06), group=group)
         mb.bx("team", x - w / 2, x + w / 2, y - 0.12, y - 0.07, zt - bh, zt, group=group)
@@ -723,11 +786,11 @@ def b_baum(mb, var):
     mb.cyl("bark", (0, 0, th / 2), 0.3, th, n=8, r2=0.22)
     for a in (30, 150, 270):
         ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
-        mb.box("bark", (0.45 * ca, 0.45 * sa, th + 0.3), (0.16, 0.16, 1.3), rot=(-30 * sa, 30 * ca, 0))
+        mb.box("bark", sway((0.45 * ca, 0.45 * sa, th + 0.3), 1.0, 7.0), (0.16, 0.16, 1.3), rot=(-30 * sa, 30 * ca, 0))
         mb.box("bark", (0.32 * ca, 0.32 * sa, 0.12), (0.5, 0.18, 0.18), rot=(0, 0, a))
     R, Hc = (2.2, 1.8) if var == 0 else (1.75, 2.4)
     zc = th + Hc * 0.9
-    mb.blob("leaf_dk", (0, 0, zc - 0.2), (R * 0.82, R * 0.82, Hc * 0.88), seg=10, rings=7, jitter=0.1)
+    mb.blob("leaf_dk", sway((0, 0, zc - 0.2), 1.0, 7.0), (R * 0.82, R * 0.82, Hc * 0.88), seg=10, rings=7, jitter=0.1)
     # light comes from the left/back of the screen: model direction (-0.7, 0.3) and from above
     for i in range(150):
         u = r.uniform(0, 2 * math.pi)
@@ -737,18 +800,71 @@ def b_baum(mb, var):
         s_ = r.uniform(0.3, 0.5)
         lit = math.cos(u - 2.75) * 0.6 + v * 0.8
         m = "leaf_hi" if lit > 0.55 else ("leaf" if lit > -0.25 else "leaf_dk")
-        mb.blob(m, (d * math.cos(u), d * math.sin(u), z), (s_, s_, s_ * 0.8), seg=5, rings=4, jitter=0.3)
+        mb.blob(m, flutter(sway((d * math.cos(u), d * math.sin(u), z), 1.0, 7.0), i), (s_, s_, s_ * 0.8), seg=5, rings=4, jitter=0.3)
 
 
 def b_tanne(mb, var):
     mb.cyl("bark", (0, 0, 0.7), 0.24, 1.4, n=7)
     z = 0.8
     for i, (r_, h_) in enumerate(((1.85, 2.4), (1.55, 2.3), (1.22, 2.2), (0.9, 2.0), (0.55, 1.8), (0.28, 1.4))):
-        # two cones turned against each other give a jagged, branchy rim
-        mb.cyl("needle", (0, 0, z + h_ / 2), r_, h_, n=7, r2=0)
-        mb.cyl("needle", (0, 0, z + h_ / 2 - 0.08), r_ * 0.86, h_, n=7, r2=0, rot=(0, 0, 360 / 14))
-        mb.cyl("leaf_dk", (0, 0, z + 0.05), r_ * 0.8, 0.12, n=7, rot=(0, 0, 360 / 14))
+        # two cones turned against each other give a jagged, branchy rim (in the wind: higher tiers lean more)
+        mb.cyl("needle", sway((0, 0, z + h_ / 2), 0.8, 9.0), r_, h_, n=7, r2=0)
+        mb.cyl("needle", sway((0, 0, z + h_ / 2 - 0.08), 0.8, 9.0), r_ * 0.86, h_, n=7, r2=0, rot=(0, 0, 360 / 14))
+        mb.cyl("leaf_dk", sway((0, 0, z + 0.05), 0.8, 9.0), r_ * 0.8, 0.12, n=7, rot=(0, 0, 360 / 14))
         z += h_ * 0.6
+
+
+# ---------------------------------------------------------------- lebendige Welt (ADR 0016): wind, saplings, banners
+def b_baum_wind(mb, var):
+    """Laubbaum in the wind: variant = tree (Eiche 0..3, Buche 4..7) x 4 phases. Same tree leaf for leaf as "baum";
+    phase 0 differs from the still tree by a few pixels (the leaf clusters flutter on their own phase)."""
+    global SWAY
+    mb.seed, mb.rnd = 19, random.Random(19 * 100 + 7)  # the random stream of "baum": the same tree, leaf for leaf
+    SWAY = (var % 4) / 4
+    try:
+        b_baum(mb, var // 4)
+    finally:
+        SWAY = None
+
+
+def b_tanne_wind(mb, var):
+    global SWAY
+    mb.seed, mb.rnd = 20, random.Random(20 * 100 + 7)
+    SWAY = var / 4
+    try:
+        b_tanne(mb, 0)
+    finally:
+        SWAY = None
+
+
+JUNG = (0.22, 0.42, 0.68)  # growth stages: seedling, young tree, half-grown
+
+
+def b_baum_jung(mb, var):
+    """Regrowing Laubbaum in three stages: the tree scaled down, a thinner trunk for the seedling."""
+    mb.M = Matrix.Scale(JUNG[var], 4)
+    b_baum(mb, var % 2)
+    mb.M = Matrix.Identity(4)
+
+
+def b_tanne_jung(mb, var):
+    mb.M = Matrix.Scale(JUNG[var], 4)
+    b_tanne(mb, 0)
+    mb.M = Matrix.Identity(4)
+
+
+def flag_variant(builder, seed):
+    """Building with waving banners: variant = wind phase (6 frames). Uses the random stream of the original building,
+    so masonry and timber are the same stone for stone and only the cloth moves."""
+    def b(mb, var):
+        global WAVE
+        mb.seed, mb.rnd = seed, random.Random(seed * 100 + 7)
+        WAVE = var / 6
+        try:
+            builder(mb, 0)
+        finally:
+            WAVE = None
+    return b
 
 
 # ---------------------------------------------------------------- prototype objects (trees, rocks, stacks, wall pieces)
@@ -2739,6 +2855,12 @@ BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
 BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
+# lebendige Welt (ADR 0016, seeds 700-799 in buildings.json; the builders reuse the stream of the original)
+BUILD.update({"baum_wind": b_baum_wind, "tanne_wind": b_tanne_wind, "baum_jung": b_baum_jung, "tanne_jung": b_tanne_jung,
+              "kaserne_fahne": flag_variant(b_kaserne, 15), "turm_fahne": flag_variant(b_turm, 16),
+              "bergfried_holz_fahne": flag_variant(b_bergfried_holz, 60),
+              "bergfried_stein_fahne": flag_variant(b_bergfried_stein, 61),
+              "bergfried_burg_fahne": flag_variant(b_bergfried_burg, 62)})
 
 
 # ---------------------------------------------------------------- scene and render

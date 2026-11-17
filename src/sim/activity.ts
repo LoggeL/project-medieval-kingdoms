@@ -24,7 +24,7 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
       case "move": return "unterwegs";
       case "attack": return "kaempft";
       case "hold": return "haelt";
-      case "station": return moving ? "unterwegs" : "wache";
+      case "station": return moving && !u.ai.step ? "unterwegs" : "wache";
       default: return u.ai.target ? "kaempft" : moving ? "unterwegs" : "wartet";
     }
   }

@@ -1,7 +1,7 @@
 /**
  * Die Simulation: Spielstart, Tick mit fester Systemreihenfolge, Befehle, Speichern und Laden.
  *
- * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
+ * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Nachwachsen und Tiere (ADR 0016) → Disponent (alle 10 Ticks) → Bevölkerung →
  * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
@@ -14,6 +14,8 @@ import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
 import { emptyMap, generateMap } from "./mapgen";
+import { initLife, updateAnimals } from "./animals";
+import { updateForest } from "./forest";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
@@ -81,6 +83,8 @@ export function createGame(opts: GameOptions = {}): Simulation {
     meta.tutorial = 0;
     w.msg(TUTORIAL[0].text, "info", undefined, 20, TUTORIAL[0].voice);
   }
+  // Lebendige Welt (ADR 0016): eigener Zufallsstrom, Tiere nur auf der Startkarte
+  initLife(w, scenario === "standard");
   updatePopulation(w);
   updateStock(w);
   for (const u of s.units) updateActivity(w, u);
@@ -118,6 +122,8 @@ export function step(w: World): void {
   for (const u of s.units) { u.px = u.x; u.py = u.y; u.pz = u.z; if (u.ai.cd > 0) u.ai.cd--; }
   w.grid.rebuild(s.units);
   updateTrees(w);
+  updateForest(w);
+  updateAnimals(w);
   if (s.tick % DISPATCH_EVERY === 0) { pruneWorkers(w); dispatcher(w); }
   updatePopulation(w);
   raidTick(w);
@@ -169,6 +175,7 @@ function act(w: World, u: SUnit): void {
   // nach dem Warentausch im Lagerhaus erst wieder hinaus (Arbeiter einer Verarbeitung bleiben an ihrem Platz)
   if (u.inside && !worksInside(u) && (!u.ai.visit || u.ai.visit.done) && walkOut(w, u)) return;
   if (isSoldier(u.key)) { soldierAct(w, u); return; }
+  if (u.run && (u.ai.job || u.ai.flee <= 0)) delete u.run;
   if (u.ai.job) { runJob(w, u); return; }
   if (u.key !== "tageloehner") { toPeasant(w, u); return; }
   idlePeasant(w, u);

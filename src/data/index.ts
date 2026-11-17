@@ -295,7 +295,9 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "speer" | "schwert" | "bogen";
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
-export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "angriff" | "schiessen" | "sterben" | "tot";
+export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "angriff" | "schiessen" | "sterben" | "tot"
+  // lebendige Welt (ADR 0016): Ruhebilder untätiger Tagelöhner
+  | "sitzen" | "plaudern";
 
 export type DamageType = "stich" | "hieb" | "pfeil";
 
@@ -467,3 +469,6 @@ export function levelDef(key: BuildingKey, level = 1): BuildingDef {
 
 /** Höchste Stufe eines Gebäudes (1 ohne Ausbaustufen). */
 export const maxLevel = (key: BuildingKey): number => BUILDINGS[key].levels?.length ?? 1;
+
+// ---------------------------------------------------------------- Lebendige Welt (Tiere, Wald, Fahnen, Tageslicht; ADR 0016)
+export * from "./leben";

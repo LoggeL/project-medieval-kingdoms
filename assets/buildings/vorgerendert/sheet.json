@@ -1251,6 +1251,244 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "baum_wind",
+   "name": "Laubbaum im Wind",
+   "frames": 8,
+   "variants": [
+    "Eiche 1",
+    "Eiche 2",
+    "Eiche 3",
+    "Eiche 4",
+    "Buche 1",
+    "Buche 2",
+    "Buche 3",
+    "Buche 4"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "tanne_wind",
+   "name": "Tanne im Wind",
+   "frames": 4,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baum_jung",
+   "name": "Junger Laubbaum",
+   "frames": 3,
+   "variants": [
+    "Setzling",
+    "Jungbaum",
+    "halbwüchsig"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "tanne_jung",
+   "name": "Junge Tanne",
+   "frames": 3,
+   "variants": [
+    "Setzling",
+    "Jungbaum",
+    "halbwüchsig"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "kaserne_fahne",
+   "name": "Kaserne mit wehenden Bannern",
+   "frames": 6,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4",
+    "Wind 5",
+    "Wind 6"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "turm_fahne",
+   "name": "Mauerturm mit wehendem Banner",
+   "frames": 6,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4",
+    "Wind 5",
+    "Wind 6"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [
+    [
+     -0.65,
+     -0.65,
+     5
+    ],
+    [
+     0.65,
+     -0.65,
+     5
+    ],
+    [
+     -0.65,
+     0.65,
+     5
+    ],
+    [
+     0.65,
+     0.65,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "bergfried_holz_fahne",
+   "name": "Hölzerner Bergfried mit wehendem Banner",
+   "frames": 6,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4",
+    "Wind 5",
+    "Wind 6"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "bergfried_stein_fahne",
+   "name": "Steinerner Bergfried mit wehendem Banner",
+   "frames": 6,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4",
+    "Wind 5",
+    "Wind 6"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [
+    [
+     -0.8,
+     -0.8,
+     5
+    ],
+    [
+     0.8,
+     -0.8,
+     5
+    ],
+    [
+     -0.8,
+     0.8,
+     5
+    ],
+    [
+     0.8,
+     0.8,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "bergfried_burg_fahne",
+   "name": "Burgfried mit wehendem Banner",
+   "frames": 6,
+   "variants": [
+    "Wind 1",
+    "Wind 2",
+    "Wind 3",
+    "Wind 4",
+    "Wind 5",
+    "Wind 6"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [
+    [
+     -0.8,
+     -0.8,
+     6
+    ],
+    [
+     0.8,
+     -0.8,
+     6
+    ],
+    [
+     -0.8,
+     0.8,
+     6
+    ],
+    [
+     0.8,
+     0.8,
+     6
+    ],
+    [
+     0,
+     -0.85,
+     6
+    ],
+    [
+     0,
+     0.85,
+     6
+    ]
+   ],
+   "front": true
   }
  ],
  "team_swap": {

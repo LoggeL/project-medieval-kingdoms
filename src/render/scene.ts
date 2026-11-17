@@ -8,9 +8,10 @@
  * Ausgabestapel als eigene Warenstapel, ihr Arbeitsbild (Mühlenflügel) läuft nur, solange gearbeitet wird.
  */
 import { Container, type Texture } from "pixi.js";
-import { BUILDINGS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
+import { ANIMALS, BUILDINGS, GOODS, LIFE_FIGURES, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
-import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
+import type { Animal, Building, Rock, SimState, Tree, Unit } from "../sim/types";
+import { animalFrame, corpseAlpha, flagArt, lifeFrame, treeArt, type SheetInfo } from "./life";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
 import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
@@ -181,6 +182,13 @@ export class ObjectLayer {
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
+  /** Spielzeit (s) und Tick dieses Bildes (Wind, Fahnen, Treffer; ADR 0016). */
+  private time = 0;
+  private tick = 0;
+  private sheetInfo: SheetInfo = {
+    has: (k) => !!this.bs?.has(k),
+    frames: (k) => this.bs?.get(k)?.frames ?? 1,
+  };
   private W = 0;
   private H = 0;
   private alpha = 1;
@@ -199,6 +207,7 @@ export class ObjectLayer {
     this.byId.clear();
     for (const b of state.buildings) this.byId.set(b.id, b);
     const time = (state.tick + alpha) / TICKS_PER_SECOND;
+    this.time = time; this.tick = state.tick;
     this.trackDebris(state, time);
     this.advanceWork(state, time);
     for (const list of this.attached.values()) list.length = 0;
@@ -235,6 +244,7 @@ export class ObjectLayer {
     for (const u of state.units) if (u.anim === "bauen" && !u.dead) this.strikeAt(u, state, alpha);
     for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
     for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
+    if (state.animals) for (const a of state.animals) this.safe(a.key, () => this.animalItem(a));
     this.groupList.length = 0;
     for (const g of opt.ghosts) {
       if (g.group) this.groupList.push(g);
@@ -392,6 +402,9 @@ export class ObjectLayer {
     switch (u.anim) {
       case "gehen": return { frame: loop(anims.gehen ?? [1, 8]), dead: false };
       case "stehen": return { frame: anims.stehen ? loop(anims.stehen) : 0, dead: false };
+      // Ruhebilder (ADR 0016) kommen aus dem Lebensblatt (figureParts); ohne es: Stehbild
+      case "sitzen":
+      case "plaudern": return { frame: anims[u.anim] ? loop(anims[u.anim]) : anims.stehen ? loop(anims.stehen) : 0, dead: false };
       case "sterben": return anims.sterben ? { frame: once(anims.sterben), dead: false } : { frame: 0, dead: true };
       case "tot":
         if (anims.tot) return { frame: loop(anims.tot), dead: false };
@@ -409,12 +422,16 @@ export class ObjectLayer {
 
   /** Teile einer Figur an Weltposition (x, y, z) in ein Objekt schreiben. */
   private figureParts(it: Item, u: Unit, x: number, y: number, z: number, opt: SceneOptions): void {
-    const key = this.figKey(u);
+    let key = this.figKey(u);
     if (!key) return;
     const fs = this.fs!;
     const [X, Y] = this.scr(x, y, z);
     const dir = figureDir(u.fx, u.fy, this.r);
-    const { frame, dead } = this.figFrame(key, u);
+    let { frame, dead } = this.figFrame(key, u);
+    // Sitzen, Plaudern, Rennen, Zusammenzucken aus dem Lebensblatt der Figur (ADR 0016)
+    const lk = LIFE_FIGURES[key];
+    const lf = lk ? lifeFrame(u, this.tick, key, fs.get(lk)?.anims ?? null) : null;
+    if (lf) { key = lf.key; frame = lf.frame; }
     const tex = fs.texture(key, dir, frame, u.team);
     if (!tex) return;
     const selected = opt.selectedUnits.has(u.id);
@@ -426,7 +443,7 @@ export class ObjectLayer {
       this.part(it, tex, X, Y - 3, ax, ay - 4, { rot: dir < 4 ? Math.PI / 2 : -Math.PI / 2, tint: 0x8c8c8c, alpha: fade });
       return;
     }
-    const p = this.part(it, tex, X, Y, ax, ay, { hit: u.dead ? null : this.hit("unit", u.id, u.team, "f", key, dir, frame, Math.round(X) - ax, Math.round(Y) - ay) });
+    const p = this.part(it, tex, X, Y, ax, ay, { hit: u.dead ? null : this.hit("unit", u.id, u.team, "f", key, dir, frame, Math.round(X) - ax, Math.round(Y) - ay), alpha: corpseAlpha(u) });
     if (u.dead) return;
     p.unit = u; p.figKey = key; p.figDir = dir; p.figFrame = frame;
     let os = this.unitPool[this.units.length];
@@ -586,11 +603,14 @@ export class ObjectLayer {
     // Baustelle in Bauphasen (siteParts), fertiges Gebäude als Außenbild
     if (spr && b.built < 1) this.siteParts(it, b, spr, X, Y, tint, opt);
     else if (spr) {
-      for (const [key, o] of spr.keys) {
+      for (const [k0, o] of spr.keys) {
         const view = viewOf(o, this.r);
-        const tex = bs.texture(key, view, spr.frame, b.team);
+        // wehende Banner (ADR 0016): dasselbe Gebäude, nur das Tuch bewegt sich
+        const fl = spr.frame === 0 && spr.keys.length === 1 ? flagArt(k0, b.id, this.time, this.sheetInfo) : null;
+        const key = fl ? fl.key : k0;
+        const tex = bs.texture(key, view, fl ? fl.frame : spr.frame, b.team);
         if (!tex) continue;
-        const frame = Math.min(spr.frame, bs.get(key)!.frames - 1);
+        const frame = Math.min(fl ? fl.frame : spr.frame, bs.get(key)!.frames - 1);
         const hit = this.hit("building", b.id, b.team, "b", key, view, frame, X - ax, Y - ay);
         // ganz offen: Außenbild unsichtbar, bleibt aber Treffer (gleiche Fläche, kein Flackern beim Überfahren)
         const p = this.part(it, tex, X, Y, ax, ay, { tint, hit, alpha: 1 - open });
@@ -623,8 +643,9 @@ export class ObjectLayer {
         return pu + pv - (qu + qv) || p.z - q.z;
       });
       for (const a of on) this.figureParts(it, a.u, a.x, a.y, a.z, opt);
-      if (spr && b.built >= 1) for (const [key, o] of spr.keys) {
-        const ft = bs.texture(key, viewOf(o, this.r), spr.frame, b.team, "front");
+      if (spr && b.built >= 1) for (const [k0, o] of spr.keys) {
+        const fl = spr.frame === 0 && spr.keys.length === 1 ? flagArt(k0, b.id, this.time, this.sheetInfo) : null;
+        const ft = bs.texture(fl ? fl.key : k0, viewOf(o, this.r), fl ? fl.frame : spr.frame, b.team, "front");
         if (ft) this.part(it, ft, X, Y, ax, ay, { tint, alpha: 1 - open });
       }
     }
@@ -1039,8 +1060,19 @@ export class ObjectLayer {
       const scaleY = ny > 0 ? 1 - e * 1.45 * ny : 1 - e * 0.6 * -ny;
       this.part(it, tex, X, Y, ax, ay, { rot: e * (Math.PI / 2) * nx, sy: scaleY });
     };
+    // im Wind wiegend bzw. nachwachsend (ADR 0016); ohne diese Bilder das stille Bild
+    const art = treeArt(t, this.time, this.sheetInfo, sp.frames);
+    const at = art && bs.texture(art.key, view, art.frame);
     switch (t.state) {
-      case "stehend": this.occluder(this.part(it, tex, X, Y, ax, ay), key, view, frame); break;
+      case "stehend":
+        // Verdeckung (Silhouetten) nach dem stillen Bild: das Wiegen verschiebt nur wenige Pixel, die Prüfung bleibt stabil
+        if (art && at) this.occluder(this.part(it, at, X, Y, ax, ay), key, view, frame);
+        else this.occluder(this.part(it, tex, X, Y, ax, ay), key, view, frame);
+        break;
+      case "waechst":
+        if (art && at) this.part(it, at, X, Y, ax, ay);
+        else this.part(it, tex, X, Y, ax, ay, { sx: 0.4 + 0.2 * (t.stage ?? 0), sy: 0.4 + 0.2 * (t.stage ?? 0) });
+        break;
       case "faellt": {
         // zwischen den Ticks weiterlaufen lassen (wie Figuren und Pfeile)
         const p = Math.min(1, t.progress + this.alpha * FALL_STEP);
@@ -1089,6 +1121,35 @@ export class ObjectLayer {
     } else {
       warnOnce("Sprite „fels“ fehlt im Gebäudeblatt, Ersatz: einfacher Felsbrocken");
       this.part(it, rockTexture(Math.max(0, Math.min(4, Math.floor(used * 5)))), X, Y, 32, 40);
+    }
+    this.closeItem(it);
+  }
+
+  /**
+   * Tier (ADR 0016) aus dem Figurenblatt, wie eine Figur sortiert. Fliegende Krähen: Figur in der Höhe, darunter ihr
+   * Schatten am Boden (dasselbe Bild schwarz, flachgedrückt). Tiere sind nicht anklickbar.
+   */
+  private animalItem(a: Animal): void {
+    const fs = this.fs;
+    const sprite = ANIMALS[a.key].sprite;
+    if (!fs?.has(sprite)) { warnOnce(`Tier „${sprite}“ fehlt im Figurenblatt`); return; }
+    const al = this.alpha;
+    let x = a.px + (a.x - a.px) * al, y = a.py + (a.y - a.py) * al;
+    const z = a.pz + (a.z - a.pz) * al;
+    if (Math.abs(a.x - a.px) + Math.abs(a.y - a.py) > 2) { x = a.x; y = a.y; }
+    const [cu, cv] = toView(x, y, this.r, this.W, this.H);
+    const it = this.newItem(cu - 0.2, cu + 0.2, cv - 0.2, cv + 0.2, false, true, z * 0.01);
+    const dir = figureDir(a.fx, a.fy, this.r);
+    const frame = animalFrame(a, fs.get(sprite)!.anims);
+    const tex = fs.texture(sprite, dir, frame, 0);
+    if (tex) {
+      const [ax, ay] = fs.anchor;
+      if (z > 0.05 || a.key === "kraehe") {
+        const [GX, GY] = this.scr(x, y, 0);
+        this.part(it, tex, GX, GY + 1, ax, ay, { sy: 0.35, tint: 0x000000, alpha: Math.max(0.12, 0.32 - z * 0.025) });
+      }
+      const [X, Y] = this.scr(x, y, z);
+      this.part(it, tex, X, Y, ax, ay);
     }
     this.closeItem(it);
   }

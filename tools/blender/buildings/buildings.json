@@ -70,5 +70,14 @@
  "geruest_baeckerei": {"name": "Gerüst Bäckerei", "footprint": [3, 2], "variants": ["Standard"], "seed": 222, "front": true, "shadow_fill": false},
  "stapel_getreide": {"name": "Stapel Getreide", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 230},
  "stapel_mehl": {"name": "Stapel Mehl", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 231},
- "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232}
+ "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232},
+ "baum_wind": {"name": "Laubbaum im Wind", "footprint": [1, 1], "variants": ["Eiche 1", "Eiche 2", "Eiche 3", "Eiche 4", "Buche 1", "Buche 2", "Buche 3", "Buche 4"], "seed": 700},
+ "tanne_wind": {"name": "Tanne im Wind", "footprint": [1, 1], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4"], "seed": 701},
+ "baum_jung": {"name": "Junger Laubbaum", "footprint": [1, 1], "variants": ["Setzling", "Jungbaum", "halbwüchsig"], "seed": 702},
+ "tanne_jung": {"name": "Junge Tanne", "footprint": [1, 1], "variants": ["Setzling", "Jungbaum", "halbwüchsig"], "seed": 703},
+ "kaserne_fahne": {"name": "Kaserne mit wehenden Bannern", "footprint": [4, 3], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4", "Wind 5", "Wind 6"], "seed": 710},
+ "turm_fahne": {"name": "Mauerturm mit wehendem Banner", "footprint": [2, 2], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4", "Wind 5", "Wind 6"], "seed": 711, "front": true, "posts": [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]]},
+ "bergfried_holz_fahne": {"name": "Hölzerner Bergfried mit wehendem Banner", "footprint": [3, 3], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4", "Wind 5", "Wind 6"], "seed": 712},
+ "bergfried_stein_fahne": {"name": "Steinerner Bergfried mit wehendem Banner", "footprint": [3, 3], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4", "Wind 5", "Wind 6"], "seed": 713, "front": true, "posts": [[-0.8, -0.8, 5], [0.8, -0.8, 5], [-0.8, 0.8, 5], [0.8, 0.8, 5]]},
+ "bergfried_burg_fahne": {"name": "Burgfried mit wehendem Banner", "footprint": [3, 3], "variants": ["Wind 1", "Wind 2", "Wind 3", "Wind 4", "Wind 5", "Wind 6"], "seed": 714, "front": true, "posts": [[-0.8, -0.8, 6], [0.8, -0.8, 6], [-0.8, 0.8, 6], [0.8, 0.8, 6], [0, -0.85, 6], [0, 0.85, 6]]}
 }

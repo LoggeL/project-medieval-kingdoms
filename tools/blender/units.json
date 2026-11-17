@@ -542,5 +542,50 @@
     12
    ]
   }
+ },
+ "tageloehner_leben": {
+  "name": "Tagelöhner (Leben)",
+  "base": "tageloehner",
+  "program": "leben"
+ },
+ "speer_leben": {
+  "name": "Speerträger (Leben)",
+  "base": "speer",
+  "program": "leben"
+ },
+ "schwert_leben": {
+  "name": "Schwertkämpfer (Leben)",
+  "base": "schwert",
+  "program": "leben"
+ },
+ "bogen_leben": {
+  "name": "Bogenschütze (Leben)",
+  "base": "bogen",
+  "program": "leben"
+ },
+ "schaf": {
+  "name": "Schaf",
+  "animal": "schaf"
+ },
+ "kuh": {
+  "name": "Kuh",
+  "animal": "kuh"
+ },
+ "pferd": {
+  "name": "Pferd",
+  "animal": "pferd"
+ },
+ "hirsch": {
+  "name": "Hirsch",
+  "animal": "hirsch"
+ },
+ "reh": {
+  "name": "Reh",
+  "animal": "reh"
+ },
+ "kraehe": {
+  "name": "Krähe",
+  "animal": "kraehe",
+  "shadow": false
  }
 }

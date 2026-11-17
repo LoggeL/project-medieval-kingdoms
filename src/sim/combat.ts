@@ -199,6 +199,7 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
   dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[type].armor);
   if (t.z >= 2 && az < 1) dmg *= WALL_BONUS.damageTakenFactor; // Deckung hinter den Zinnen
   t.hp -= dmg;
+  t.hitT = w.s.tick; // Zusammenzucken in der Darstellung (ADR 0016)
   if (t.hp <= 0) { kill(w, t); return; }
   // Untätige Soldaten wehren sich
   if (isSoldier(t.key) && t.order.t === "idle" && !t.ai.target && t.team === 0) t.ai.target = from;
