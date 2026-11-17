@@ -1,6 +1,6 @@
 /**
  * Einheitenraster für die Oberfläche (BRIEF §8.3, Konzept 08 „Einheitenraster“).
- * Liest nur Daten (ADR 0014): alle Soldaten aus UNITS, gruppiert nach UnitDef.group (UNIT_GROUPS, src/data/militaer.ts).
+ * Liest nur Daten (ADR 0014): alle Soldaten aus UNITS (ohne reine Angreifer, UnitDef.foeOnly), gruppiert nach UnitDef.group (UNIT_GROUPS, src/data/militaer.ts).
  * Spielbar ist eine Einheit, die ein Gebäude in BuildingDef.trains führt und nichts Geplantes braucht; ihre
  * Forschungssperre (UnitDef.tech) zeigt das Raster live. Die übrigen stehen ausgegraut mit ihren Voraussetzungen
  * (Forschung aus UnitDef.tech, dazu UnitDef.planned für Gebäude, Waren und Forschung, die es noch nicht gibt).
@@ -39,7 +39,7 @@ function entry(k: UnitKey): RosterEntry {
 
 /** Soldaten in Datenreihenfolge, je Gruppe die spielbaren zuerst. */
 export const ROSTER: RosterGroup[] = UNIT_GROUPS.map((g) => {
-  const keys = (Object.keys(UNITS) as UnitKey[]).filter((k) => UNITS[k].role !== "arbeiter"
+  const keys = (Object.keys(UNITS) as UnitKey[]).filter((k) => UNITS[k].role !== "arbeiter" && !UNITS[k].foeOnly
     && (UNITS[k].group ?? (UNITS[k].role === "fernkampf" ? "schuetzen" : "fussvolk")) === g.key);
   const sorted = [...keys.filter(isPlayable), ...keys.filter((k) => !isPlayable(k))];
   return { title: g.title, building: g.building, entries: sorted.map(entry) };
@@ -49,5 +49,5 @@ export const ROSTER: RosterGroup[] = UNIT_GROUPS.map((g) => {
 export const initials = (name: string): string =>
   name.split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
-export const ROLE_NAME: Record<string, string> = { arbeiter: "Arbeiter", nahkampf: "Nahkampf", fernkampf: "Fernkampf" };
+export const ROLE_NAME: Record<string, string> = { arbeiter: "Arbeiter", nahkampf: "Nahkampf", fernkampf: "Fernkampf", belagerung: "Belagerungsgerät" };
 export const DAMAGE_NAME: Record<string, string> = { stich: "Stich", hieb: "Hieb", pfeil: "Pfeil", wucht: "Wucht", bolzen: "Bolzen", kugel: "Kugel" };

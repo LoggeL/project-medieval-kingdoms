@@ -14,6 +14,7 @@ import { fullMessage, hasRoom, reservePut, reserveTake, tidy } from "./storage";
 import { haulable, inputAvailable, inputOrders, reserveOutput } from "./production";
 import { isSite, levelOf } from "./research";
 import { hungerBlocks, immigrationFactor } from "./food";
+import { dispatchRepairs } from "./belagerung";
 import type { StorageSlot } from "./types";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -90,6 +91,9 @@ export function dispatcher(w: World): void {
     u.ai.job = { k: "build", site: b.id, spot: b.ai.nextSpot ?? 0 }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
+  // 3b. Beschädigte Gebäude reparieren (höchstens REPAIR.crews zugleich, nur ohne Kampf in der Nähe; ADR 0017)
+  if (!free.length) return;
+  dispatchRepairs(w, take);
   // 4. Anliefern und Abholen abwechselnd. Anlieferungen kommen aus drei Quellen, die sich reihum abwechseln
   //    (Forschung, Baustelle, Verarbeitung, Forschung …), damit keine bei vielen Aufträgen der anderen leer ausgeht.
   //    Baustellen werden in der Reihenfolge des Setzens beliefert, die Verarbeitungsgebäude und beim Abholen die

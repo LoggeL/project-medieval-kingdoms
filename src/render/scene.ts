@@ -13,7 +13,8 @@ import { Container, Rectangle, Texture } from "pixi.js";
 import { ANIMALS, BUILDINGS, CROPS, GOODS, LIFE_FIGURES, RECIPES, RESOURCE_TAGS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, roadPiece, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import { mountainClass } from "../sim/mapgen";
-import type { Animal, Building, Rock, SimState, Tile, Tree, Unit } from "../sim/types";
+import type { Animal, Building, Ladder, Rock, Rubble, SimState, Tile, Tree, Unit } from "../sim/types";
+import { damageStage } from "../sim/belagerung";
 import { animalFrame, corpseAlpha, flagArt, lifeFrame, treeArt, type SheetInfo } from "./life";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -150,6 +151,28 @@ export function fillFrame(b: Building, frames: number): number {
   return Math.max(1, Math.min(frames - 1, Math.ceil((sum / Math.max(1, st.slots * st.perSlot)) * (frames - 1))));
 }
 
+/**
+ * Ausrichtung eines Belagerungsgeräts (Modell +y = vorn) aus seiner Blickrichtung in Welt-Achsen: die nächste der vier
+ * Ausrichtungen (modelToWorld(0, 1, o): 0 → −y, 1 → −x, 2 → +y, 3 → +x).
+ */
+export function vehicleOrientation(fx: number, fy: number): number {
+  if (Math.abs(fx) > Math.abs(fy)) return fx > 0 ? 3 : 1;
+  return fy > 0 ? 2 : 0;
+}
+
+/** Variante des Rammbocks: 0 Ruhe, 1 ausgeholt, 2 Stoß (im Takt seiner Abklingzeit), 3 Wrack. */
+export function vehicleFrame(u: Pick<Unit, "dead" | "anim" | "animT">, cooldown: number): number {
+  if (u.dead) return 3;
+  if (u.anim !== "angriff") return 0;
+  const t = (u.animT % cooldown) / cooldown;
+  return t < 0.55 ? 1 : t < 0.75 ? 2 : 0;
+}
+
+/** Variante der Sturmleiter: angelegt, kippt, liegt. */
+export function ladderFrame(state: Ladder["state"]): number {
+  return state === "steht" ? 0 : state === "faellt" ? 1 : 2;
+}
+
 export class ObjectLayer {
   readonly container = new Container();
   /** Silhouetten verdeckter Figuren (über der Objektebene). */
@@ -263,6 +286,8 @@ export class ObjectLayer {
     }
     for (const b of state.buildings) this.safe(b.key, () => this.buildingItems(b, state, opt));
     for (const d of this.debris) this.safe(d.key, () => this.debrisItem(d, time));
+    for (const r of state.rubble ?? []) this.safe(r.sprite, () => this.rubbleItem(r));
+    for (const l of state.ladders ?? []) this.safe("leiter", () => this.ladderItem(l));
     for (const u of state.units) if (u.anim === "bauen" && !u.dead) this.strikeAt(u, state, alpha);
     for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
     for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
@@ -406,7 +431,10 @@ export class ObjectLayer {
     if (!fs) return null;
     // Trägerbild nur beim Gehen und Stehen; bei Arbeit, Kampf und Tod bleibt die eigene Figur (z. B. Steinmetz beim Abbauen).
     const carrying = !!u.carry && (u.anim === "gehen" || u.anim === "stehen");
+    // Gerät auf der Schulter (Sturmleiter, ADR 0017): eigenes Trägerbild beim Gehen und Stehen
     const def = UNITS[u.key];
+    const gear = u.gear && (u.anim === "gehen" || u.anim === "stehen") ? def.gearSprite?.[u.gear] : undefined;
+    if (gear && fs.has(gear)) return gear;
     const want = carrying ? def.carrySprite?.[u.carry!] ?? GOODS[u.carry!].carrier : def.animSprite?.[u.anim as AnimKey] ?? def.sprite;
     if (fs.has(want)) return want;
     const chain = carrying ? ["traeger", UNITS[u.key].sprite, "tageloehner"] : ["tageloehner", "traeger"];
@@ -478,9 +506,69 @@ export class ObjectLayer {
   }
 
   private unitItem(u: Unit, x: number, y: number, z: number, opt: SceneOptions): void {
+    if (UNITS[u.key].vehicle) { this.vehicleItem(u, x, y, opt); return; }
     const [cu, cv] = toView(x, y, this.r, this.W, this.H);
     const it = this.newItem(cu - 0.2, cu + 0.2, cv - 0.2, cv + 0.2, false, true, z * 0.01);
     this.figureParts(it, u, x, y, z, opt);
+    this.closeItem(it);
+  }
+
+  // ---------------------------------------------------------------- Belagerung (ADR 0017)
+
+  /**
+   * Belagerungsgerät (Rammbock): Bild aus dem Gebäudeblatt, in vier Ausrichtungen nach der Fahrtrichtung, Variante nach
+   * Tätigkeit (ausholen, stoßen) bzw. Wrack. Trefferfläche und Lebensbalken wie bei einer Figur.
+   */
+  private vehicleItem(u: Unit, x: number, y: number, opt: SceneOptions): void {
+    const bs = this.bs;
+    const key = UNITS[u.key].sprite;
+    if (!bs || !this.bkey(key)) return;
+    const [cu, cv] = toView(x, y, this.r, this.W, this.H);
+    const it = this.newItem(cu - 0.45, cu + 0.45, cv - 0.45, cv + 0.45, false, false);
+    const [X, Y] = this.scr(x, y);
+    const view = viewOf(vehicleOrientation(u.fx, u.fy), this.r);
+    const frame = Math.min(bs.get(key)!.frames - 1, vehicleFrame(u, UNITS[u.key].cooldown ?? 1));
+    const tex = bs.texture(key, view, frame, u.team);
+    if (!tex) return;
+    const [ax, ay] = bs.anchor;
+    const selected = opt.selectedUnits.has(u.id);
+    if (selected && !u.dead) this.part(it, ringTexture(u.team === 0 ? "eigen" : "feind"), X, Y, 15, 7, { sx: 1.8, sy: 1.8 });
+    const fade = u.dead ? Math.max(0, Math.min(1, (TUNING.dyingSeconds + TUNING.corpseSeconds) - u.animT)) : 1;
+    const p = this.part(it, tex, X, Y, ax, ay, { alpha: fade, hit: u.dead ? null : this.hit("unit", u.id, u.team, "b", key, view, frame, X - ax, Y - ay) });
+    this.occluder(p, key, view, frame);
+    this.closeItem(it);
+    if (u.dead) return;
+    let os = this.unitPool[this.units.length];
+    if (!os) { os = { id: 0, team: 0, x: 0, y: 0, hp: 0, maxHp: 0, selected: false, top: 0 }; this.unitPool.push(os); }
+    os.id = u.id; os.team = u.team; os.x = Math.round(X); os.y = Math.round(Y); os.hp = u.hp; os.maxHp = u.maxHp;
+    os.selected = selected; os.top = Math.round(Y) - 52;
+    this.units.push(os);
+  }
+
+  /** Sturmleiter: am Fuß-Tile, Ansicht aus ihrer Ausrichtung (vom Fuß zur Mauer), Variante steht / kippt / liegt. */
+  private ladderItem(l: Ladder): void {
+    const bs = this.bs;
+    if (!bs || !this.bkey("leiter")) return;
+    const [u0, u1, v0, v1] = this.box(l.x, l.y, l.x + 1, l.y + 1);
+    const it = this.newItem(u0 + 0.1, u1 - 0.1, v0 + 0.1, v1 - 0.1, false, false, -0.05);
+    const [X, Y] = this.scr(l.x + 0.5, l.y + 0.5);
+    const view = viewOf(l.o, this.r);
+    const frame = Math.min(bs.get("leiter")!.frames - 1, ladderFrame(l.state));
+    const tex = bs.texture("leiter", view, frame, 1);
+    if (tex) this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]);
+    this.closeItem(it);
+  }
+
+  /** Trümmer einer zerstörten Befestigung (Bresche) bzw. ein zugeschütteter Graben: flach, begehbar. */
+  private rubbleItem(r: Rubble): void {
+    const bs = this.bs;
+    if (!bs || !this.bkey(r.sprite)) return;
+    const [u0, u1, v0, v1] = this.box(r.x, r.y, r.x + 1, r.y + 1);
+    const it = this.newItem(u0, u1, v0, v1, true, false);
+    const [X, Y] = this.scr(r.x + 0.5, r.y + 0.5);
+    const view = viewOf(r.o, this.r);
+    const tex = bs.texture(r.sprite, view, Math.min(bs.get(r.sprite)!.frames - 1, r.v), 0);
+    if (tex) this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]);
     this.closeItem(it);
   }
 
@@ -560,8 +648,19 @@ export class ObjectLayer {
   /** Sprite, Ausrichtung (für die Ansicht) und Variante eines Gebäudes. */
   private buildingSprite(b: Building, state: SimState): { keys: [string, number][]; frame: number } | null {
     const def = BUILDINGS[b.key];
+    const stage = damageStage(b);
+    // Schadensstufe (ADR 0017): eigenes Blatt <sprite>_schaden mit den Stufen 1–3 als Varianten, wo es eines gibt
+    const hurt = (key: string, o: number) => (stage && this.bs?.has(key + "_schaden") ? { keys: [[key + "_schaden", o]] as [string, number][], frame: stage - 1 } : null);
+    if (def.pieces) {
+      // Palisade, Graben: Stücke wie die Mauer (Autotiling); Schadensstufen als Varianten des Stücks
+      const { piece, o } = wallPiece(b.wallMask);
+      const k = this.bkey(def.pieces.prefix + piece.slice(piece.indexOf("_")), def.sprite);
+      return k ? { keys: [[k, o]], frame: Math.min(stage, this.bs!.get(k)!.frames - 1) } : null;
+    }
     if (b.key === "mauer") {
       const { piece, o } = wallPiece(b.wallMask);
+      const dmg = hurt(piece, o);
+      if (dmg) return dmg;
       if (this.bs?.has(piece)) return { keys: [[piece, o]], frame: 0 };
       const k = this.bkey(piece, "mauer");
       if (!k) return null;
@@ -578,7 +677,10 @@ export class ObjectLayer {
     if (b.key === "tor") {
       const k = this.bkey("tor", "mauer");
       const open = k === "tor" && b.built >= 1 && this.gateOpen(b, state);
-      return k ? { keys: [[k, gateOrientation(b.wallMask, b.o)]], frame: open ? 1 : 0 } : null;
+      const go = gateOrientation(b.wallMask, b.o);
+      const dmg = k === "tor" ? hurt(open ? "tor_offen" : "tor", go) : null;
+      if (dmg) return dmg;
+      return k ? { keys: [[k, go]], frame: open ? 1 : 0 } : null;
     }
     if (def.storage) {
       // Lagerhaus: Variante = Füllstand des ganzen Lagers (Kisten und Fässer vor dem Tor); Ersatz: alter Lagerplatz
@@ -590,6 +692,8 @@ export class ObjectLayer {
     const lv = BUILDINGS[b.key].levels;
     const k = lv ? this.bkey(levelDef(b.key, b.level ?? 1).sprite, ...lv.slice(0, (b.level ?? 1) - 1).reverse().map((x) => x.sprite)) : this.bkey(def.sprite);
     if (!k) return null;
+    const dmg = hurt(k, b.o); // Turm, Treppe
+    if (dmg) return dmg;
     let frame = 0;
     const sp = this.bs!.get(k)!;
     if (b.output && def.output && sp.frames > 1) {
@@ -614,8 +718,8 @@ export class ObjectLayer {
     const [w, h] = b.o % 2 === 0 ? fp : [fp[1], fp[0]];
     const [u0, u1, v0, v1] = this.box(b.x, b.y, b.x + w, b.y + h);
     const spr = this.buildingSprite(b, state);
-    // Wege und Brücken liegen flach: vor allem gezeichnet, was ihre Box überlappt (Figuren gehen darüber)
-    const it = this.newItem(u0, u1, v0, v1, !!def.road, false);
+    // Wege, Brücken und fertige flache Linienstücke (Graben) liegen flach: vor allem gezeichnet, was ihre Box überlappt
+    const it = this.newItem(u0, u1, v0, v1, !!def.road || (!!def.flat && b.built >= 1), false);
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const [X, Y] = this.scr(cx, cy);
     const [ax, ay] = bs.anchor;
@@ -652,6 +756,15 @@ export class ObjectLayer {
         const p = this.part(it, tex, X, Y, ax, ay, { tint, hit, alpha: 1 - open });
         if (open < 0.5) this.occluder(p, key, view, frame);
       }
+    }
+    // Schaden an Bauten ohne eigenes Schadensblatt: Schutt, Bretter, Ziegelscherben und Brandflecken an den Kanten zur
+    // Kamera (schaden_<b>x<t>, je Ansicht gebaut, ADR 0017)
+    const stage = damageStage(b);
+    const ok = stage > 0 && spr && b.built >= 1 && open < 0.5 && !def.pieces && !spr.keys[0][0].endsWith("_schaden");
+    const over = ok ? `schaden_${fp[0]}x${fp[1]}` : "";
+    if (over && bs.has(over)) {
+      const tex = bs.texture(over, viewOf(b.o, this.r), Math.min(stage - 1, bs.get(over)!.frames - 1), b.team);
+      if (tex) this.part(it, tex, X, Y, ax, ay, { tint });
     }
     // Ausbau: die nächste Stufe wächst wie eine Baustelle über dem stehenden Gebäude (Umriss im Gerüstton, von unten
     // nach oben aufgedeckt); das Material liegt an den vorderen Ecken neben der Tür (upgradeItems)
@@ -690,6 +803,8 @@ export class ObjectLayer {
     // offen: kein Rauch aus dem (nicht gezeichneten) Schornstein; Werkstätten rauchen nur, solange gearbeitet wird
     const fire = !def.production || !!b.proc?.busy;
     if (spr && b.built >= 1 && this.nItems === before && open < 0.5 && fire) this.chimneys(b, spr.keys[0][0], cx, cy);
+    // Schwer beschädigt: Rauch steigt aus dem Bau (eine Quelle, dem Einsturz nahe zwei); nicht aus Gräben
+    if (spr && stage >= 2 && this.nItems === before && !def.ditch) this.damageSmoke(b, spr, stage, X, Y);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
     if (def.storage && !spr) this.stackItems(b);
     if (b.farm) this.plotItems(b);
@@ -907,6 +1022,25 @@ export class ObjectLayer {
     e.x = Math.round(X + (sx / l) * 7); e.y = Math.round(Y + (sy / l) * 4 - 4);
     e.t = u.animT; e.seed = u.id; e.mat = mat as DustMat; e.dir = sx >= 0 ? 1 : -1;
     this.strikes.push(e);
+  }
+
+  /** Rauch eines schwer beschädigten Baus: Quellen im oberen Drittel seines Bildes (Bildrechteck der Ansicht). */
+  private damageSmoke(b: Building, spr: { keys: [string, number][]; frame: number }, stage: number, X: number, Y: number): void {
+    const bs = this.bs!;
+    const [key, o] = spr.keys[0];
+    const view = viewOf(o, this.r);
+    const bb = bs.get(key)?.bbox[view]?.[Math.min(spr.frame, bs.get(key)!.frames - 1)];
+    if (!bb) return;
+    const [ax, ay] = bs.anchor;
+    for (let k = 0; k < stage - 1; k++) {
+      const fx = 0.35 + 0.3 * ((hash4(b.id + k * 17) + 0.5) / 4);
+      let e = this.emitterPool[this.emitters.length];
+      if (!e) { e = { x: 0, y: 0, seed: 0 }; this.emitterPool.push(e); }
+      e.x = Math.round(X - ax + bb.x0 + fx * (bb.x1 - bb.x0));
+      e.y = Math.round(Y - ay + bb.y0 + (0.25 + 0.15 * k) * (bb.y1 - bb.y0));
+      e.seed = b.id * 13 + 5 + k;
+      this.emitters.push(e);
+    }
   }
 
   /** Schornsteinöffnungen eines sichtbaren Gebäudes als Rauchquellen (gleiche Drehung wie Grundriss und Sprite). */

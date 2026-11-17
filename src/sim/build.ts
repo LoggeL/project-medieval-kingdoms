@@ -13,6 +13,7 @@ import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
 import { newProc, returnProcGoods } from "./production";
 import { fieldPlan, fieldReason, newFarm, plotAt } from "./farm";
+import { addRuins, clearRubble, laddersLoseWall } from "./belagerung";
 import type { PlacementCheck } from "./types";
 import type { SBuilding, World } from "./world";
 
@@ -187,27 +188,32 @@ export function wallLine(x0: number, y0: number, x1: number, y1: number): [numbe
  * - Gar nichts bezahlbar: ok false („Nicht genug Stein“, costFail).
  * Vorhandene eigene Mauern, Tore und Türme auf der Linie werden übersprungen.
  */
-export function wallPath(w: World, x0: number, y0: number, x1: number, y1: number): PlacementCheck & { build: [number, number][]; costFail?: boolean } {
+export function wallPath(w: World, x0: number, y0: number, x1: number, y1: number, key: BuildingKey = "mauer"): PlacementCheck & { build: [number, number][]; costFail?: boolean } {
   let reason: string | null = null;
   let build: [number, number][] = [];
+  const def = BUILDINGS[key];
+  if (!def?.drag) return { ok: false, reason: "Lässt sich nicht als Linie ziehen", tiles: [], build };
+  const lock = lockedBy(w.s, def);
+  if (lock) return { ok: false, reason: `Erst erforschen: ${TECHS[lock].name}`, tiles: [], build };
   const tiles = wallLine(x0, y0, x1, y1).map(([x, y]) => {
     const b = w.buildingAt(x, y);
-    if (b && b.team === 0 && FORT.has(b.key)) return { x, y, ok: true }; // schon Mauer: wird übersprungen
-    const r = tileReason(w, x, y, "mauer");
+    // schon da (Mauer, Tor, Turm bzw. dasselbe Linienstück): wird übersprungen
+    if (b && b.team === 0 && (key === "mauer" ? FORT.has(b.key) : b.key === key)) return { x, y, ok: true };
+    const r = tileReason(w, x, y, key);
     if (r) { reason ??= r; return { x, y, ok: false }; }
     build.push([x, y]);
     return { x, y, ok: true };
   });
   if (reason) return { ok: false, reason, tiles, build: [] };
-  if (!build.length) return { ok: false, reason: "Hier steht schon eine Mauer", tiles, build };
+  if (!build.length) return { ok: false, reason: key === "mauer" ? "Hier steht schon eine Mauer" : `Hier ist schon ${def.name}`, tiles, build };
   const want = build.length;
-  const n = affordable(w, "mauer", want);
-  if (n <= 0) return { ok: false, reason: costReason(w, "mauer") ?? "Nicht genug Material", tiles, build: [], costFail: true };
+  const n = affordable(w, key, want);
+  if (n <= 0) return { ok: false, reason: costReason(w, key) ?? "Nicht genug Material", tiles, build: [], costFail: true };
   if (n < want) {
     const cut = new Set(build.slice(n).map(([x, y]) => `${x},${y}`));
     for (const t of tiles) if (cut.has(`${t.x},${t.y}`)) t.ok = false;
     build = build.slice(0, n);
-    return { ok: true, reason: `Nur ${n} von ${want} Mauerstücken bezahlbar`, tiles, build };
+    return { ok: true, reason: `Nur ${n} von ${want} ${key === "mauer" ? "Mauerstücken" : "Stücken"} bezahlbar`, tiles, build };
   }
   return { ok: true, tiles, build };
 }
@@ -333,6 +339,7 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   const onFp = new Set(fp.map(([tx, ty]) => w.idx(tx, ty)));
   for (const [tx, ty] of fp) w.s.tiles[w.idx(tx, ty)].building = b.id;
   w.s.trees = w.s.trees.filter((t) => !onFp.has(w.idx(t.x, t.y))); // Baumstümpfe weichen der Baustelle
+  clearRubble(w, fp); // Trümmer einer Bresche werden beim Neubau weggeräumt
   w.s.gold -= cost.gold ?? 0;
   for (const [g, n] of Object.entries(cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
   b.mat = total(b.needs);
@@ -373,10 +380,14 @@ export function completeBuilding(w: World, b: SBuilding): void {
  * "zerstoert" verliert alles, "ersetzt" (Mauer unter einem neuen Tor) gibt nichts zurück: Das Tor hat ihr fertiges oder
  * schon angeliefertes Material in costAt übernommen.
  */
-export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoert" | "ersetzt"): void {
+export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoert" | "ersetzt" | "verfuellt"): void {
   const def = BUILDINGS[b.key];
   w.removeBuildingRecord(b);
   for (const [tx, ty] of footprintTiles(b.key, b.x, b.y, b.o)) if (w.inMap(tx, ty) && w.s.tiles[w.idx(tx, ty)].building === b.id) w.s.tiles[w.idx(tx, ty)].building = 0;
+  // Belagerung (ADR 0017): Leitern an diesem Wehrgang fallen; eine zerstörte Befestigung bleibt als Trümmer liegen
+  // (begehbare Bresche), ein zugeschütteter Graben ebenso
+  if (def.walkway === 1 || levelDef(b.key, levelOf(b)).walkway === 1) laddersLoseWall(w, b);
+  if ((why === "zerstoert" || why === "verfuellt") && b.built >= 1) addRuins(w, b);
   abortJobsAt(w, b);
   if (b.ai.inside) { b.ai.inside = null; b.training = null; } // Rekrut in der Ausbildung geht verloren
   for (const u of w.s.units) if (u.order.t === "station" && u.order.building === b.id) u.order = { t: "idle" };
@@ -422,6 +433,7 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
     else w.msg(`${def.name} wurde zerstört!`, "kampf", `zerstoert-${b.key}`, 5, "zerstoert");
   }
   else if (why === "abriss") w.msg(`${def.name} abgerissen.`, "info", def.road ? `abriss-${b.key}` : undefined, 5);
+  else if (why === "verfuellt" && b.team === 0) w.msg("Die Angreifer haben ein Stück Graben zugeschüttet!", "kampf", "graben-verfuellt", 10);
 }
 
 /**
@@ -433,6 +445,17 @@ export function updateWallMasks(w: World): void {
     if (isRoad(b.key)) {
       let mask = 0;
       NEIGHBOURS.forEach(([dx, dy], bit) => { const n = w.buildingAt(b.x + dx, b.y + dy); if (n && n.team === b.team && isRoad(n.key)) mask |= 1 << bit; });
+      b.wallMask = mask;
+      continue;
+    }
+    const pc = BUILDINGS[b.key].pieces;
+    if (pc) {
+      // Linienstücke (Palisade, Graben): Nachbarn derselben Art, die Palisade auch Mauer, Tor und Turm
+      let mask = 0;
+      NEIGHBOURS.forEach(([dx, dy], bit) => {
+        const n = w.buildingAt(b.x + dx, b.y + dy);
+        if (n && n.id !== b.id && n.team === b.team && (n.key === b.key || (pc.joinFort && FORT.has(n.key)))) mask |= 1 << bit;
+      });
       b.wallMask = mask;
       continue;
     }

@@ -53,5 +53,12 @@
  "ore_hi": "#c4683a",
  "ember": "#ff9a2a",
  "coal": "#2b2624",
- "clay": "#a87652"
+ "clay": "#a87652",
+ "hole": "#3a3129",
+ "soot": "#403a34",
+ "crack": "#4d4136",
+ "mud": "#5b5038",
+ "ditch_water": "#4f6a69",
+ "earth_dk": "#7b5f3d",
+ "hide": "#a9875d"
 }

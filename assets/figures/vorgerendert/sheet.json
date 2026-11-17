@@ -1302,6 +1302,60 @@
    },
    "shadow": false,
    "row": 352
+  },
+  {
+   "key": "sturmknecht",
+   "name": "Sturmknecht",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "angriff": [
+     9,
+     4
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 360
+  },
+  {
+   "key": "leitertraeger",
+   "name": "Sturmknecht mit Leiter",
+   "showcase": true,
+   "frames": 17,
+   "anims": {
+    "stehen": [
+     0,
+     1
+    ],
+    "gehen": [
+     1,
+     8
+    ],
+    "sterben": [
+     13,
+     3
+    ],
+    "tot": [
+     16,
+     1
+    ]
+   },
+   "row": 368
   }
  ],
  "team_swap": {

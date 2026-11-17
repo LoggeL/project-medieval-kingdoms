@@ -27,15 +27,21 @@
  * Kacheln (samt Nachbarn, wegen der Eckenregel) schon nach der Luftlinie mehr als C kostet: Dann hätte die Suche diese
  * Kacheln nie angefasst und fände denselben Weg. Alle anderen Einträge werden verworfen. So bleibt der Cache unsichtbar
  * für das Ergebnis (gleiche Folge-Ticks nach dem Laden mit leerem Cache).
+ *
+ * Belagerung (ADR 0017): Trümmer (Bresche) sind begehbar, aber teurer (SIEGE.rubbleCost). Ein fertiger Graben ist für
+ * Team 0 langsam begehbar (DITCH, Kosten × ownCost), für Angreifer nur im Belagerungsmodus (zuschütten). Eine stehende
+ * Sturmleiter verbindet ihren Fuß mit dem Wehrgang, nur für Angreifer (foeLinks). Belagerungsgerät läuft im Bodenmodus
+ * (ground): keine Übergänge zwischen den Ebenen und kein Graben, auch nicht im Belagerungsmodus. Trümmer und Leitern
+ * gehören zum Stand, den refresh() vergleicht: Ändern sie sich, werden nur ihre Kacheln neu bestimmt.
  */
-import { BUILDINGS, TERRAIN, levelDef, type TerrainKey } from "../data";
+import { BUILDINGS, SIEGE, TERRAIN, levelDef, type TerrainKey } from "../data";
 import { center, doorInside, entrance, footprint, footprintTiles, modelToWorld, stairEnds } from "./geom";
 import type { Team } from "./types";
 import type { World } from "./world";
 
-export const BLOCKED = 0, OPEN = 1, GATE = 2, BUILT = 3;
+export const BLOCKED = 0, OPEN = 1, GATE = 2, BUILT = 3, DITCH = 4;
 export const LAYER_Z = [0, 3, 5];
-const BREACH_COST = 14, BREACH_GATE = 10;
+const BREACH_COST = 14, BREACH_GATE = 10, BREACH_DITCH = 8;
 /** Kleinste Kosten je Feld, die es nach den Daten geben kann (Gelände, Wege, Übergänge). */
 export const MIN_COST = Math.min(1, ...Object.values(TERRAIN).map((t) => t.cost),
   ...Object.values(BUILDINGS).flatMap((d) => (d.road ? [d.road.cost] : [])));
@@ -71,7 +77,7 @@ export class Nav {
   readonly W: number;
   readonly H: number;
   readonly N: number;
-  /** Je Ebene: Ebene 0 BLOCKED/OPEN/GATE/BUILT, Ebene 1 und 2: 1 = begehbar. */
+  /** Je Ebene: Ebene 0 BLOCKED/OPEN/GATE/BUILT/DITCH, Ebene 1 und 2: 1 = begehbar. */
   readonly walk: Uint8Array[];
   /** Wegkosten am Boden (Gelände, Wege). */
   readonly cost: Float32Array;
@@ -82,6 +88,8 @@ export class Nav {
   readonly links = new Map<number, number[]>();
   /** Übergänge nur für Team 0 (Turmtür am Boden ↔ Plattform). */
   readonly ownLinks = new Map<number, number[]>();
+  /** Übergänge nur für Angreifer (Sturmleiter: Fuß ↔ Wehrgang). */
+  readonly foeLinks = new Map<number, number[]>();
   /** Treppen-Tiles: Vorderkante (Welt) und Steigrichtung. */
   private readonly stairs = new Map<number, [number, number, number, number]>();
   /** Zusammenhangskomponenten je Team (−1 = nicht begehbar), erst beim Lesen aktuell (compDirty). */
@@ -102,6 +110,9 @@ export class Nav {
   /** Stand beim letzten Aufbau (für refresh). */
   private snaps = new Map<number, Snap>();
   private rocks = new Set<number>();
+  /** Trümmer-Kacheln und stehende Leitern (Fuß, Kopf) beim letzten Aufbau. */
+  private rubble = new Set<number>();
+  private ladders = new Map<string, Rect>();
   private terr: Uint8Array;
   /**
    * Kleinste Kosten eines begehbaren Felds auf dieser Karte (höchstens 1, die Kosten eines Übergangs): untere Schranke
@@ -142,15 +153,16 @@ export class Nav {
   tileX(n: number): number { return (n % this.N) % this.W; }
   tileY(n: number): number { return ((n % this.N) / this.W) | 0; }
 
-  /** Kosten, einen Knoten zu betreten, oder −1. */
-  pass(n: number, team: Team, breach: boolean): number {
-    if (this.linkOnly[n]) return 1;
+  /** Kosten, einen Knoten zu betreten, oder −1. ground: Bodenmodus des Belagerungsgeräts (kein Graben). */
+  pass(n: number, team: Team, breach: boolean, ground = false): number {
+    if (this.linkOnly[n]) return ground ? -1 : 1;
     const l = (n / this.N) | 0, i = n - l * this.N;
     const v = this.walk[l][i];
-    if (l > 0) return v ? 1 : -1;
+    if (l > 0) return v && !ground ? 1 : -1;
     if (v === OPEN) return this.cost[i];
     if (v === GATE) return team === 0 ? this.cost[i] : breach ? BREACH_GATE : -1;
     if (v === BUILT) return breach ? BREACH_COST : -1;
+    if (v === DITCH) return team === 0 ? this.cost[i] : breach && !ground ? BREACH_DITCH : -1;
     return -1;
   }
 
@@ -174,6 +186,7 @@ export class Nav {
   rebuild(bump = true): void {
     this.links.clear();
     this.ownLinks.clear();
+    this.foeLinks.clear();
     this.stairs.clear();
     this.applyRect({ x0: 0, y0: 0, x1: this.W - 1, y1: this.H - 1 }, false);
     this.snapshot();
@@ -214,7 +227,10 @@ export class Nav {
     return low;
   }
 
-  /** Geänderte Bereiche seit dem letzten Stand (Grundrisse alt und neu, Felsbrocken, Gelände); aktualisiert den Stand. */
+  /**
+   * Geänderte Bereiche seit dem letzten Stand (Grundrisse alt und neu, Felsbrocken, Trümmer, stehende Leitern, Gelände);
+   * aktualisiert den Stand.
+   */
   private diff(): Rect[] {
     const s = this.w.s, W = this.W, out: Rect[] = [];
     const seen = new Set<number>();
@@ -234,6 +250,14 @@ export class Nav {
     for (const i of this.rocks) if (!rocks.has(i)) out.push({ x0: i % W, y0: (i / W) | 0, x1: i % W, y1: (i / W) | 0 });
     for (const i of rocks) if (!this.rocks.has(i)) out.push({ x0: i % W, y0: (i / W) | 0, x1: i % W, y1: (i / W) | 0 });
     this.rocks = rocks;
+    const rubble = this.rubbleSet();
+    for (const i of this.rubble) if (!rubble.has(i)) out.push({ x0: i % W, y0: (i / W) | 0, x1: i % W, y1: (i / W) | 0 });
+    for (const i of rubble) if (!this.rubble.has(i)) out.push({ x0: i % W, y0: (i / W) | 0, x1: i % W, y1: (i / W) | 0 });
+    this.rubble = rubble;
+    const ladders = this.ladderMap();
+    for (const [k, r] of this.ladders) if (!ladders.has(k)) out.push(r);
+    for (const [k, r] of ladders) if (!this.ladders.has(k)) out.push(r);
+    this.ladders = ladders;
     for (let i = 0; i < this.N; i++) {
       const t = TERRAIN_CODE.get(s.tiles[i].terrain) ?? 0;
       if (t === this.terr[i]) continue;
@@ -251,7 +275,26 @@ export class Nav {
       this.snaps.set(b.id, { sig: buildingSig(b), r: { x0: b.x, y0: b.y, x1: b.x + fw - 1, y1: b.y + fh - 1 } });
     }
     this.rocks = new Set(s.rocks.filter((r) => r.amount > 0).map((r) => r.y * this.W + r.x));
+    this.rubble = this.rubbleSet();
+    this.ladders = this.ladderMap();
     for (let i = 0; i < this.N; i++) this.terr[i] = TERRAIN_CODE.get(s.tiles[i].terrain) ?? 0;
+  }
+
+  /** Kacheln mit Trümmern (auf der Karte). */
+  private rubbleSet(): Set<number> {
+    const out = new Set<number>();
+    for (const r of this.w.s.rubble ?? []) if (this.w.inMap(r.x, r.y)) out.add(r.y * this.W + r.x);
+    return out;
+  }
+
+  /** Stehende Leitern: Schlüssel aus Fuß und Kopf, Rechteck über beide Kacheln. */
+  private ladderMap(): Map<string, Rect> {
+    const out = new Map<string, Rect>();
+    for (const l of this.w.s.ladders ?? []) {
+      if (l.state !== "steht") continue;
+      out.set(`${l.x},${l.y},${l.wx},${l.wy}`, { x0: Math.min(l.x, l.wx), y0: Math.min(l.y, l.wy), x1: Math.max(l.x, l.wx), y1: Math.max(l.y, l.wy) });
+    }
+    return out;
   }
 
   /**
@@ -281,7 +324,7 @@ export class Nav {
     // Übergänge, die einen Knoten im Rechteck berühren, lösen (beide Richtungen)
     if (compare) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) for (let l = 0; l < 3; l++) {
       const n = l * N + y * W + x;
-      this.unlink(n, this.links); this.unlink(n, this.ownLinks);
+      this.unlink(n, this.links); this.unlink(n, this.ownLinks); this.unlink(n, this.foeLinks);
     }
     // Gelände und Felsbrocken
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
@@ -293,6 +336,8 @@ export class Nav {
       this.stairs.delete(i);
     }
     for (const r of s.rocks) if (r.amount > 0 && inR(r.x, r.y)) w0[r.y * W + r.x] = BLOCKED;
+    // Trümmer (Bresche, zugeschütteter Graben): begehbar, aber mühsam
+    for (const r of s.rubble ?? []) if (inR(r.x, r.y)) { const i = r.y * W + r.x; this.cost[i] = Math.max(this.cost[i], SIEGE.rubbleCost); }
     // Grundrisse
     const near: typeof s.buildings = [];
     for (const b of s.buildings) {
@@ -314,7 +359,8 @@ export class Nav {
         if (i === door) { if (w0[i] === OPEN) this.cost[i] = 1; continue; }
         if (w0[i] !== BLOCKED) w0[i] = BUILT;
         if (!done) continue;
-        if (def.gate) { w0[i] = GATE; w1[i] = 1; }
+        if (def.ditch) { if (w0[i] === BUILT) { w0[i] = DITCH; this.cost[i] *= def.ditch.ownCost; } }
+        else if (def.gate) { w0[i] = GATE; w1[i] = 1; }
         else if (def.walkway === 1) w1[i] = 1;
         else if (def.walkway === 2) { w2[i] = 1; this.z[2 * N + i] = def.deck ?? LAYER_Z[2]; }
       }
@@ -355,6 +401,12 @@ export class Nav {
         }
       }
     }
+    // Sturmleitern: Fuß (Boden, frei) ↔ Wehrgang, nur für Angreifer
+    for (const l of s.ladders ?? []) {
+      if (l.state !== "steht" || !this.w.inMap(l.x, l.y) || !this.w.inMap(l.wx, l.wy)) continue;
+      const foot = l.y * W + l.x, top = l.wy * W + l.wx;
+      if (w0[foot] === OPEN && w1[top] && (!compare || touches(foot, N + top))) this.link(foot, N + top, this.foeLinks);
+    }
     this.stats.tiles += area;
     if (!old) return null;
     // Vergleich: Rechteck der geänderten Kacheln
@@ -376,9 +428,10 @@ export class Nav {
     let out = "";
     for (let l = 0; l < 3; l++) {
       const n = l * this.N + i;
-      const a = this.links.get(n), b = this.ownLinks.get(n);
+      const a = this.links.get(n), b = this.ownLinks.get(n), f = this.foeLinks.get(n);
       if (a) out += `${n}:${[...a].sort((p, q) => p - q).join(",")};`;
       if (b) out += `${n}o${[...b].sort((p, q) => p - q).join(",")};`;
+      if (f) out += `${n}f${[...f].sort((p, q) => p - q).join(",")};`;
     }
     return out;
   }
@@ -530,7 +583,7 @@ export class Nav {
   }
 
   /** Nachbarn eines Knotens in nbN/nbC (Kosten inkl. Diagonale). */
-  private neighbors(n: number, team: Team, breach: boolean): number {
+  private neighbors(n: number, team: Team, breach: boolean, ground = false): number {
     const N = this.N, W = this.W, H = this.H;
     const l = (n / N) | 0, i = n - l * N, x = i % W, y = (i / W) | 0, base = l * N;
     let k = 0;
@@ -540,7 +593,7 @@ export class Nav {
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const nb = base + ny * W + nx;
         if (this.linkOnly[nb]) continue;
-        const c = this.pass(nb, team, breach);
+        const c = this.pass(nb, team, breach, ground);
         if (c < 0) continue;
         if (d >= 4) {
           // Keine Diagonale an einer gesperrten Ecke vorbei, auch nicht im Belagerungsmodus: Wer durch eine diagonale
@@ -551,6 +604,7 @@ export class Nav {
         } else { this.nbN[k] = nb; this.nbC[k++] = c; }
       }
     }
+    if (ground) return k;
     const ls = this.links.get(n);
     if (ls) for (const nb of ls) {
       const c = this.pass(nb, team, breach);
@@ -560,6 +614,10 @@ export class Nav {
     if (os) for (const nb of os) {
       const c = this.pass(nb, team, breach);
       if (c >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = Math.max(1, c); }
+    }
+    const fs = team === 1 ? this.foeLinks.get(n) : undefined;
+    if (fs) for (const nb of fs) {
+      if (this.pass(nb, team, breach) >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = SIEGE.ladderCost; }
     }
     return k;
   }
@@ -632,22 +690,22 @@ export class Nav {
 
   // ------------------------------------------------------------ Suche
   /** Weg von `from` zum Ziel (ohne Startknoten), [] wenn schon am Ziel, null wenn unerreichbar. */
-  route(team: Team, breach: boolean, from: number, goal: Goal): number[] | null {
-    const key = `${team}${breach ? "b" : ""}:${from}:${goal.layer},${goal.x0},${goal.y0},${goal.x1},${goal.y1},${goal.d}`;
+  route(team: Team, breach: boolean, from: number, goal: Goal, ground = false): number[] | null {
+    const key = `${team}${breach ? "b" : ""}${ground ? "g" : ""}:${from}:${goal.layer},${goal.x0},${goal.y0},${goal.x1},${goal.y1},${goal.d}`;
     const hit = this.cache.get(key);
     if (hit !== undefined) { this.hits++; return hit.path; }
     let path: number[] | null;
     let cost = 0;
     const fc = this.comp[team][from];
     if (!breach && fc >= 0 && !this.goalInComp(goal, team, fc)) path = null;
-    else { path = this.find(from, team, breach, goal); cost = path && path.length ? this.g[path[path.length - 1]] : 0; }
+    else { path = this.find(from, team, breach, goal, ground); cost = path && path.length ? this.g[path[path.length - 1]] : 0; }
     if (this.cache.size >= CACHE_MAX) this.cache.clear();
     this.cache.set(key, { path, cost, sx: this.tileX(from), sy: this.tileY(from), goal: { ...goal } });
     return path;
   }
 
   /** A* mit fester Reihenfolge bei Gleichstand (Kosten, dann Knotennummer): Ergebnis nur abhängig von Raster, Start, Ziel. */
-  private find(from: number, team: Team, breach: boolean, goal: Goal): number[] | null {
+  private find(from: number, team: Team, breach: boolean, goal: Goal, ground = false): number[] | null {
     this.searches++;
     if (this.isGoal(from, goal)) return [];
     if (++this.gen >= 0xfffffff0) { this.seen.fill(0); this.closed.fill(0); this.gen = 1; }
@@ -663,7 +721,7 @@ export class Nav {
       this.expanded++;
       if (this.isGoal(n, goal)) return this.trace(n);
       if (--budget <= 0) return null;
-      const k = this.neighbors(n, team, breach), gn = g[n];
+      const k = this.neighbors(n, team, breach, ground), gn = g[n];
       for (let j = 0; j < k; j++) {
         const nb = this.nbN[j];
         if (closed[nb] === gen) continue;

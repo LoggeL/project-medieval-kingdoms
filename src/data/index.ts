@@ -13,8 +13,10 @@ import { LANDWIRTSCHAFT, type FieldDef, type LandwirtschaftKey } from "./landwir
 import { ARMOR_MATRIX, MILITAER, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
 import { RUESTUNG_BUILDINGS, RUESTUNG_WORKERS, type RuestungBuilding, type RuestungWorker } from "./ruestung";
 import { TRANSPORT, type TransportKey } from "./transport";
+import { BEFESTIGUNG, BELAGERUNG_UNITS, type BelagerungKey, type BelagerungUnitKey } from "./belagerung";
 
 export * from "./research";
+export * from "./belagerung";
 export { ARMOR_MATRIX, ARMOR_NAME, UNIT_GROUPS, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
 
 export const TICKS_PER_SECOND = 20;
@@ -83,7 +85,7 @@ export type CycleStep =
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey | LandwirtschaftKey | RuestungBuilding | TransportKey;
+  | VerarbeitungKey | LandwirtschaftKey | RuestungBuilding | TransportKey | BelagerungKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -207,6 +209,18 @@ export interface BuildingDef {
   deck?: number;
   /** Steuern: Gold je Spielminute. */
   income?: number;
+  /**
+   * Linienbau aus Teilstücken (Palisade, Graben; ADR 0017): Sprite = `${prefix}_gerade|_ende|_ecke|_t|_kreuz|_einzel`
+   * nach der Nachbarschaft (wie die Mauer, geom.wallPiece). joinFort: schließt auch an Mauer, Tor und Turm an.
+   */
+  pieces?: { prefix: string; joinFort?: boolean };
+  /** Flach am Boden (Graben): in der Tiefensortierung unter Figuren und Gebäuden. */
+  flat?: boolean;
+  /**
+   * Graben (ADR 0017): eigene Leute waten hindurch (Wegkosten × ownCost), Angreifer kommen nur durch, indem sie ihn
+   * zuschütten (Lebenspunkte = Füllmenge, SIEGE.ditchFillPerStrike je Wurf).
+   */
+  ditch?: { ownCost: number };
   /** Ausbaustufen (siehe BuildingLevel). */
   levels?: BuildingLevel[];
   /**
@@ -324,6 +338,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     category: "befestigung", footprint: [1, 2], cost: { stein: 4 }, buildSeconds: 6, sprite: "treppe",
     construction: { ground: "baustelle_treppe", foundation: 0.15, courses: 10, piles: [[0, -0.5]] }, stairs: true, hp: 400,
   },
+  // Holzpalisade und Graben (src/data/belagerung.ts)
+  ...BEFESTIGUNG,
   turm: {
     name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
     category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm", door: [0, -1.5],
@@ -333,7 +349,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 };
 
 // ---------------------------------------------------------------- Einheiten
-export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "bauer" | "obstbauer" | "speer" | "schwert" | "bogen" | RuestungWorker | MilitaerKey;
+export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "bauer" | "obstbauer" | "speer" | "schwert" | "bogen" | RuestungWorker | MilitaerKey | BelagerungUnitKey;
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
 export type AnimKey =
@@ -350,7 +366,8 @@ export interface UnitDef {
   name: string;
   /** Figur im Figurenblatt (assets/figures/<stil>/sheet.json). */
   sprite: string;
-  role: "arbeiter" | "nahkampf" | "fernkampf";
+  /** belagerung: Gerät (Rammbock), greift nur Gebäude an. */
+  role: "arbeiter" | "nahkampf" | "fernkampf" | "belagerung";
   /** Rolle in einem Satz (Einheitenraster). */
   desc?: string;
   /** Gruppe im Einheitenraster (UNIT_GROUPS); fehlt = nach Rolle. */
@@ -373,7 +390,7 @@ export interface UnitDef {
    * Bonus gegen Einheitenrollen, z. B. Speer gegen Nahkampf-Ansturm; reiter gilt gegen berittene Ziele (mounted) und
    * ersetzt dort den Rollenbonus (Pikenier gegen Ritter).
    */
-  bonus?: Partial<Record<"nahkampf" | "fernkampf" | "reiter", number>>;
+  bonus?: Partial<Record<"nahkampf" | "fernkampf" | "reiter" | "belagerung", number>>;
   /**
    * Kosten der Ausbildung: Gold sofort, ein Tagelöhner (Bevölkerung), Ausrüstung aus dem Lager. equipment trägt der
    * Rekrut sichtbar zur Kaserne, extra (z. B. die Rüstung des Pikeniers) holt er im selben Gang mit; Söldner bringen
@@ -396,6 +413,15 @@ export interface UnitDef {
    * ausgegraut im Einheitenraster und wird von keinem Gebäude ausgebildet.
    */
   planned?: string[];
+  /** Nur bei den Angreifern (Überfallwellen, ADR 0017): steht nicht im Einheitenraster des Spielers. */
+  foeOnly?: boolean;
+  /** Figur, solange die Einheit Gerät trägt (Unit.gear, z. B. die Sturmleiter). */
+  gearSprite?: Partial<Record<"leiter", string>>;
+  /**
+   * Belagerungsgerät (Rammbock): Sprite im Gebäudeblatt statt im Figurenblatt, bewegt sich nur am Boden und nur mit
+   * Mannschaft (crew Sturmknechte schieben ihn).
+   */
+  vehicle?: { crew: number };
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -424,6 +450,8 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   // Arbeiter der Militärwirtschaft (src/data/ruestung.ts) und die Einheiten des Konzepts (src/data/militaer.ts)
   ...RUESTUNG_WORKERS,
   ...MILITAER,
+  // Angreifer mit Belagerungswerkzeug (src/data/belagerung.ts)
+  ...BELAGERUNG_UNITS,
 };
 
 /** Ausrüstung einer Einheit aus dem Lager: zuerst die getragene Waffe, dann die mitgenommenen Stücke. */

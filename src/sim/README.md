@@ -19,7 +19,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht, Werkstätten mit jede Sekunde wechselndem Anfang), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
 | `military.ts` | Soldatenverhalten je Befehl, Befehle bewegen/angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
-| `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Rückzug) |
+| `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Graben zuschütten, Rückzug), Belagerungswerkzeug ab Welle 2 |
+| `belagerung.ts` | Belagerung und Befestigung (ADR 0017): Sturmleitern (anlegen, klettern, umstoßen), Rammbock und Mannschaft, Trümmer (Bresche), Schadensstufen, Reparatur durch Tagelöhner, Heilung, Graben zuschütten |
 | `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden |
 | `debug.ts` | Hilfen für Tests (fertig bauen, Einheiten setzen, Lager füllen) |
 | `demo.ts` | alte Platzhalter-Welt (für Darstellungsversuche) |
@@ -87,6 +88,16 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 - **Neue essbare Ware**: Ware wie in ADR 0011 (Lagertyp `nahrung`) und Eintrag in `FOOD.goods` (Portionen je Stück). Rationen sind Einträge in `RATIONS`.
 - Für die Oberfläche: `Building.farm` (`plots` mit `x`, `y`, `stage`, `t`, `by`; `harvested`), `stageCounts`, `farmReason`; `state.food` (`ration`, `perMinute`, `stock`, `kinds`, `hunger`, `eaten`), `foodSeconds`. Befehl `{ t: "rationen", ration }`.
 
+## Belagerung (ADR 0017)
+
+- **Leitern** sind Laufverbindungen nur für Team 1 (`nav.foeLinks`, Fuß ↔ Wehrgang), aus `SimState.ladders`; `nav.refresh()` vergleicht stehende Leitern und Trümmer mit dem letzten Stand und rechnet nur deren Kacheln neu (ADR 0015). Wer eine Leiter umstößt oder ein Mauerstück zerstört, ändert den Graphen: danach `nav.refresh()` und für Team 1 `stop()`, die Bewegung prüft nur Knoten, nicht Kanten. Lebt kein Angreifer mehr, kippen die übrigen Leitern von selbst.
+- **Bodenmodus** (`TravelGoal.ground`, `route(..., ground)`): keine Treppen, Leitern, Turmtüren und Gräben. Für Fahrzeuge (`UnitDef.vehicle`).
+- **Graben** = Bodenwert `DITCH`: Team 0 zahlt `ditch.ownCost`, Team 1 nur im Durchbruchmodus (zuschütten), Bodenmodus nie.
+- **Trümmer** (`SimState.rubble`) heben die Wegkosten auf `SIEGE.rubbleCost`; `placeSite` und `spawnBuilt` räumen sie.
+- **Neue Ziehware** (Linie wie die Mauer): `drag: true` und `pieces: {prefix}` in den Daten, Sprites `<prefix>_gerade|ende|ecke|t|kreuz|einzel`; Befehl `{t: "mauer", key}`.
+- **Schaden** zeigt die Darstellung aus `damageStage(b)`: Blatt `<sprite>_schaden` (Stufen 1–3) oder die Überlagerung `schaden_<b>x<t>`.
+- Tests: `tests/sim/belagerung.test.ts`.
+
 ## Grenzen (Stand Prototyp)
 
 - Kein echtes Ausweichen zwischen Figuren; nur stehende Soldaten schieben sich auseinander. Wartende Arbeiter einer Werkstatt stehen auf eigenen Feldern neben dem Eingang.
@@ -94,7 +105,7 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 - Holzfäller und Steinmetze ohne Baum bzw. Fels in Reichweite warten an ihrer Hütte (Meldung „keine Bäume mehr“), bis der Spieler abreißt.
 - Abriss gibt die Hälfte der Kosten sofort ins Lager zurück (nicht als getragene Ware), bei Verarbeitungsgebäuden auch Puffer, Ausgabestapel und die Eingänge eines laufenden Arbeitsgangs (ebenso beim Rezeptwechsel); was nicht ins Lager passt, verfällt.
 - Gegessen wird direkt aus den Fächern der Kornkammer, ohne dass Figuren dorthin gehen; sichtbar ist es am schrumpfenden Bestand. Hunger trifft nur untätige Tagelöhner, Arbeiter und Soldaten bleiben ungemindert (ADR 0013).
-- Arbeiter fliehen nicht, nur untätige Tagelöhner. Angreifer haben keine Leitern; sie reißen Mauern und Tore ein. Auf Arbeiter gehen sie nur aus der Nähe los (`TUNING.raiderWorkerReach`), flüchtenden Tagelöhnern laufen sie nicht über die Karte nach.
+- Arbeiter fliehen nicht, nur untätige Tagelöhner. Angreifer reißen Mauern und Tore ein; ab Welle 2 bringen sie Sturmleitern, ab Welle 3 einen Rammbock (ADR 0017). Auf Arbeiter gehen sie nur aus der Nähe los (`TUNING.raiderWorkerReach`), flüchtenden Tagelöhnern laufen sie nicht über die Karte nach.
 - Fällt ein Tor, kann ein Mauerabschnitt vom Treppenzugang abgeschnitten sein: Die Wachen dort melden „Posten nicht erreichbar“ und werden untätig (kämpfen dann wie freie Soldaten).
 - Die Balance ist auf die Standardkarte (Seed 1) und die Furt abgestimmt; ab Welle 2 (6 Angreifer) reichen drei Verteidiger ohne Turm nicht mehr.
 - Pfadsuche ist A* auf dem vollen Raster mit Komponenten-Vorprüfung, kein hierarchisches Raster und keine Flussfelder.

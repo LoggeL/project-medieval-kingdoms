@@ -962,5 +962,67 @@
   "name": "Krähe",
   "animal": "kraehe",
   "shadow": false
+ },
+ "sturmknecht": {
+  "name": "Sturmknecht",
+  "torso": "leather",
+  "sleeve": "gambeson",
+  "legs": "hose",
+  "skirt": 0.35,
+  "helmet": "hood",
+  "hood": "team",
+  "gear": [
+   "axe",
+   "shield_round"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ],
+   "armL": [
+    -40,
+    0,
+    15
+   ]
+  },
+  "grip": {
+   "armR": [
+    -45,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "angriff",
+   "motion": "hieb"
+  }
+ },
+ "leitertraeger": {
+  "name": "Sturmknecht mit Leiter",
+  "torso": "leather",
+  "sleeve": "gambeson",
+  "legs": "hose",
+  "skirt": 0.35,
+  "helmet": "hood",
+  "hood": "team",
+  "gear": [
+   "ladder"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -150,
+    0,
+    -5
+   ]
+  }
  }
 }

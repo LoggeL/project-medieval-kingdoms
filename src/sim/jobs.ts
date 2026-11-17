@@ -13,6 +13,7 @@ import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } f
 import { releasePlots, runFarm } from "./farm";
 import { runLeave } from "./food";
 import type { Rock, Tree } from "./types";
+import { releaseRepair, runRepair } from "./belagerung";
 import { TPS, face, setAnim, type Job, type RecruitPiece, type SBuilding, type SUnit, type World } from "./world";
 
 type CycleJob = Extract<Job, { k: "cycle" }>;
@@ -30,6 +31,7 @@ export function runJob(w: World, u: SUnit): void {
     case "build": return runBuild(w, u, j);
     case "recruit": return runRecruit(w, u, j);
     case "leave": return runLeave(w, u);
+    case "repair": return runRepair(w, u, j);
   }
 }
 
@@ -533,6 +535,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
         if (b && b.ai.recruit === u.id) { b.ai.recruit = 0; b.ai.recruitPicked = false; b.ai.recruitGot = 0; }
         break;
       }
+      case "repair": releaseRepair(w, u, j); break;
     }
   }
   u.ai.job = null;
@@ -584,6 +587,11 @@ export function abortJobsAt(w: World, b: SBuilding): void {
       case "recruit":
         if (j.ph === 0 && (j.b === b.id || recruitPieces(j).slice(j.n ?? 0).some((p) => p.from === b.id))) { releaseJob(w, u, true); if (u.carry) carryBack(w, u); }
         else if (j.ph === 1 && j.b === b.id) { releaseJob(w, u, true); carryBack(w, u); }
+        break;
+      case "repair":
+        if (j.ph === 0 && (j.b === b.id || j.from === b.id)) releaseJob(w, u);
+        else if (j.ph === 1 && j.b === b.id) { u.ai.job = null; carryBack(w, u); }
+        else if (j.ph === 2 && j.b === b.id) { u.ai.job = null; u.order = { t: "idle" }; }
         break;
       case "cycle": break;
     }

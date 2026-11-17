@@ -5,6 +5,7 @@
  */
 import { BUILDINGS } from "../data";
 import { isSoldier } from "./combat";
+import { healing, isVehicle, onLadder } from "./belagerung";
 import type { UnitActivity } from "./types";
 import type { SUnit, World } from "./world";
 
@@ -14,12 +15,16 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
   const moving = u.anim === "gehen";
   if (u.team === 1) {
     if (u.ai.retreat) return "flieht";
+    if (onLadder(w, u)) return "klettert";
+    if (u.ai.ladder && u.ai.ladder.t > 0) return "legt_an";
+    if ((u.ai.ram || isVehicle(u)) && !FIGHT.has(u.anim)) return moving ? "schiebt" : "wartet";
     if (FIGHT.has(u.anim) || u.ai.target || u.ai.targetB) return FIGHT.has(u.anim) || !moving ? "kaempft" : "unterwegs";
     return moving ? "unterwegs" : "wartet";
   }
   if (isSoldier(u.key)) {
     const o = u.order;
     if (FIGHT.has(u.anim)) return "kaempft";
+    if (!moving && (o.t === "idle" || o.t === "hold" || o.t === "station") && !u.ai.target && healing(w, u)) return "erholt";
     switch (o.t) {
       case "move": return "unterwegs";
       case "attack": return "kaempft";
@@ -60,6 +65,7 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
     case "build": return u.anim === "bauen" ? "baut" : moving ? "unterwegs" : "wartet";
     case "recruit": return "holt_waffe";
     case "leave": return "zieht_fort";
+    case "repair": return j.ph === 2 ? "repariert" : j.ph === 1 ? (moving ? "traegt" : "wartet") : moving ? "unterwegs" : "wartet";
   }
   return "wartet";
 }

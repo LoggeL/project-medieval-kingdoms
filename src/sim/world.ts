@@ -50,7 +50,12 @@ export type Job =
    */
   | { k: "recruit"; b: number; from: number; slot: number; good?: Good; unit: UnitKey; ph: 0 | 1; more?: RecruitPiece[]; n?: number }
   /** Hungernder Tagelöhner verlässt die Siedlung (geht zum Kartenrand und verschwindet, food.ts). */
-  | { k: "leave" };
+  | { k: "leave" }
+  /**
+   * Reparatur (ADR 0017): ein Stück Ware aus dem Lager holen (ph 0), an das beschädigte Gebäude b tragen (ph 1) und dort
+   * t Ticks hämmern (ph 2), dann kommen Lebenspunkte zurück.
+   */
+  | { k: "repair"; b: number; from: number; slot: number; good: Good; ph: 0 | 1 | 2; t: number };
 
 /** Ein Ausrüstungsstück des Rekruten: Lager, Fach, Ware. */
 export interface RecruitPiece { from: number; slot: number; good: Good }
@@ -100,6 +105,14 @@ export interface UnitAI {
   sortie?: boolean;
   /** Wache auf dem Posten tritt bis zu diesem Tick von einem Fuß auf den anderen (ADR 0016). Fehlt = steht. */
   step?: number;
+  /** Tick des letzten erlittenen Treffers (Heilung erst nach Ruhe). */
+  hurtT?: number;
+  /** Sturmknecht mit Leiter: gewählter Fuß (fx, fy) an der Mauer (wx, wy), t = Ticks beim Aufrichten. */
+  ladder?: { fx: number; fy: number; wx: number; wy: number; t: number };
+  /** Mannschaft: ID des Rammbocks, den dieser Sturmknecht schiebt (0/fehlt = keiner). */
+  ram?: number;
+  /** Rammbock: Gebäude, das er nicht erreicht hat (bei der nächsten Zielwahl zuletzt). */
+  skipB?: number;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -121,6 +134,9 @@ export interface BuildingAI {
   recruitGot?: number;
   /** Kaserne: Rekrut in Ausbildung (aus der Welt genommen). */
   inside: SUnit | null;
+  /** Tagelöhner, der gerade repariert (0/fehlt = keiner), und Tick des letzten Treffers (Reparatur erst nach Ruhe). */
+  repairer?: number;
+  hitT?: number;
 }
 export type SBuilding = Building & { ai: BuildingAI };
 

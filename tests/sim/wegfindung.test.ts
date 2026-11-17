@@ -35,6 +35,7 @@ function solidMap(g: Simulation, team: Team): Map<number, SBuilding> {
       if (done) {
         if (x === dx && y === dy && doorInside(b.key, b.x, b.y, b.o)) continue; // Einfahrt
         if (def.gate && team === 0) continue; // Tor: offen für eigene Leute
+        if (def.ditch && team === 0) continue; // Graben: eigene Leute waten hindurch (ADR 0017)
         if (st && x === st.bottom[0] && y === st.bottom[1]) continue; // Fuß der Treppe
       }
       out.set(y * s.w + x, b);

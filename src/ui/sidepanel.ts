@@ -8,11 +8,12 @@
  * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
-import { BUILDINGS, CROPS, FOOD, GOODS, RATIONS, RATION_KEYS, RECIPES, TECHS, TERRAIN, UNITS, fruchtbarkeit, levelDef, recipesOf, trainCost, type Good, type RecipeKey, type UnitKey } from "../data";
+import { BUILDINGS, CROPS, DAMAGE_STAGE_NAMES, FOOD, GOODS, RATIONS, RATION_KEYS, RECIPES, TECHS, TERRAIN, UNITS, fruchtbarkeit, levelDef, recipesOf, trainCost, type Good, type RecipeKey, type UnitKey } from "../data";
 import { farmReason, soilCounts, stageCounts } from "../sim/farm";
 import { foodSeconds } from "../sim/food";
 import { inputCap, outputCap, procProgress, procReason } from "../sim/production";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
+import { damageStage, repairPlan } from "../sim/belagerung";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { clock, h, num, setAttr, setBar, setClass, setText } from "./dom";
 import { BUTTON_KEYS, TRAIN_KEYS } from "../data/hotkeys";
@@ -94,8 +95,23 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       });
     } else {
       const hp = hpBar();
-      body.append(section("Zustand", hp.el));
-      upd.push((s) => { const b = get(s); if (b) hp.update(b.hp, ld.hp); });
+      // Schadensstufe und Reparatur (ADR 0017): Tagelöhner bringen das Material und bessern aus, sobald es ruhig ist
+      const stage = h("p.mk-sub");
+      const repLbl = h("span");
+      const rep = h("button.mk-btn.mk-btn-wide", { type: "button", title: "Tagelöhner bessern Schäden mit Baumaterial aus dem Lager aus, sobald kein Kampf in der Nähe ist", onclick: () => {
+        const b = get(bridge.state());
+        if (b) bridge.dispatch({ t: "reparatur", building: id, an: !!b.repairOff });
+      } }, repLbl);
+      const own = b0.team === 0 && !def.ditch;
+      body.append(section("Zustand", hp.el, stage, ...(own ? [h("div.mk-actions", null, rep)] : [])));
+      upd.push((s) => {
+        const b = get(s); if (!b) return;
+        hp.update(b.hp, ld.hp);
+        const k = damageStage(b);
+        const plan = repairPlan(b);
+        setText(stage, def.ditch ? "" : k === 0 ? DAMAGE_STAGE_NAMES[0] : `${DAMAGE_STAGE_NAMES[k]}${own && !b.repairOff ? ` – wird mit ${GOODS[plan.good].name} ausgebessert, sobald es ruhig ist` : ""}`);
+        setText(repLbl, b.repairOff ? "Reparatur einschalten" : "Reparatur abschalten");
+      });
     }
 
     if (def.seat && b0.built >= 1 && b0.team === 0) seatView(b0);
@@ -661,6 +677,12 @@ const ACTIVITY: Record<UnitActivity, string> = {
   zieht_zu: "Zieht in die Siedlung",
   bestellt: "Bestellt das Feld",
   zieht_fort: "Verlässt hungrig die Siedlung",
+  legt_an: "Richtet eine Sturmleiter auf",
+  klettert: "Klettert die Leiter hinauf",
+  stoesst_um: "Stößt eine Sturmleiter um",
+  schiebt: "Schiebt den Rammbock",
+  repariert: "Repariert",
+  erholt: "Erholt sich",
 };
 
 /** Tätigkeit für das Panel: aus Unit.activity (Simulation), sonst grob aus dem Befehl. */

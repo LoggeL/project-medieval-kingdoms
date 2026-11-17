@@ -118,6 +118,8 @@ export interface Building {
   proc?: ProcState;
   /** Felder eines Hofs (nur Gebäude mit BuildingDef.fields, ab dem Setzen der Baustelle; ADR 0013). */
   farm?: FarmState;
+  /** Automatische Reparatur vom Spieler abgeschaltet (fehlt = an; ADR 0017). */
+  repairOff?: boolean;
 }
 
 /** Felder eines Hofs (src/sim/farm.ts): Beete mit Stufe der Feldfrucht (CROPS in src/data/landwirtschaft.ts). */
@@ -159,6 +161,25 @@ export interface FoodState {
   /** Gegessene Portionen insgesamt. */
   eaten: number;
 }
+
+/**
+ * Sturmleiter an einer Mauer (ADR 0017): Fuß auf dem Boden-Tile (x, y), oberes Ende auf dem Wehrgang-Tile (wx, wy).
+ * o = Ausrichtung wie bei Gebäuden: Modell +y zeigt vom Fuß zur Mauer (Sprite „leiter“). Steht sie, verbindet sie für
+ * Angreifer Boden und Wehrgang. push 0..1 = Fortschritt des Umstoßens; umgestoßen kippt sie (t Sekunden) und liegt.
+ */
+export interface Ladder {
+  id: number;
+  x: number; y: number;
+  wx: number; wy: number;
+  o: number;
+  state: "steht" | "faellt" | "liegt";
+  /** Sekunden im aktuellen Zustand. */
+  t: number;
+  push: number;
+}
+
+/** Trümmer einer zerstörten Befestigung bzw. ein zugeschütteter Graben: begehbar (langsamer), Sprite mit Variante v. */
+export interface Rubble { x: number; y: number; sprite: string; v: number; o: number }
 
 /**
  * Zustand eines Verarbeitungsgebäudes (src/sim/production.ts, ADR 0011). Alle Mengen in Stück; sichtbar sind Puffer
@@ -263,11 +284,15 @@ export interface Unit {
   hitT?: number;
   /** Rennt (fliehender Tagelöhner): schneller, Rennbilder. Fehlt = geht. */
   run?: boolean;
+  /** Getragenes Gerät (Sturmleiter des Sturmknechts), fehlt = keins. */
+  gear?: "leiter";
 }
 
 export type UnitActivity =
   | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
-  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet" | "bestellt" | "zieht_fort";
+  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet" | "bestellt" | "zieht_fort"
+  /** Belagerung (ADR 0017): Leiter anlegen, klettern, Leiter umstoßen, Rammbock schieben, reparieren, sich erholen. */
+  | "legt_an" | "klettert" | "stoesst_um" | "schiebt" | "repariert" | "erholt";
 
 export interface Projectile {
   id: number;
@@ -311,12 +336,16 @@ export interface SimState {
   outcome?: "niederlage";
   /** Tiere (ADR 0016); fehlt in Spielständen ohne Tiere und im leeren Szenario. */
   animals?: Animal[];
+  /** Sturmleitern an den Mauern (fehlt in alten Spielständen = keine). */
+  ladders?: Ladder[];
+  /** Trümmer zerstörter Befestigungen (Breschen) und zugeschüttete Gräben. */
+  rubble?: Rubble[];
 }
 
 export type Command =
   | { t: "bauen"; key: BuildingKey; x: number; y: number; o: number }
-  /** Mauer von (x0, y0) bis (x1, y1) ziehen: gerade oder L-förmig, Tile für Tile. */
-  | { t: "mauer"; x0: number; y0: number; x1: number; y1: number }
+  /** Mauer (bzw. key: Palisade, Graben) von (x0, y0) bis (x1, y1) ziehen: gerade oder L-förmig, Tile für Tile. */
+  | { t: "mauer"; x0: number; y0: number; x1: number; y1: number; key?: BuildingKey }
   /** Weg oder Brücke (BuildingDef.road) von (x0, y0) bis (x1, y1) ziehen; Wege gerade oder L-förmig, Brücken gerade. */
   | { t: "weg"; key: BuildingKey; x0: number; y0: number; x1: number; y1: number }
   | { t: "abreissen"; id: number }
@@ -339,7 +368,9 @@ export type Command =
   /** Verarbeitung anhalten (an = false) oder fortsetzen. */
   | { t: "produktion"; building: number; an: boolean }
   /** Ration der Siedlung wählen (RATIONS in src/data/nahrung.ts). */
-  | { t: "rationen"; ration: RationKey };
+  | { t: "rationen"; ration: RationKey }
+  /** Automatische Reparatur eines Gebäudes an- oder abschalten. */
+  | { t: "reparatur"; building: number; an: boolean };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }
@@ -358,8 +389,8 @@ export interface Game {
   dispatch(cmd: Command): CommandResult;
   /** Bauvorschau: dieselben Regeln wie "bauen". */
   canPlace(key: BuildingKey, x: number, y: number, o: number): PlacementCheck;
-  /** Mauer-Vorschau. */
-  wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck;
+  /** Mauer-Vorschau (key: Palisade, Graben; Standard Mauer). */
+  wallPath(x0: number, y0: number, x1: number, y1: number, key?: BuildingKey): PlacementCheck;
   /** Weg- bzw. Brücken-Vorschau (dieselben Regeln wie "weg"). */
   roadPath(key: BuildingKey, x0: number, y0: number, x1: number, y1: number): PlacementCheck;
   /** Laufebene am Tile, falls dort ein Wehrgang ist (für Zielwahl der Maus), sonst 0. */

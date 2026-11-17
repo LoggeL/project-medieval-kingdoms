@@ -4,7 +4,7 @@
  * Darüber der Sichtbereich der Kamera (bridge.camera().corners) als Rahmen; Klicken oder Ziehen setzt die Kamera (lookAt).
  */
 import type { UiBridge } from "../app/contract";
-import type { TerrainKey } from "../data";
+import { BUILDINGS, type TerrainKey } from "../data";
 import { toView, type Rot } from "../sim/geom";
 import { mountainClass } from "../sim/mapgen";
 import type { SimState } from "../sim/types";
@@ -138,7 +138,7 @@ export function createMinimap(bridge: UiBridge): Minimap {
       if (!id) continue;
       const b = byId.get(id);
       if (!b) continue;
-      const fort = b.key === "mauer" || b.key === "tor" || b.key === "turm" || b.key === "treppe";
+      const fort = BUILDINGS[b.key].category === "befestigung"; // Mauer, Tor, Turm, Treppe, Palisade, Graben
       put(cell(x, y), b.team !== 0 ? ENEMY_BUILDING : fort ? FORT : OWN_BUILDING, b.built < 1 ? 0.7 : 1);
     }
     g.putImageData(img, 0, 0);

@@ -26,6 +26,7 @@ import { nextRandom, seedState } from "./rng";
 import { storeDirect, updateStock } from "./storage";
 import { updateActivity, updateGates, updateRecruits } from "./activity";
 import type { Command, CommandResult, Game, PlacementCheck, SimState } from "./types";
+import { clearRubble, setRepair, updateHealing, updateLadders } from "./belagerung";
 import { PATH_BUDGET, SAVE_VERSION, TPS, World, type Meta, type SBuilding, type SState, type SUnit } from "./world";
 
 export interface GameOptions {
@@ -47,8 +48,8 @@ export class Simulation implements Game {
     const r = canPlace(this.world, key, Math.floor(x), Math.floor(y), o);
     return { ok: r.ok, reason: r.reason, tiles: r.tiles };
   }
-  wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck {
-    const r = wallPath(this.world, Math.floor(x0), Math.floor(y0), Math.floor(x1), Math.floor(y1));
+  wallPath(x0: number, y0: number, x1: number, y1: number, key: BuildingKey = "mauer"): PlacementCheck {
+    const r = wallPath(this.world, Math.floor(x0), Math.floor(y0), Math.floor(x1), Math.floor(y1), key);
     return { ok: r.ok, reason: r.reason, tiles: r.tiles };
   }
   roadPath(key: BuildingKey, x0: number, y0: number, x1: number, y1: number): PlacementCheck {
@@ -119,6 +120,7 @@ export function spawnBuilt(w: World, key: BuildingKey, x: number, y: number, o: 
   for (const [tx, ty] of footprintTiles(key, x, y, o)) if (w.inMap(tx, ty)) w.s.tiles[w.idx(tx, ty)].building = b.id;
   const onFp = new Set(footprintTiles(key, x, y, o).map(([tx, ty]) => w.idx(tx, ty)));
   w.s.trees = w.s.trees.filter((t) => !onFp.has(w.idx(t.x, t.y)));
+  clearRubble(w, footprintTiles(key, x, y, o));
   const n = w.s.messages.length;
   completeBuilding(w, b);
   w.s.messages.length = n;
@@ -154,6 +156,8 @@ export function step(w: World): void {
   }
   updateRecruits(w);
   updateProduction(w);
+  updateLadders(w);
+  if (s.tick % TPS === 0) updateHealing(w);
   updateGates(w);
   separate(w);
   updateProjectiles(w);
@@ -206,9 +210,10 @@ export function runCommand(w: World, c: Command): CommandResult {
     }
     case "mauer": {
       // Dasselbe Ergebnis wie die Vorschau (wallPath): bei Hindernis nichts, sonst die bezahlbaren Stücke
-      const p = wallPath(w, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1));
+      const key = c.key ?? "mauer";
+      const p = wallPath(w, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1), key);
       if (!p.ok) return withVoice({ ok: false, reason: p.reason }, p.costFail ? "zu_teuer" : "kein_platz");
-      const ids = p.build.map(([x, y]) => placeSite(w, "mauer", x, y, 0, true).id);
+      const ids = p.build.map(([x, y]) => placeSite(w, key, x, y, 0, true).id);
       refreshAfterPlace(w);
       return p.reason ? { ok: true, ids, reason: p.reason, voice: "zu_teuer" } : { ok: true, ids };
     }
@@ -239,6 +244,7 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "rezept": return setRecipe(w, c.building, c.recipe);
     case "produktion": return setPaused(w, c.building, c.an);
     case "rationen": return setRation(w, c.ration);
+    case "reparatur": return setRepair(w, c.building, c.an);
   }
   return { ok: false, reason: "Unbekannter Befehl" };
 }
