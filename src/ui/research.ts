@@ -35,11 +35,13 @@ export function cancelTech(ctx: UiCtx): void {
   else if (r.reason) ctx.toast(r.reason, "info");
 }
 
-/** Text zur laufenden Forschung: wartet auf Waren oder Prozent. */
+/** Text zur laufenden Forschung: wartet auf Träger, Träger unterwegs, oder Prozent. */
 export function researchText(s: SimState): string {
   const cur = s.research.cur;
   if (!cur) return "Es wird nichts erforscht.";
   const missing = goodsOf(cur.needs).map(([g, n]) => `${n} ${GOODS[g].name}`);
+  const carrying = Object.values(cur.enroute).some((n) => (n ?? 0) > 0);
+  if (missing.length && !carrying) return `${TECHS[cur.key].name}: wartet auf freie Tagelöhner, es fehlen noch ${missing.join(", ")}`;
   if (missing.length) return `${TECHS[cur.key].name}: Tagelöhner bringen noch ${missing.join(", ")}`;
   return `${TECHS[cur.key].name}: ${Math.floor((cur.t / Math.max(0.001, cur.dur)) * 100)} %`;
 }
@@ -131,7 +133,7 @@ export function createResearch(ctx: UiCtx): ResearchView {
       e.preventDefault();
       if (el.hidden) flashKey(e.code);
       toggle();
-    } else if (e.key === "Escape" && !el.hidden) { e.preventDefault(); e.stopPropagation(); toggle(false); }
+    } else if (e.key === "Escape" && !el.hidden) { e.preventDefault(); e.stopImmediatePropagation(); toggle(false); }
   }, true);
 
   return { el, toggle, isOpen: () => !el.hidden, update };

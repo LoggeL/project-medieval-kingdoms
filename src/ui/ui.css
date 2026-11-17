@@ -927,6 +927,8 @@ kbd {
 @media (max-width: 1439px) {
   .mk-raid-label { display: none; }
   .mk-raid-time::before { content: "Überfall "; font-family: var(--mk-f-text); font-weight: 700; }
+  /* während einer Welle zeigt der rote, pulsierende Rahmen den Überfall: „Welle 1 · 4:59“ passt, die Restzeit bleibt lesbar */
+  .mk-raid-active .mk-raid-time::before { content: none; }
 }
 @media (max-width: 1279px) {
   .mk-top-ctl { gap: 6px; }
@@ -942,8 +944,13 @@ kbd {
   .mk-btn { min-width: 26px; padding: 0 6px; }
   .mk-events { flex: 0 1 auto; }
 }
-@media (max-width: 1180px) {
+/* Waffenvorrat (zweite Gruppe) erst ab 1366 px: darunter reicht der Platz sonst nicht für die Überfall-Anzeige */
+@media (max-width: 1365px) {
   .mk-res-group:nth-of-type(2), .mk-res-group + .mk-sep { display: none; }
+}
+/* „nächste in “ während einer Welle erst ab 1600 px: bei 1440 px reicht der Platz der Ereignisleiste sonst nicht,
+   und die Restzeit würde abgeschnitten (der Tooltip nennt sie ausführlich). */
+@media (max-width: 1599px) {
   .mk-raid-next-pre { display: none; }
 }
 @media (max-width: 1023px) {
@@ -1130,3 +1137,48 @@ kbd {
 .mk-card .mk-need { grid-column: auto; text-align: center; }
 .mk-card.mk-locked .mk-card-icon { filter: grayscale(1) brightness(0.65) contrast(0.9); }
 .mk-card.mk-locked .mk-card-name { color: #a99a80; }
+
+/* ------------------------------------------------------------------ Schmale Bildschirme (Tablet, Telefon hochkant) */
+/* Unter 1024 px passt die Kopfleiste nicht in eine Zeile (die Steuerknöpfe rutschten rechts hinaus, die Überfall-Anzeige
+   würde abgeschnitten): zwei Zeilen, oben Vorräte und Ereignisse, darunter die Steuerung. Unter 600 px drei Zeilen
+   (Vorräte, Ereignisse, Steuerung). Die Reiterzeile der Fußleiste scrollt dort waagerecht, der Einklapp-Knopf bleibt
+   rechts stehen. Steht am Dateiende, damit es die Grundregeln oben (Audio-Knopf, Zoomwert) überschreibt. */
+@media (max-width: 1023px) {
+  .mk-root { --mk-top-h: 82px; }
+  .mk-top { flex-wrap: wrap; align-content: space-evenly; row-gap: 2px; column-gap: 6px; padding: 2px 6px 5px; }
+  .mk-events { flex: 1 1 0; }
+  .mk-ev-text { display: block; flex: 1 1 0; }
+  .mk-top-ctl { flex: 1 1 100%; margin-left: 0; justify-content: flex-end; }
+}
+@media (max-width: 599px) {
+  .mk-root { --mk-top-h: 118px; }
+  .mk-top { column-gap: 4px; }
+  .mk-top-res { flex: 1 1 100%; min-width: 0; justify-content: space-between; gap: 4px; }
+  .mk-res-group { gap: 2px; }
+  .mk-res { height: 32px; padding: 0 3px 0 1px; }
+  .mk-res .mk-num { font-size: 13px; min-width: 1.2em; }
+  .mk-res-cap .mk-num { font-size: 12px; }
+  .mk-bar-cap { width: 40px; }
+  .mk-chron { max-width: calc(100vw - 24px); }
+  .mk-events { flex: 1 1 100%; height: 32px; padding: 0 8px; gap: 8px; }
+  .mk-ev-text { font-size: 13px; }
+  .mk-raid { font-size: 12px; }
+  .mk-top-ctl { justify-content: space-between; gap: 2px; }
+  .mk-top-ctl .mk-btn { min-width: 26px; padding: 0 4px; }
+  .mk-top-ctl .mk-btn-audio, .mk-top-ctl .mk-btn-help { width: 28px; min-width: 28px; }
+  .mk-top-ctl .mk-zoom-val { min-width: 34px; font-size: 12px; }
+  .mk-compass { width: 26px; height: 26px; }
+  .mk-tabs { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .mk-tabs::-webkit-scrollbar { display: none; }
+  .mk-tab { flex: none; padding: 0 10px; font-size: 15px; }
+  .mk-tab-research { margin-left: 4px; }
+  .mk-collapse { flex: none; position: sticky; right: 0; z-index: 1; }
+}
+@media (max-width: 359px) {
+  .mk-bar-cap { width: 28px; }
+  .mk-top-res, .mk-res-group { gap: 1px; }
+  .mk-res { padding-right: 2px; }
+  .mk-top-ctl .mk-btn { min-width: 23px; padding: 0 3px; }
+  .mk-top-ctl .mk-btn-audio, .mk-top-ctl .mk-btn-help { width: 25px; min-width: 25px; }
+  .mk-top-ctl .mk-zoom-val { min-width: 28px; }
+}

@@ -10,9 +10,10 @@
  * Gesucht wird in Dokumentreihenfolge unter den sichtbaren Knöpfen; das Auswahlpanel steht vor der Fußleiste, darum
  * reißt Entf bei gewähltem Gebäude dieses ab (Panel) und schaltet sonst das Abriss-Werkzeug (Fußleiste).
  * Keine Taste wirkt, solange ein Eingabefeld den Fokus hat, eine Tafel (aria-modal) offen ist, Lade- oder Titelbildschirm
- * noch stehen (.mk-start) oder Strg/Alt/Cmd gedrückt sind.
+ * noch stehen (.mk-start) oder Strg/Alt/Cmd gedrückt sind. Die Reiter-Funktionstasten F2–F5 bekommt der Browser im
+ * laufenden Spiel trotzdem nie (swallowInGame): F5 würde sonst die Seite neu laden und die Partie wäre weg.
  */
-import { keyLabel, type LayoutMap } from "../data/hotkeys";
+import { TAB_KEYS, keyLabel, type LayoutMap } from "../data/hotkeys";
 import { h } from "./dom";
 
 let layout: LayoutMap | null = null;
@@ -33,6 +34,22 @@ export function modalOpen(): boolean {
   if (document.querySelector(".mk-start")) return true;
   for (const m of document.querySelectorAll<HTMLElement>('[aria-modal="true"]')) if (m.isConnected && !m.closest("[hidden]")) return true;
   return false;
+}
+
+/** Funktionstasten der Reiter (F2–F5). Im Browser laden, suchen bzw. öffnen sie sonst etwas (F5 lädt die Seite neu). */
+const TAB_FKEYS = new Set(Object.values(TAB_KEYS).filter((c): c is string => !!c));
+
+/**
+ * Muss der Browser diese Taste im laufenden Spiel nie bekommen? Die Reiter-Funktionstasten ohne Strg/Alt/Cmd: Auch wenn
+ * eine Tafel offen ist oder kein Knopf passt, darf F5 die Partie nicht durch Neuladen beenden (Strg+F5 bleibt frei).
+ */
+export function swallowInGame(e: Pick<KeyboardEvent, "code" | "ctrlKey" | "metaKey" | "altKey">): boolean {
+  return !e.ctrlKey && !e.metaKey && !e.altKey && TAB_FKEYS.has(e.code);
+}
+
+/** Läuft das Spiel (Titel- und Ladebildschirm sind weg)? */
+function inGame(root: HTMLElement): boolean {
+  return root.isConnected && !document.querySelector("#mk-titel:not(.mk-weg), #mk-laden:not(.mk-weg), .mk-start");
 }
 
 /** Spieltasten aussetzen: Texteingabe hat den Fokus oder eine Tafel ist offen. */
@@ -104,6 +121,7 @@ function loadLayout(root: HTMLElement): void {
 export function installHotkeys(root: HTMLElement, toast: (text: string, kind?: "info" | "warnung") => void): void {
   loadLayout(root);
   window.addEventListener("keydown", (e) => {
+    if (swallowInGame(e) && inGame(root)) e.preventDefault();
     if (e.ctrlKey || e.metaKey || e.altKey || keyBlocked(e)) return;
     if (!/^[A-Za-z0-9]+$/.test(e.code)) return;
     const btn = [...root.querySelectorAll<HTMLElement>(`[data-hotkey~="${e.code}"]`)].find(usable);

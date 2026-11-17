@@ -1,6 +1,7 @@
 /** Hilfe-Overlay mit der Steuerung (F1 oder ?-Knopf, Esc schließt). */
 import { STEUERUNG } from "../data/tips";
 import { h } from "./dom";
+import { modalOpen } from "./hotkeys";
 
 /** Dieselbe Tastenliste wie auf dem Titelbildschirm (eine Quelle, src/data/tips.ts). */
 const KEYS = STEUERUNG;
@@ -38,9 +39,14 @@ export function createHelp(): Help {
     else if (last instanceof HTMLElement) last.focus();
   }
 
+  // F1 öffnet die Hilfe nicht über einer anderen Tafel (Forschungsbaum, Niederlage): Sie läge sonst unsichtbar darunter.
+  // Esc schließt nur die oberste Tafel (stopImmediatePropagation: die anderen Esc-Wächter hängen am selben window).
   window.addEventListener("keydown", (e) => {
-    if (e.key === "F1") { e.preventDefault(); toggle(); }
-    else if (e.key === "Escape" && !el.hidden) { e.preventDefault(); e.stopPropagation(); toggle(false); }
+    if (e.key === "F1") {
+      e.preventDefault();
+      if (el.hidden && modalOpen()) return;
+      toggle();
+    } else if (e.key === "Escape" && !el.hidden) { e.preventDefault(); e.stopImmediatePropagation(); toggle(false); }
   }, true);
 
   return { el, toggle, isOpen: () => !el.hidden };

@@ -5,6 +5,8 @@ import { STEUERUNG } from "../../src/data/tips";
 import { ROSTER } from "../../src/ui/roster";
 import inputSource from "../../src/app/input.ts?raw";
 import researchSource from "../../src/ui/research.ts?raw";
+import helpSource from "../../src/ui/help.ts?raw";
+import { swallowInGame } from "../../src/ui/hotkeys";
 
 const appCodes = Object.values(APP_KEYS).flat() as string[];
 /** Tasten, die nur die Knöpfe auswerten (nicht die Eingabe). */
@@ -106,5 +108,21 @@ describe("Tastenschilder", () => {
     expect(keys).toContain(TRAIN_KEYS.map((c) => keyLabel(c)).join(" / "));
     expect(keys).toContain(bindingLabel(BUTTON_KEYS.abriss));
     expect(STEUERUNG.map(([k]) => k)).toEqual(expect.arrayContaining([bindingLabel(BUTTON_KEYS.forschung), bindingLabel(BUTTON_KEYS.ausbauen)]));
+  });
+
+  it("F2–F5 gehen im Spiel nie an den Browser (F5 lüde sonst die Seite neu), Strg/Cmd+F5 und andere Tasten schon", () => {
+    const k = (code: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "altKey", boolean>> = {}) =>
+      swallowInGame({ code, ctrlKey: false, metaKey: false, altKey: false, ...mods });
+    for (const c of Object.values(TAB_KEYS)) if (c) expect(k(c), c).toBe(true);
+    expect(k("F5")).toBe(true);
+    expect(k("F5", { ctrlKey: true })).toBe(false);
+    expect(k("F5", { metaKey: true })).toBe(false);
+    expect(k("KeyF")).toBe(false);
+    expect(k("F1")).toBe(false); // F1 fängt die Hilfe selbst ab
+  });
+
+  it("F1 öffnet die Hilfe nicht unter einer offenen Tafel, Esc schließt nur die oberste", () => {
+    expect(helpSource).toMatch(/el\.hidden && modalOpen\(\)\) return/);
+    for (const src of [helpSource, researchSource]) expect(src).toContain("stopImmediatePropagation");
   });
 });
