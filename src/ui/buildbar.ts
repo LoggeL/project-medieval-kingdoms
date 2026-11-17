@@ -1,11 +1,15 @@
 /**
  * Fußleiste (behauene Steinplatte): Reiter Wirtschaft, Wohnen, Befestigung, Militär mit Baukarten aus BUILDINGS,
  * dazu Auswahl- und Abriss-Werkzeug. Der Reiter Militär zeigt außerdem das Einheitenraster (unitgrid.ts).
+ * Tasten (src/data/hotkeys.ts): Reiter F2–F5, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
+ * Reiter Militär die ausbildbaren Einheiten), Auswahl Esc, Abriss Entf.
  */
 import type { Tool } from "../app/contract";
 import { BUILDINGS, type BuildingDef, type BuildingKey } from "../data";
+import { BUTTON_KEYS, CARD_KEYS, TAB_KEYS } from "../data/hotkeys";
 import type { SimState } from "../sim/types";
 import { h, setAttr, setClass } from "./dom";
+import { setKey } from "./hotkeys";
 import { canAfford, costRow, type UiCtx } from "./shared";
 import { createUnitGrid } from "./unitgrid";
 
@@ -57,14 +61,17 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
       type: "button", title, "aria-label": title,
       onclick: () => bridge.setTool(t === "abriss" && bridge.tool().t !== "abriss" ? { t: "abriss" } : { t: "auswahl" }),
     }, h("span.mk-tool-glyph", { "aria-hidden": "true" }), h("span.mk-tool-label", { text: label }));
-  const selBtn = toolBtn("Auswahl", "Auswählen (Esc)", "auswahl", "mk-tool-sel");
+  const selBtn = toolBtn("Auswahl", "Auswählen", "auswahl", "mk-tool-sel");
   const delBtn = toolBtn("Abriss", "Abreißen: Gebäude anklicken", "abriss", "mk-tool-del");
+  setKey(selBtn, BUTTON_KEYS.auswahl, { app: true });
+  setKey(delBtn, BUTTON_KEYS.abriss);
 
   // ------------------------------------------------------------ Reiter
   const tabBtns = TABS.map((t) => h("button.mk-tab", {
     type: "button", role: "tab", "data-cat": t.cat, text: t.label,
     onclick: () => { tab = t.cat; el.classList.remove("mk-collapsed"); try { localStorage.setItem("mk-ui-tab", tab); } catch { /* egal */ } layout(); },
   }));
+  tabBtns.forEach((b, i) => setKey(b, [TAB_KEYS[TABS[i].cat]]));
   const strip = h("div.mk-cards", { role: "tabpanel" });
   // Weiterblättern: Mausrad (senkrecht → waagrecht) und Pfeilknöpfe an den Rändern, sobald es mehr gibt als Platz.
   const scrollBy = (dir: number) => strip.scrollBy({ left: dir * Math.max(120, strip.clientWidth * 0.7), behavior: "smooth" });
@@ -100,8 +107,13 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
   function layout(): void {
     tabBtns.forEach((b) => { const on = b.dataset.cat === tab; setClass(b, "mk-on", on); setAttr(b, "aria-selected", String(on)); });
     strip.textContent = "";
-    for (const c of cards) if (c.def.category === tab) strip.append(c.el);
-    if (tab === "militaer") strip.append(grid.el);
+    // Tasten nach der Lage im offenen Reiter; Karten anderer Reiter verlieren ihre Taste
+    const keyed: HTMLElement[] = [];
+    for (const c of cards) {
+      if (c.def.category === tab) { strip.append(c.el); keyed.push(c.el); } else setKey(c.el, null);
+    }
+    if (tab === "militaer") { strip.append(grid.el); keyed.push(...grid.keyed); } else for (const u of grid.keyed) setKey(u, null);
+    keyed.forEach((k, i) => setKey(k, i < CARD_KEYS.length ? [CARD_KEYS[i]] : null));
     strip.scrollLeft = 0;
     requestAnimationFrame(updateArrows);
   }

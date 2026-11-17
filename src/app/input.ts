@@ -6,7 +6,10 @@
  * Leertaste: Pause/Weiter (global, auch wenn ein Knopf den Fokus hat).
  * Auswahl: Linksklick (pixelgenau, oberstes Objekt), Rahmen ziehen (eigene Einheiten), Shift ergänzt,
  * Doppelklick wählt alle sichtbaren gleicher Art. Rechtsklick: Feind angreifen, sonst bewegen (auch auf den Wehrgang).
- * T stationieren, H halten, Strg+Ziffer Gruppe speichern, Ziffer Gruppe wählen.
+ * T stationieren, H halten, Strg+Ziffer Gruppe speichern, Ziffer Gruppe wählen. F9 Debug-Anzeige.
+ * Tastenbelegung aus src/data/hotkeys.ts (APP_KEYS). Die Tasten der Knöpfe unten und im Auswahlpanel (Reiter, Baukarten,
+ * Ausbilden, Abriss) wertet die Oberfläche aus (src/ui/hotkeys.ts). Keine Taste wirkt, solange ein Eingabefeld den Fokus
+ * hat oder eine Tafel (z. B. die Hilfe) offen ist.
  * Bauen: Vorschau, R dreht, Linksklick baut, Shift hält das Werkzeug, Esc/Rechtsklick bricht ab. Ist die gewählte
  * Ausrichtung an der Mausposition ungültig, eine andere aber gültig (z. B. Mauertreppe: Rückseite zur Mauer), nimmt die
  * Vorschau die nächste gültige in Drehrichtung; R dreht von dort weiter. Der Zeiger-Hinweis nennt R, wenn Drehen hilft.
@@ -16,6 +19,8 @@
  * oder der Tick ändern; der Mauszeiger (CSS cursor) wird nur bei Änderung gesetzt.
  */
 import { BUILDINGS, UNITS, type BuildingKey } from "../data";
+import { APP_KEYS, type AppAction } from "../data/hotkeys";
+import { keyBlocked } from "../ui/hotkeys";
 import { footprint } from "../sim/geom";
 import type { CommandResult, Game, PlacementCheck } from "../sim/types";
 import type { FrameInput, GameRenderer, Marker, Preview } from "../render";
@@ -84,7 +89,7 @@ export class Input {
     c.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
     // Leertaste vor allen anderen (Knöpfe der Oberfläche sollen sie nicht erneut auslösen)
     window.addEventListener("keydown", (e) => this.space(e), true);
-    window.addEventListener("keyup", (e) => { if (e.code === "Space" && !typing(e)) e.preventDefault(); }, true);
+    window.addEventListener("keyup", (e) => { if (e.code === "Space" && !keyBlocked(e)) e.preventDefault(); }, true);
     window.addEventListener("keydown", (e) => this.keydown(e));
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
     window.addEventListener("blur", () => { this.keys.clear(); this.left = null; this.pan = null; this.inWindow = false; });
@@ -342,7 +347,7 @@ export class Input {
 
   /** Leertaste: Pause/Weiter, global und vor den Knöpfen der Oberfläche. */
   private space(e: KeyboardEvent): void {
-    if (e.code !== "Space" || typing(e)) return;
+    if (e.code !== "Space" || keyBlocked(e)) return;
     e.preventDefault();
     if (e.repeat) return;
     const { bridge, store } = this.ctx;
@@ -350,10 +355,11 @@ export class Input {
   }
 
   private keydown(e: KeyboardEvent): void {
-    if (typing(e) || e.code === "Space") return;
+    if (keyBlocked(e) || e.code === "Space") return;
     const { store, bridge } = this.ctx;
     this.keys.add(e.code);
-    if (e.code === "F3") { e.preventDefault(); this.ctx.toggleDebug(); return; }
+    const is = (a: AppAction) => (APP_KEYS[a] as readonly string[]).includes(e.code);
+    if (is("debug")) { e.preventDefault(); this.ctx.toggleDebug(); return; }
     if (e.ctrlKey || e.metaKey) {
       const n = digit(e.code);
       if (n !== null && e.ctrlKey) {
@@ -369,17 +375,18 @@ export class Input {
       if (g?.length) store.select({ units: g, building: null });
       return;
     }
-    switch (e.code) {
-      case "KeyQ": bridge.rotate(-1); break;
-      case "KeyE": bridge.rotate(1); break;
-      case "KeyR": {
+    const action = (Object.keys(APP_KEYS) as AppAction[]).find(is);
+    switch (action) {
+      case "drehenLinks": bridge.rotate(-1); break;
+      case "drehenRechts": bridge.rotate(1); break;
+      case "bauDrehen": {
         const t = store.tool;
         // von der gezeigten Ausrichtung aus weiterdrehen (sie kann automatisch gewählt sein)
         const base = t.t === "bauen" && this.shownO?.key === t.key ? this.shownO.o : t.t === "bauen" ? t.o : 0;
         if (t.t === "bauen") store.setTool({ ...t, o: (base + (e.shiftKey ? 3 : 1)) % 4 });
         break;
       }
-      case "KeyT": {
+      case "stationieren": {
         const units = this.ownSelected().filter((id) => {
           const u = this.ctx.game.state.units.find((q) => q.id === id);
           return u && UNITS[u.key].canStation;
@@ -388,18 +395,18 @@ export class Input {
         this.report(bridge.dispatch({ t: "stationieren", units }), "Kein freier Posten.");
         break;
       }
-      case "KeyH": {
+      case "halten": {
         const units = this.ownSelected();
         if (units.length) this.report(bridge.dispatch({ t: "halten", units }), "Halten nicht möglich.");
         break;
       }
-      case "Escape":
+      case "abbrechen":
         if (store.tool.t !== "auswahl") { store.setTool({ t: "auswahl" }); this.wallStart = null; }
         else store.select({ units: [], building: null });
         break;
-      case "Equal": case "NumpadAdd": case "BracketRight": bridge.zoom(1); break;
-      case "Minus": case "NumpadSubtract": case "Slash": bridge.zoom(-1); break;
-      case "KeyP": case "Pause": bridge.setSpeed(store.speed ? 0 : store.resumeSpeed || 1); break;
+      case "zoomRein": bridge.zoom(1); break;
+      case "zoomRaus": bridge.zoom(-1); break;
+      case "pause": bridge.setSpeed(store.speed ? 0 : store.resumeSpeed || 1); break;
       default: return;
     }
   }
@@ -412,11 +419,11 @@ export class Input {
     const cam = this.r.camera;
     // Tastatur und Fensterrand (auch über Kopf- und Fußleiste)
     let dx = 0, dy = 0;
-    const k = this.keys;
-    if (k.has("KeyA") || k.has("ArrowLeft")) dx -= 1;
-    if (k.has("KeyD") || k.has("ArrowRight")) dx += 1;
-    if (k.has("KeyW") || k.has("ArrowUp")) dy -= 1;
-    if (k.has("KeyS") || k.has("ArrowDown")) dy += 1;
+    const held = (a: AppAction) => APP_KEYS[a].some((c) => this.keys.has(c));
+    if (held("kameraLinks")) dx -= 1;
+    if (held("kameraRechts")) dx += 1;
+    if (held("kameraHoch")) dy -= 1;
+    if (held("kameraRunter")) dy += 1;
     if (this.inWindow && this.cx >= 0 && !this.pan && !this.left?.drag && document.hasFocus()) {
       if (this.cx < EDGE_PX) dx -= 1;
       if (this.cx > window.innerWidth - 1 - EDGE_PX) dx += 1;
@@ -504,14 +511,6 @@ export class Input {
 function originAt(key: BuildingKey, o: number, tx: number, ty: number): [number, number] {
   const [w, h] = footprint(key, o);
   return [tx - Math.floor((w - 1) / 2), ty - Math.floor((h - 1) / 2)];
-}
-
-/** Tastendruck gehört einem Texteingabefeld? (Regler, Häkchen und Knöpfe zählen nicht: dort gilt die Leertaste als Pause.) */
-function typing(e: KeyboardEvent): boolean {
-  const tg = e.target as HTMLElement | null;
-  if (!tg) return false;
-  if (tg.tagName === "INPUT") return !["range", "checkbox", "radio", "button", "submit", "reset", "color"].includes((tg as HTMLInputElement).type);
-  return tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable;
 }
 
 function digit(code: string): number | null {

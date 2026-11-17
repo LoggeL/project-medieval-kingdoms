@@ -8,7 +8,7 @@ import type { Rot } from "../sim/geom";
 import { LAYER_Z } from "../sim/nav";
 import type { SimState } from "../sim/types";
 import { setSmoothing, type Sheets } from "./assets";
-import { Camera } from "./camera";
+import { Camera, pixelMode, type PixelMode } from "./camera";
 import { screenToWorld, worldToScreen } from "./iso";
 import { Overlays, WALL_GHOST_ALPHA, type Marker, type Preview } from "./overlays";
 import { ObjectLayer, type Hit } from "./scene";
@@ -16,7 +16,7 @@ import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
 
 export type { Preview, Marker, Hit };
-export { Camera, ZOOMS } from "./camera";
+export { Camera, ZOOMS, pixelMode, type PixelMode } from "./camera";
 export { LAYER_Z };
 
 export interface FrameInput {
@@ -44,7 +44,9 @@ export class GameRenderer {
   private fade: Sprite | null = null;
   private fadeT = 0;
   private builtR: Rot | -1 = -1;
-  private smooth = false;
+  /** Zeichenweise der angesteuerten Zoomstufe (Texturfilter, Canvas-Auflösung, CSS-Skalierung). */
+  mode: PixelMode = pixelMode(1);
+  private lastTime = -1;
   stats = { items: 0, sprites: 0, pairs: 0, chunks: 0, silhouettes: 0, smoke: 0 };
 
   constructor(private app: Application, readonly sheets: Sheets, state: SimState) {
@@ -60,6 +62,7 @@ export class GameRenderer {
     app.stage.eventMode = "none";
     this.camera.sw = app.screen.width;
     this.camera.sh = app.screen.height;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) this.camera.instant = true;
     // Teamfarbe der Gegner und Silhouetten vorab im Leerlauf (kein Hänger beim ersten Überfall)
     sheets.figures?.prewarm(Object.values(UNITS).map((u) => u.sprite));
   }
@@ -96,8 +99,18 @@ export class GameRenderer {
     cam.sh = this.app.screen.height;
     if (cam.W !== state.w || cam.H !== state.h) { cam.W = state.w; cam.H = state.h; cam.clamp(); this.builtR = -1; }
     if (this.builtR !== cam.r) { this.terrain.rebuild(state, cam.r); this.builtR = cam.r; }
-    const smooth = cam.zoom < 1;
-    if (smooth !== this.smooth) { this.smooth = smooth; setSmoothing(smooth); this.terrain.setSmoothing(smooth); }
+    // sanfter Zoom-Übergang (Echtzeit, läuft auch in der Pause)
+    cam.step(this.lastTime < 0 ? 0 : Math.min(0.1, time - this.lastTime));
+    this.lastTime = time;
+    // Zeichenweise nach der angesteuerten Stufe (bleibt während des Übergangs gleich, kein Neuanlegen je Bild)
+    const mode = pixelMode(cam.targetZoom);
+    if (mode.smooth !== this.mode.smooth) { setSmoothing(mode.smooth); this.terrain.setSmoothing(mode.smooth); }
+    if (mode.resolution !== this.mode.resolution) {
+      this.app.renderer.resolution = mode.resolution;
+      cam.sw = this.app.screen.width;
+      cam.sh = this.app.screen.height;
+    }
+    this.mode = mode;
 
     // Welt-Container: Bildmitte auf ganze Bildschirmpixel
     const z = cam.zoom;
@@ -144,10 +157,13 @@ export class GameRenderer {
     return [(sx - ox) / z, (sy - oy) / z];
   }
 
-  /** Bildschirmlage des Welt-Ursprungs (wie world.position, aber immer aus der aktuellen Kamera, auch vor dem nächsten Bild). */
+  /**
+   * Bildschirmlage des Welt-Ursprungs (wie world.position, aber immer aus der aktuellen Kamera, auch vor dem nächsten Bild).
+   * Auf ganze Canvas-Pixel gerundet (bei Auflösung 2/1,5 also auf Dreiviertel-CSS-Pixel), damit die Sprites pixelgenau liegen.
+   */
   private origin(): [number, number] {
-    const c = this.camera, z = c.zoom;
-    return [Math.round(c.sw / 2 - c.x * z), Math.round(c.sh / 2 - c.y * z)];
+    const c = this.camera, z = c.zoom, res = this.mode.resolution;
+    return [Math.round((c.sw / 2 - c.x * z) * res) / res, Math.round((c.sh / 2 - c.y * z) * res) / res];
   }
 
   /** Bildschirm → Weltpunkt auf Höhe z. */

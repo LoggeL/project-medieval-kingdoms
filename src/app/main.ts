@@ -111,8 +111,8 @@ async function start(boot: Startbildschirm): Promise<void> {
     audio!.update();
     const tr = audio!.current();
     if (tr !== lastTrack) { lastTrack = tr; store.emit("audio"); }
-    // Bildschirmauflösung folgt der Zoomstufe: Übersicht (0,5×) darf weich sein
-    const weich = cam.zoom < 1;
+    // Canvas weich skalieren bei Übersicht (< 1×) und Zwischenstufen (1,5×), sonst pixelig (render/camera.ts pixelMode)
+    const weich = r.mode.cssSmooth;
     if (weich !== soft) { soft = weich; app.canvas.classList.toggle("mk-weich", weich); }
     fps = fps * 0.95 + (1000 / Math.max(1, dt)) * 0.05;
     const st = r.stats;

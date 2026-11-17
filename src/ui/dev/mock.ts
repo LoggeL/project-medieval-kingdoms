@@ -7,6 +7,7 @@
 import type { IconKind, Selection, Tool, UiBridge } from "../../app/contract";
 import { BUILDINGS, TICKS_PER_SECOND, UNITS, type BuildingKey, type Good, type UnitKey } from "../../data";
 import type { MusicKey } from "../../data/audio";
+import { ZOOMS } from "../../data/view";
 import { createDemoGame } from "../../sim/demo";
 import type { Building, Command, CommandResult, Game, Message, Unit, UnitActivity } from "../../sim/types";
 import { cropToAlpha, fitIcon, loadSprites, type Sprites } from "./sprites";
@@ -237,7 +238,7 @@ export function createMockBridge(): MockBridge {
     setTool(t) { tool = t; emit("tool"); },
     view: () => view,
     rotate(dir) { view.r = (((view.r + dir) % 4) + 4) % 4; emit("view"); },
-    zoom(dir) { view.zoom = Math.max(0.5, Math.min(3, view.zoom + dir * 0.5)); emit("view"); },
+    zoom(dir) { const i = ZOOMS.indexOf(view.zoom as (typeof ZOOMS)[number]); view.zoom = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? 3 : i) + dir))]; emit("view"); },
     speed: () => speed,
     setSpeed(v) { speed = v; },
     icon(kind, key, size, team = 0) {

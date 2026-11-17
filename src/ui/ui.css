@@ -954,9 +954,51 @@ kbd {
   .mk-res { padding: 0 4px 0 2px; gap: 2px; }
   .mk-top { gap: 6px; padding: 0 6px 4px; }
   .mk-cmd kbd { display: none; }
+  .mk-root .mk-tab .mk-key { display: none; }
   .mk-cmd { font-size: 13px; padding: 0 6px; }
 }
 .mk-root:has(.mk-build.mk-collapsed) { --mk-bottom-h: 52px; }
+
+/* ------------------------------------------------------------------ Tastenschilder (src/ui/hotkeys.ts) */
+/* Kleines Messingschild in der Ecke des Knopfs (meist unten rechts); leuchtet auf, wenn die Taste gedrückt wird (.mk-key-hit). */
+.mk-card, .mk-ucard, .mk-tool, .mk-tab, .mk-recruit, .mk-btn { position: relative; }
+.mk-root kbd.mk-key {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  z-index: 1;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1px solid #3b2a12;
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: linear-gradient(#f6e6b4, #d8b765);
+  color: #2b1d10;
+  font: 700 11px/14px var(--mk-f-text);
+  text-align: center;
+  text-shadow: none;
+  letter-spacing: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transition: background-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+/* Reiter: Schild hinter dem Namen */
+.mk-root .mk-tab .mk-key { position: relative; right: auto; bottom: auto; top: -2px; margin-left: 8px; vertical-align: middle; }
+/* Baukarten und Werkzeuge: oben rechts (unten stehen die Kosten, beim Werkzeug wäre es unter dem Glyph zu eng) */
+.mk-root .mk-card .mk-key, .mk-root .mk-tool .mk-key { top: 3px; bottom: auto; }
+/* Ausbilden im Panel: rechts, senkrecht mittig */
+.mk-recruit { padding-right: 28px; }
+.mk-root .mk-recruit .mk-key { top: 50%; bottom: auto; right: 5px; transform: translateY(-50%); }
+/* Befehlsknöpfe im Panel: in der Zeile rechts wie bisher */
+.mk-root .mk-cmd .mk-key, .mk-root .mk-btn-wide .mk-key { position: static; margin-left: auto; }
+.mk-root .mk-btn-wide .mk-key { margin-left: 8px; }
+/* gesperrt oder deaktiviert: Schild ausgegraut */
+.mk-root .mk-locked > .mk-key, .mk-root [disabled] > .mk-key { background: linear-gradient(#a59c8a, #7d7566); color: #3a352c; opacity: 0.7; }
+/* Aufleuchten beim Tastendruck */
+.mk-key-hit { box-shadow: inset 0 0 0 2px #ffe08a, 0 0 12px 2px rgba(255, 214, 110, 0.85) !important; }
+.mk-root .mk-key-hit > .mk-key { background: #fff3c4; box-shadow: 0 0 8px 2px rgba(255, 220, 120, 0.95); transform: scale(1.15); }
+.mk-root .mk-recruit.mk-key-hit > .mk-key { transform: translateY(-50%) scale(1.15); }
 .mk-build.mk-collapsed .mk-build-body { display: none; }
 .mk-root:has(.mk-build.mk-collapsed) .mk-mini-frame { display: none; }
 
@@ -1001,4 +1043,5 @@ kbd {
 .mk-range::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1b0, #c7922a 70%); box-shadow: 0 0 0 1px #4a3208; }
 .mk-range:focus-visible { outline: 2px solid var(--mk-gold-deep); outline-offset: 2px; }
 .mk-top { z-index: 2; }
+.mk-zoom-val { min-width: 40px; align-self: center; text-align: center; font-size: 13px; color: var(--mk-light-soft); text-shadow: 0 1px 0 #000; }
 .mk-btn-rot { font-size: 20px; font-family: "Segoe UI Symbol", "Apple Symbols", system-ui, sans-serif; padding-bottom: 2px; }

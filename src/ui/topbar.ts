@@ -3,6 +3,7 @@
  * aktuelle Ereignisse mit Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe.
  */
 import { GOODS, TICKS_PER_SECOND, type Good } from "../data";
+import { ZOOMS, zoomLabel } from "../data/view";
 import type { SimState } from "../sim/types";
 import { createAudioControl } from "./audio";
 import { northOnScreen } from "./compass";
@@ -58,9 +59,10 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
   const rot = h("div.mk-group", { role: "group", "aria-label": "Drehen" },
     btn("⟲", "Ansicht gegen den Uhrzeigersinn drehen (Q)", () => bridge.rotate(-1), ".mk-btn-rot"), compass,
     btn("⟳", "Ansicht im Uhrzeigersinn drehen (E)", () => bridge.rotate(1), ".mk-btn-rot"));
-  const zoom = h("div.mk-group", { role: "group", "aria-label": "Zoom" },
-    btn("−", "Herauszoomen (Mausrad)", () => bridge.zoom(-1)),
-    btn("+", "Hineinzoomen (Mausrad)", () => bridge.zoom(1)));
+  const zoomOut = btn("−", "Herauszoomen (Mausrad, Taste −)", () => bridge.zoom(-1));
+  const zoomIn = btn("+", "Hineinzoomen (Mausrad, Taste +)", () => bridge.zoom(1));
+  const zoomVal = h("span.mk-zoom-val.mk-num", { "aria-live": "polite" });
+  const zoom = h("div.mk-group", { role: "group", "aria-label": "Zoom" }, zoomOut, zoomVal, zoomIn);
   const audio = createAudioControl(bridge);
   const help = btn("?", "Steuerung und Hilfe (F1)", openHelp, ".mk-btn-help");
 
@@ -116,7 +118,13 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
       }
     },
     updateView() {
-      const r = bridge.view().r & 3;
+      const v = bridge.view();
+      const z = v.zoom;
+      setText(zoomVal, zoomLabel(z));
+      setAttr(zoomVal, "title", `Zoomstufe ${zoomLabel(z)} (${ZOOMS.map(zoomLabel).join(", ")})`);
+      setClass(zoomOut, "mk-disabled", z <= ZOOMS[0]);
+      setClass(zoomIn, "mk-disabled", z >= ZOOMS[ZOOMS.length - 1]);
+      const r = v.r & 3;
       const n = northOnScreen(r);
       needle.style.transform = `translate(-50%, -50%) rotate(${n.deg}deg)`;
       // "N" sitzt außen an der Nadelspitze

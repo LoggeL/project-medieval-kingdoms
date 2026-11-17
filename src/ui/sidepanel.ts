@@ -2,11 +2,14 @@
  * Auswahl-Panel rechts auf Pergament. Erscheint nur bei einer Auswahl.
  * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Hofstapel, Lagerplätze, Ausbildung, Abreißen.
  * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
+ * Tasten (src/data/hotkeys.ts): Ausbilden U I O, Abreißen Entf (zweimal), Stationieren T, Halten H.
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
 import { BUILDINGS, GOODS, UNITS, type Good, type UnitKey } from "../data";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { h, num, setBar, setClass, setText } from "./dom";
+import { BUTTON_KEYS, TRAIN_KEYS } from "../data/hotkeys";
+import { setKey } from "./hotkeys";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { costRow, hpBar, type UiCtx } from "./shared";
 import { recruit } from "./unitgrid";
@@ -157,23 +160,26 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
 
     if (b0.team === 0) {
       let armed = false;
-      const btn = h("button.mk-btn.mk-btn-wide.mk-btn-danger", { type: "button", text: "Abreißen", onclick: () => {
-        if (!armed) { armed = true; setText(btn, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(btn, "Abreißen"); }, 2500); return; }
+      const lbl = h("span", { text: "Abreißen" });
+      const btn = h("button.mk-btn.mk-btn-wide.mk-btn-danger", { type: "button", title: "Gebäude abreißen (zweimal drücken)", onclick: () => {
+        if (!armed) { armed = true; setText(lbl, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(lbl, "Abreißen"); }, 2500); return; }
         const r = bridge.dispatch({ t: "abreissen", id });
         if (!r.ok) ctx.toast(r.reason ?? "Abriss nicht möglich.", "warnung");
         else { if (r.reason) ctx.toast(r.reason, "info"); bridge.select({ units: [], building: null }); }
-      } });
+      } }, lbl);
+      setKey(btn, BUTTON_KEYS.abriss);
       body.append(h("div.mk-actions", null, btn));
     }
   }
 
   function trainingView(id: number, trains: UnitKey[]): void {
     const get = (s: SimState) => s.buildings.find((q) => q.id === id);
-    const buttons = trains.map((u) => {
+    const buttons = trains.map((u, i) => {
       const t = UNITS[u].train!;
       const cost = costRow(ctx, { gold: t.gold, [t.equipment]: 1 }, 14);
       const el = h("button.mk-recruit", { type: "button", title: `${UNITS[u].name} ausbilden (${t.seconds} s)`, onclick: () => recruit(ctx, id, u) },
         ctx.icons.make("einheit", u, 36, 36), h("span.mk-recruit-name", { text: UNITS[u].name }), cost.el);
+      setKey(el, i < TRAIN_KEYS.length ? [TRAIN_KEYS[i]] : null);
       return { u, el, cost };
     });
     const curIcon = h("span.mk-cur-icon");
@@ -313,12 +319,15 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       else if (r.reason) ctx.toast(r.reason, "info");
     };
     const canStation = soldiers.some((u) => UNITS[u.key].canStation);
+    const station = h("button.mk-btn.mk-cmd", { type: "button", title: "Auf freie Posten an Mauern und Türmen verteilen", disabled: !canStation, onclick: () => send("stationieren") },
+      h("span.mk-cmd-glyph.mk-g-station", { "aria-hidden": "true" }), h("span", { text: "Stationieren" }));
+    const hold = h("button.mk-btn.mk-cmd", { type: "button", title: "Stehen bleiben und nur in Reichweite kämpfen", onclick: () => send("halten") },
+      h("span.mk-cmd-glyph.mk-g-hold", { "aria-hidden": "true" }), h("span", { text: "Halten" }));
+    // T und H wertet die Eingabe aus (src/app/input.ts), die Knöpfe leuchten beim Drücken nur auf
+    setKey(station, BUTTON_KEYS.stationieren, { app: true });
+    setKey(hold, BUTTON_KEYS.halten, { app: true });
     body.append(section("Befehle",
-      h("div.mk-cmds", null,
-        h("button.mk-btn.mk-cmd", { type: "button", title: "Auf freie Posten an Mauern und Türmen verteilen (T)", disabled: !canStation, onclick: () => send("stationieren") },
-          h("span.mk-cmd-glyph.mk-g-station", { "aria-hidden": "true" }), h("span", { text: "Stationieren" }), h("kbd", { text: "T" })),
-        h("button.mk-btn.mk-cmd", { type: "button", title: "Stehen bleiben und nur in Reichweite kämpfen (H)", onclick: () => send("halten") },
-          h("span.mk-cmd-glyph.mk-g-hold", { "aria-hidden": "true" }), h("span", { text: "Halten" }), h("kbd", { text: "H" }))),
+      h("div.mk-cmds", null, station, hold),
       h("p.mk-sub", { text: "Angreifen: Rechtsklick auf einen Gegner. Bewegen: Rechtsklick auf den Boden oder einen Wehrgang." })));
   }
 

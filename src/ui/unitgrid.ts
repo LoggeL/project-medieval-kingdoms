@@ -12,7 +12,8 @@ import { costRow, type UiCtx } from "./shared";
 
 const EQUIP: Partial<Record<Good, string>> = { speer: "den Speer", schwert: "das Schwert", bogen: "den Bogen", eisen: "das Eisen" };
 
-export interface UnitGrid { el: HTMLElement; update(s: SimState): void }
+/** keyed: Karten, die eine Taste bekommen (spielbare Einheiten, in Rasterreihenfolge; gesperrte haben keine). */
+export interface UnitGrid { el: HTMLElement; keyed: HTMLElement[]; update(s: SimState): void }
 
 /** Fertige eigene Kaserne, die diese Einheit ausbildet; bevorzugt die ausgewählte. */
 export function trainingSite(ctx: UiCtx, unit: UnitKey): Building | null {
@@ -136,6 +137,7 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
 
   return {
     el,
+    keyed: live.map((l) => l.el),
     update(s) {
       const hasPeasant = s.units.some((u) => u.team === 0 && !u.dead && u.key === "tageloehner");
       for (const l of live) {

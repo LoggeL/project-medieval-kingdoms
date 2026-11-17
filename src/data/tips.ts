@@ -14,12 +14,12 @@ export interface Tip {
 
 export const TIPS: Tip[] = [
   { thema: "steuerung", text: "Q und E drehen die Ansicht um 90°. Gebäude, Figuren und die Bauvorschau drehen richtig mit." },
-  { thema: "steuerung", text: "Das Mausrad zoomt zur Maus hin, mit + und − geht es auch über die Tastatur." },
+  { thema: "steuerung", text: "Das Mausrad zoomt sanft zur Maus hin, in acht Stufen von der ganzen Karte bis zur Nahansicht. + und − gehen auch." },
   { thema: "steuerung", text: "WASD, die Pfeiltasten oder der Bildschirmrand bewegen die Kamera. Mit gedrückter rechter oder mittlerer Maustaste ziehst du die Karte." },
   { thema: "steuerung", text: "Leertaste oder P hält das Spiel an. Auch in der Pause kannst du bauen und Befehle geben." },
   { thema: "steuerung", text: "Strg und eine Ziffer speichern die Auswahl als Gruppe, die Ziffer allein wählt sie wieder." },
   { thema: "steuerung", text: "Ein Doppelklick auf eine eigene Einheit wählt alle sichtbaren Einheiten derselben Art." },
-  { thema: "steuerung", text: "F1 öffnet die Steuerung. Die Nadel des Kompasses zeigt, wo Norden gerade im Bild liegt." },
+  { thema: "steuerung", text: "F2 bis F5 öffnen die Bau-Reiter, die Tasten Y bis M wählen darin ein Gebäude. Jeder Knopf zeigt seine Taste, F1 alle." },
   { thema: "wirtschaft", text: "Die Holzfällerhütte braucht Wald: Mindestens vier Bäume müssen in der Nähe stehen." },
   { thema: "wirtschaft", text: "Einen Steinbruch kannst du nur direkt am Fels bauen." },
   { thema: "wirtschaft", text: "Holzfäller und Steinmetze legen ihre Ware auf den eigenen Hof. Tagelöhner tragen sie von dort zum Lagerplatz." },
@@ -46,7 +46,7 @@ export const STEUERUNG: [string, string][] = [
   ["Ziehen", "Auswahlrahmen, beim Mauerbau die Mauerlinie"],
   ["Rechtsklick", "Bewegen, Angreifen, auf den Wehrgang steigen"],
   ["Q / E", "Ansicht um 90° drehen"],
-  ["Mausrad / + −", "Zoomen"],
+  ["Mausrad / + −", "Zoomen (acht Stufen, 0,25× bis 4×)"],
   ["WASD / Pfeile", "Kamera bewegen"],
   ["R", "Gebäude beim Bauen drehen"],
   ["T", "Soldaten auf Mauer und Turm stationieren"],
@@ -54,5 +54,9 @@ export const STEUERUNG: [string, string][] = [
   ["Strg + Ziffer", "Gruppe speichern, Ziffer wählt sie"],
   ["Leertaste / P", "Pause"],
   ["Esc", "Werkzeug oder Auswahl aufheben"],
+  ["F2 – F5", "Bau-Reiter Wirtschaft, Wohnen, Befestigung, Militär"],
+  ["Y X C V B N M", "Gebäude im offenen Reiter wählen"],
+  ["U / I / O", "In der gewählten Kaserne ausbilden"],
+  ["Entf", "Abriss-Werkzeug, bei gewähltem Gebäude abreißen"],
   ["F1", "Hilfe im Spiel"],
 ];
