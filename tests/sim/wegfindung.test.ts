@@ -19,7 +19,8 @@ import type { Team } from "../../src/sim/types";
 import { TPS, type SBuilding, type SUnit, type World } from "../../src/sim/world";
 import { lagerOf } from "./helpers";
 
-const KEYS = Object.keys(BUILDINGS) as BuildingKey[];
+// Wege und Brücken (BuildingDef.road) sind keine Hindernisse, sondern Laufflächen: Sie prüft tests/sim/transport-wege.test.ts.
+const KEYS = (Object.keys(BUILDINGS) as BuildingKey[]).filter((k) => !BUILDINGS[k].road);
 const worldOf = (g: Simulation): World => (g as unknown as { world: World }).world;
 
 /** Feste Tiles am Boden je Team: Tile-Index → Gebäude. */

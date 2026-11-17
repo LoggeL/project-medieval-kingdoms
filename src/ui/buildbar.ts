@@ -24,6 +24,7 @@ const TABS: { cat: Cat; label: string }[] = [
   { cat: "befestigung", label: "Befestigung" },
   { cat: "militaer", label: "Militär" },
   { cat: "nahrung", label: "Nahrung" },
+  { cat: "wege", label: "Wege" },
 ];
 
 export interface BuildBar { el: HTMLElement; update(s: SimState): void; updateTool(): void }

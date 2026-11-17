@@ -273,7 +273,7 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
 /** Nach dem Setzen von Baustellen: Mauermasken, Laufraster, Einheiten aus den Grundrissen schieben. */
 export function refreshAfterPlace(w: World): void {
   updateWallMasks(w);
-  w.nav.rebuild();
+  w.nav.refresh();
   evictUnits(w);
 }
 
@@ -287,7 +287,7 @@ export function completeBuilding(w: World, b: SBuilding): void {
   if (def.output && !b.output) b.output = { good: def.output.good, amount: 0, reserved: 0 };
   if (def.production && !b.proc) b.proc = newProc(b.key);
   updateWallMasks(w);
-  w.nav.rebuild();
+  w.nav.refresh();
   evictUnits(w);
   if (FORT.has(b.key) || def.stairs) w.msg(`${def.name} fertiggestellt.`, "info", `fertig-${b.key}`, 10, "mauer_fertig");
   else w.msg(`${def.name} ist fertig.`, "info", undefined, 20, "bau_fertig");
@@ -322,7 +322,7 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
     }
   }
   updateWallMasks(w);
-  w.nav.rebuild();
+  w.nav.refresh();
   // Wer auf einem verschwundenen Wehrgang stand, fällt herunter (Schaden nur, wenn der Bau zerstört wurde);
   // wer am Boden auf einer verschwundenen Treppe stand, steht wieder auf dem Boden
   for (const u of w.s.units) {

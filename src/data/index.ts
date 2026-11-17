@@ -8,6 +8,7 @@ import type { Good, StoreKey } from "./goods";
 import type { ProductionDef } from "./recipes";
 import type { TechKey } from "./research";
 import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
+import { TRANSPORT, type TransportKey } from "./transport";
 
 export * from "./research";
 
@@ -59,7 +60,7 @@ export type CycleStep =
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey;
+  | VerarbeitungKey | TransportKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -108,7 +109,7 @@ export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
   desc: string;
-  category: "zentrum" | "wirtschaft" | "nahrung" | "wohnen" | "militaer" | "befestigung";
+  category: "zentrum" | "wirtschaft" | "nahrung" | "wohnen" | "militaer" | "befestigung" | "wege";
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
@@ -166,8 +167,15 @@ export interface BuildingDef {
   gate?: boolean;
   /** Treppe: verbindet Boden (vorne) mit dem Wehrgang (hinten). */
   stairs?: boolean;
-  /** Mit Ziehen bauen (Mauer). */
+  /** Mit Ziehen bauen (Mauer, Weg, Brücke). */
   drag?: boolean;
+  /**
+   * Weg bzw. Brücke (src/data/transport.ts, ADR 0015): Der Grundriss bleibt begehbar und ist kein Hindernis; fertig gilt
+   * dort `cost` als Wegkosten im Laufraster (statt der Geländekosten, kleiner = schneller und von der Wegfindung
+   * bevorzugt). bridge: nur auf Wasser zu bauen, begehbar erst, wenn fertig. Das Sprite ist ein Satz Autotiling-Teile
+   * `<sprite>_<teil>` (wie die Mauer, geom.wallPiece), die Brücke ein gerades Stück in Zugrichtung.
+   */
+  road?: { cost: number; bridge?: boolean };
   /** Höhe der Plattform (Laufebene 2) in Höhenstufen, Standard 5. */
   deck?: number;
   /** Steuern: Gold je Spielminute. */
@@ -260,6 +268,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   },
   // Verarbeitung und Kornkammer (src/data/verarbeitung.ts)
   ...VERARBEITUNG,
+  // Wege, Brücken, Fuhrwesen (src/data/transport.ts)
+  ...TRANSPORT,
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
     category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],
