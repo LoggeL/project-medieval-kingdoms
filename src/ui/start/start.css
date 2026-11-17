@@ -17,7 +17,7 @@
   --s-wood: #3a2414;
   --s-wood-dark: #1d120a;
   --s-parch: #ead6a4;
-  --s-f-head: "Jacquarda Bastarda 9", "UnifrakturMaguntia", Georgia, serif;
+  --s-f-head: "Cinzel", "Trajan Pro", Georgia, serif;
   --s-f-text: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
 
   position: fixed;
@@ -76,7 +76,7 @@
 
 .mk-laden-titel {
   margin: 0;
-  font: 400 clamp(38px, 7vw, 76px)/1 var(--s-f-head);
+  font: 700 clamp(38px, 7vw, 76px)/1 var(--s-f-head);
   color: var(--s-gold-hi);
   letter-spacing: 0.01em;
   text-align: center;
@@ -211,7 +211,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
-  font: 400 21px/1 var(--s-f-head);
+  font: 700 21px/1 var(--s-f-head);
   color: #7a2a17;
 }
 .mk-tipp-kopf::after {
@@ -258,7 +258,7 @@
   user-select: text;
   cursor: auto;
 }
-.mk-laden-meldung strong { display: block; margin-bottom: 4px; font: 400 22px/1.1 var(--s-f-head); color: #ffcf9e; }
+.mk-laden-meldung strong { display: block; margin-bottom: 4px; font: 700 22px/1.1 var(--s-f-head); color: #ffcf9e; }
 .mk-laden-meldung code { font-size: 12.5px; color: #f3c9b5; overflow-wrap: anywhere; }
 
 /* ================================================================== Titelbildschirm */
@@ -328,7 +328,7 @@
 .mk-schild { width: clamp(56px, 8vh, 84px); height: auto; display: block; margin-bottom: 6px; }
 .mk-titel-name {
   margin: 0;
-  font: 400 clamp(44px, 6.4vw, 84px)/0.92 var(--s-f-head);
+  font: 700 clamp(44px, 6.4vw, 84px)/0.92 var(--s-f-head);
   letter-spacing: 0.005em;
   color: var(--s-gold-hi);
   background: linear-gradient(#fff3c4 8%, #f0d27e 40%, #c99a3c 72%, #8a6420);
@@ -380,7 +380,7 @@
   border: 2px solid #0f0905;
   border-radius: 3px;
   color: var(--s-light);
-  font: 400 25px/1 var(--s-f-head);
+  font: 700 25px/1 var(--s-f-head);
   letter-spacing: 0.01em;
   text-decoration: none;
   display: flex;
@@ -471,7 +471,7 @@
   animation: mk-panel-auf 0.22s ease-out;
 }
 @keyframes mk-panel-auf { from { opacity: 0; transform: translateY(6px); } }
-.mk-start-panel h2 { margin: 0 0 10px; padding-right: 30px; font: 400 30px/1 var(--s-f-head); color: var(--s-ink); }
+.mk-start-panel h2 { margin: 0 0 10px; padding-right: 30px; font: 700 30px/1 var(--s-f-head); color: var(--s-ink); }
 .mk-panel-zu {
   position: absolute;
   top: 10px;

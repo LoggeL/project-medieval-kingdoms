@@ -29,7 +29,7 @@ export const LADE_ABSCHNITTE: LoadPhase[] = [
 const KARTE = "ui/titel_ladebild_2.png";
 const SCHLUESSELBILD = "ui/titel_schluesselbild.png";
 const UI_KACHELN = ["ui/holz_kachel.png", "ui/pergament_kachel.png", "ui/stein_kachel.png"];
-const SCHRIFTEN = ['400 48px "Jacquarda Bastarda 9"', '400 16px "Alegreya Sans"', '700 16px "Alegreya Sans"', '400 16px "Pixelify Sans"'];
+const SCHRIFTEN = ['700 48px "Cinzel"', '600 16px "Cinzel"', '400 16px "Alegreya Sans"', '700 16px "Alegreya Sans"', '400 16px "Pixelify Sans"'];
 /** Ohne Fortschritt so lange: Hinweis „dauert ungewöhnlich lange“. */
 const LANGSAM_MS = 25000;
 /** Schriften blockieren das Laden höchstens so lange (offline geht es mit Ersatzschrift weiter). */
