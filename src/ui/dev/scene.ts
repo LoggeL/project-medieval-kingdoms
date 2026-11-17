@@ -72,8 +72,9 @@ export function createScene(canvas: HTMLCanvasElement, bridge: UiBridge, sprites
     }
     const fc = sp.figures.cell, [fax, fay] = sp.figures.anchor;
     for (const u of s.units) {
-      const row = sp.figureRow(u.key === "tageloehner" && u.carry ? "traeger" : u.key);
-      if (row < 0) continue;
+      const fig = sp.figure(u.key === "tageloehner" && u.carry ? "traeger" : u.key);
+      if (!fig) continue;
+      const row = fig.row;
       const [sx, sy0] = screen(s, u.x, u.y, r);
       const sy = sy0 - u.z * 8 * k;
       const frame = u.anim === "gehen" ? 1 + (Math.floor(u.animT * 8) % 8) : 0;
@@ -81,7 +82,7 @@ export function createScene(canvas: HTMLCanvasElement, bridge: UiBridge, sprites
       const dir = ((Math.round((ang / (Math.PI / 4)) + 2) % 8) + 8) % 8;
       items.push({ d: depth(u.x, u.y) + 0.6 + u.z, f: () => {
         if (sel.units.includes(u.id)) { g.strokeStyle = u.team ? "#ff6a4a" : "#ffe08a"; g.lineWidth = 2; g.beginPath(); g.ellipse(sx, sy, 12 * k, 6 * k, 0, 0, 7); g.stroke(); }
-        g.drawImage(sp.atlas, frame * fc, (row + dir) * fc, fc, fc, sx - fax * k, sy - fay * k, fc * k, fc * k);
+        g.drawImage(fig.img, frame * fc, (row + dir) * fc, fc, fc, sx - fax * k, sy - fay * k, fc * k, fc * k);
         if (u.team) { g.fillStyle = "#e03a2e"; g.fillRect(sx - 2, sy - 52 * k, 4, 4); }
       } });
     }

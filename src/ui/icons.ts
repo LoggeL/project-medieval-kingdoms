@@ -40,6 +40,8 @@ export class Icons {
     const g = s.c.getContext("2d");
     if (!g) return;
     g.clearRect(0, 0, s.size, s.size);
+    // "leer" = freier Lagerplatz: bewusst kein Bild.
+    if (s.key === "leer") { s.done = true; return; }
     let src: HTMLCanvasElement | null = null;
     try { src = this.bridge.icon(s.kind, s.key, s.size); } catch { src = null; }
     if (!src || !src.width || !src.height) return;
@@ -53,8 +55,8 @@ export class Icons {
 
   private refresh(): void {
     for (const s of [...this.slots]) {
-      // Nicht mehr eingehängte Icons (neu aufgebautes Panel) vergessen; neue werden synchron eingehängt.
-      if (!s.c.isConnected) { this.slots.delete(s); continue; }
+      // Icons in gerade nicht gezeigten Reitern sind nicht eingehängt, werden aber trotzdem gezeichnet.
+      if (!s.c.isConnected && s.done) { this.slots.delete(s); continue; }
       this.draw(s);
       if (s.done) this.slots.delete(s);
     }

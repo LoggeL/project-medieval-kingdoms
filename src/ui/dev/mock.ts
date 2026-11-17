@@ -136,17 +136,18 @@ export function createMockBridge(): MockBridge {
     }
     if (kind === "einheit") {
       const sprite = (UNITS[key as UnitKey]?.sprite ?? key);
-      const row = sprites.figureRow(sprite);
-      if (row < 0) return placeholder(key, size, "#3b5fb0");
+      const f = sprites.figure(sprite);
+      if (!f) return placeholder(key, size, "#3b5fb0");
       const c = sprites.figures.cell;
-      return fitIcon(cropToAlpha(sprites.atlas, 0, (row + 1) * c, c, c), size);
+      return fitIcon(cropToAlpha(f.img, 0, (f.row + 1) * c, c, c), size);
     }
     // Ware: Stapel aus dem Gebäudeblatt, sonst Ersatz
     if (key === "leer") return null;
     const stack = sprites.building(`stapel_${key}`, 0);
     if (stack) { const [cw, ch] = sprites.buildings.cell; return fitIcon(cropToAlpha(stack.img, stack.sx, stack.sy, cw, ch), size); }
     const fig = GOOD_FALLBACK[key as Good];
-    if (fig) { const row = sprites.figureRow(fig); const c = sprites.figures.cell; if (row >= 0) return fitIcon(cropToAlpha(sprites.atlas, 0, (row + 2) * c, c, c), size); }
+    const f = fig ? sprites.figure(fig) : null;
+    if (f) { const c = sprites.figures.cell; return fitIcon(cropToAlpha(f.img, 0, (f.row + 2) * c, c, c), size); }
     return placeholder(key, size, GOOD_TINT[key as Good] ?? "#777");
   }
 

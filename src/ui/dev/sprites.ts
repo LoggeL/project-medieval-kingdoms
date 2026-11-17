@@ -5,16 +5,18 @@
 const STYLE = "vorgerendert";
 
 interface BuildingSheet { cell: [number, number]; anchor: [number, number]; units: { key: string; frames: number; front: boolean }[] }
-interface FigureSheet { cell: number; anchor: [number, number]; units: { key: string; anims?: Record<string, [number, number]> }[] }
+interface FigureSheet { cell: number; anchor: [number, number]; units: { key: string; showcase?: boolean; anims?: Record<string, [number, number]> }[] }
 
 export interface Sprites {
   buildings: BuildingSheet;
   figures: FigureSheet;
   bimg: Map<string, HTMLImageElement>;
-  atlas: HTMLImageElement;
+  /** Einzelblätter je Figur (<key>.png, 8 Richtungszeilen), sonst null. */
+  fimg: Map<string, HTMLImageElement>;
   /** Ausschnitt eines Gebäudes (Ansicht view, Variante variant) als Bild mit Anker, oder null. */
   building(key: string, view: number, variant?: number): { img: HTMLImageElement; sx: number; sy: number } | null;
-  figureRow(key: string): number;
+  /** Bild und erste Zeile einer Figur: Einzelblatt, sonst Zeile im Gesamtblatt (dort nur Figuren mit showcase). */
+  figure(key: string): { img: HTMLImageElement; row: number } | null;
 }
 
 const loadImg = (src: string) => new Promise<HTMLImageElement | null>((res) => {
@@ -36,10 +38,15 @@ export async function loadSprites(): Promise<Sprites> {
     if (im) bimg.set(u.key, im);
   }));
   const atlas = await loadImg(`${base}figures/${STYLE}/atlas.png`);
-  if (!atlas) throw new Error("Figurenblatt fehlt");
+  const fimg = new Map<string, HTMLImageElement>();
+  await Promise.all(figures.units.map(async (u) => {
+    const im = await loadImg(`${base}figures/${STYLE}/${u.key}.png`);
+    if (im) fimg.set(u.key, im);
+  }));
+  const showcase = figures.units.filter((u) => u.showcase !== false);
   const [cw, ch] = buildings.cell;
   return {
-    buildings, figures, bimg, atlas,
+    buildings, figures, bimg, fimg,
     building(key, view, variant) {
       const u = buildings.units.find((q) => q.key === key);
       const img = bimg.get(key);
@@ -47,9 +54,11 @@ export async function loadSprites(): Promise<Sprites> {
       const col = Math.min(u.frames - 1, variant ?? u.frames - 1);
       return { img, sx: col * cw, sy: (view & 3) * ch };
     },
-    figureRow(key) {
-      const i = figures.units.findIndex((q) => q.key === key);
-      return i < 0 ? -1 : i * 8;
+    figure(key) {
+      const own = fimg.get(key);
+      if (own) return { img: own, row: 0 };
+      const i = showcase.findIndex((q) => q.key === key);
+      return i < 0 || !atlas ? null : { img: atlas, row: i * 8 };
     },
   };
 }

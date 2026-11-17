@@ -757,6 +757,8 @@ kbd {
 }
 @keyframes mk-pop { from { opacity: 0; transform: translateY(6px); } }
 .mk-detail-head { display: flex; align-items: center; gap: 10px; padding-right: 20px; }
+.mk-detail .mk-title { font-size: 20px; }
+.mk-title { overflow-wrap: anywhere; }
 .mk-detail-icon {
   flex: none;
   padding: 2px;
