@@ -1,11 +1,13 @@
 /**
- * Objektebene: Gebäude, Baustellen, Lagerstapel, Bäume, Felsen und Figuren aus dem Simulationszustand.
+ * Objektebene: Gebäude, Baustellen, Lagerstapel, Bäume, Felsen, Figuren und die Bauvorschau aus dem Simulationszustand.
  * Jedes Bild: sichtbare Objekte sammeln (Culling), gemeinsam tiefensortieren (depth.ts), Sprites aus dem Pool belegen.
  * Figuren auf Mauer, Turm oder Treppe gehören zum Gebäude unter ihnen und werden zwischen Gebäude und Vorderteil
- * gezeichnet (wie in tools/konzeptseite/bauten.js), in jeder Drehung.
+ * gezeichnet (wie in tools/konzeptseite/bauten.js), in jeder Drehung. Der vordere Lagerzaun ist ein eigenes Objekt nach
+ * Stapeln und Figuren im Hof. Figuren, die von Gebäuden oder Bäumen verdeckt sind, bekommen eine dezente Silhouette
+ * in Teamfarbe über allem (und bleiben dort anklickbar).
  */
 import { Container, type Texture } from "pixi.js";
-import { BUILDINGS, GOODS, UNITS, type Good } from "../data";
+import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
 import { center, entrance, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
@@ -14,7 +16,7 @@ import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
 import { axisOrientation, figureDir, vecToScreen, viewToScreen } from "./iso";
 import { SpritePool } from "./pool";
 
-/** Treffer-Eintrag für die Mausauswahl (in Zeichenreihenfolge). */
+/** Treffer-Eintrag für die Mausauswahl (in Zeichenreihenfolge). Gepoolt: nur im selben Bild gültig. */
 export interface Hit {
   kind: "unit" | "building";
   id: number;
@@ -28,6 +30,16 @@ export interface Hit {
   y: number;
 }
 
+/** Halbtransparentes Vorschau-Sprite (Bauvorschau), wird mit den Objekten tiefensortiert. */
+export interface Ghost {
+  /** Sprite-Schlüssel im Gebäudeblatt und Ausrichtung (Welt), Variante. */
+  key: string; o: number; frame: number;
+  /** Welt-Rechteck des Grundrisses (Tiles) und Mittelpunkt. */
+  x0: number; y0: number; x1: number; y1: number;
+  cx: number; cy: number;
+  alpha: number; tint: number;
+}
+
 interface Part {
   tex: Texture;
   x: number; y: number;        // Pivot-Punkt in Welt-Pixeln
@@ -35,6 +47,10 @@ interface Part {
   rot: number; sx: number; sy: number;
   alpha: number; tint: number;
   hit: Hit | null;
+  /** Verdeckt Figuren dahinter (Gebäudeblatt-Sprite ohne Drehung): Schlüssel, Ansicht, Variante. */
+  occKey: string | null; occView: number; occFrame: number;
+  /** Figur: Einheit (für Silhouette und Verdeckung). */
+  unit: Unit | null; figKey: string; figDir: number; figFrame: number;
 }
 
 interface Item extends DepthItem { p0: number; p1: number }
@@ -45,40 +61,62 @@ export interface SceneOptions {
   danger: number | null;
   /** Gebäude, das hell hervorgehoben wird (Auswahl/Maus). */
   highlight: number | null;
+  /** Bauvorschau. */
+  ghosts: readonly Ghost[];
 }
 
 export interface UnitOnScreen { id: number; team: number; x: number; y: number; hp: number; maxHp: number; selected: boolean; top: number }
 
 const FIG_FPS = 10;
 const hash4 = (id: number) => (Math.imul(id, 2654435761) >>> 28) & 3;
+/** Arbeitsanimationen, auf die eine fehlende Animation zurückfällt (vor den Gehbildern), nie auf das Stehbild. */
+const WORK_ANIMS: AnimKey[] = ["bauen", "hacken", "abbauen", "angriff", "schiessen"];
+/** Silhouette: Teamfarbe und Deckkraft; Anteil verdeckter Stichproben, ab dem sie erscheint. */
+const SIL_COLOR = [0x8fc4ff, 0xff7a64];
+const SIL_ALPHA = 0.5;
+const SIL_MIN = 0.5;
+/** Stichproben im Figurenbild relativ zum Fußpunkt (Körpermitte von unten nach oben). */
+const SAMPLES: [number, number][] = [[0, -3], [0, -9], [0, -15], [0, -21], [0, -27], [-3, -14], [3, -14], [-2, -22], [2, -22]];
+const FALL_STEP = 1 / (TUNING.fallSeconds * TICKS_PER_SECOND);
 
 export class ObjectLayer {
   readonly container = new Container();
+  /** Silhouetten verdeckter Figuren (über der Objektebene). */
+  readonly silhouettes = new Container();
   private pool = new SpritePool(this.container);
+  private silPool = new SpritePool(this.silhouettes);
   private sorter = new DepthSorter();
   private items: Item[] = [];
   private nItems = 0;
   private parts: Part[] = [];
   private nParts = 0;
   private order: number[] = [];
+  /** Gezeichnete Teile in Zeichenreihenfolge (Indizes in parts). */
+  private drawn: number[] = [];
+  private occList: number[] = [];
+  private candList: Part[] = [];
   private byId = new Map<number, Building>();
   private attached = new Map<number, { u: Unit; x: number; y: number; z: number }[]>();
+  private hitPool: Hit[] = [];
+  private nHits = 0;
+  private unitPool: UnitOnScreen[] = [];
   /** Treffer in Zeichenreihenfolge (letzter = oberster). */
   hits: Hit[] = [];
   /** Figuren dieses Bildes (Rahmenauswahl, Lebensbalken). */
   units: UnitOnScreen[] = [];
-  stats = { items: 0, sprites: 0, pairs: 0 };
+  stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
   private W = 0;
   private H = 0;
+  private alpha = 1;
   private view = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
   constructor(private bs: BuildingSheet | null, private fs: FigureSheet | null) {}
 
   update(state: SimState, r: Rot, alpha: number, view: { x0: number; y0: number; x1: number; y1: number }, opt: SceneOptions): void {
-    this.r = r; this.W = state.w; this.H = state.h; this.view = view;
-    this.nItems = 0; this.nParts = 0;
+    this.r = r; this.W = state.w; this.H = state.h; this.view = view; this.alpha = alpha;
+    this.nItems = 0; this.nParts = 0; this.nHits = 0;
     this.hits.length = 0;
     this.units.length = 0;
     this.byId.clear();
@@ -100,23 +138,28 @@ export class ObjectLayer {
       }
       this.unitItem(u, x, y, z, opt);
     }
-    for (const b of state.buildings) this.buildingItems(b, opt);
+    for (const b of state.buildings) this.buildingItems(b, state, opt);
     for (const t of state.trees) this.treeItem(t);
     for (const k of state.rocks) this.rockItem(k);
+    for (const g of opt.ghosts) this.ghostItem(g);
 
     // Sortieren und Sprites belegen
     const items = this.items;
     this.sorter.sort(items, this.order, this.nItems);
     this.pool.reset();
+    const drawn = this.drawn;
+    drawn.length = 0;
     for (const i of this.order) {
       const it = items[i];
       for (let p = it.p0; p < it.p1; p++) {
         const part = this.parts[p];
         this.emit(part);
+        drawn.push(p);
         if (part.hit) this.hits.push(part.hit);
       }
     }
     this.pool.finish();
+    this.silhouetteFigures();
     this.stats.items = this.nItems;
     this.stats.sprites = this.pool.count;
     this.stats.pairs = this.sorter.pairs;
@@ -124,10 +167,10 @@ export class ObjectLayer {
 
   // ---------------------------------------------------------------- Hilfen
 
-  private newItem(u0: number, u1: number, v0: number, v1: number, flat = false, fig = false, bias = 0): Item {
+  private newItem(u0: number, u1: number, v0: number, v1: number, flat = false, fig = false, bias = 0, cover = false): Item {
     let it = this.items[this.nItems];
-    if (!it) { it = { u0, u1, v0, v1, x0: 0, y0: 0, x1: 0, y1: 0, flat, fig, bias, p0: 0, p1: 0 }; this.items.push(it); }
-    it.u0 = u0; it.u1 = u1; it.v0 = v0; it.v1 = v1; it.flat = flat; it.fig = fig; it.bias = bias;
+    if (!it) { it = { u0, u1, v0, v1, x0: 0, y0: 0, x1: 0, y1: 0, flat, fig, bias, cover, p0: 0, p1: 0 }; this.items.push(it); }
+    it.u0 = u0; it.u1 = u1; it.v0 = v0; it.v1 = v1; it.flat = flat; it.fig = fig; it.bias = bias; it.cover = cover;
     it.x0 = Infinity; it.y0 = Infinity; it.x1 = -Infinity; it.y1 = -Infinity;
     it.p0 = it.p1 = this.nParts;
     this.nItems++;
@@ -145,9 +188,13 @@ export class ObjectLayer {
 
   private part(it: Item, tex: Texture, x: number, y: number, px: number, py: number, o: Partial<Pick<Part, "rot" | "sx" | "sy" | "alpha" | "tint" | "hit">> = {}): Part {
     let p = this.parts[this.nParts];
-    if (!p) { p = { tex, x: 0, y: 0, px: 0, py: 0, rot: 0, sx: 1, sy: 1, alpha: 1, tint: 0xffffff, hit: null }; this.parts.push(p); }
+    if (!p) {
+      p = { tex, x: 0, y: 0, px: 0, py: 0, rot: 0, sx: 1, sy: 1, alpha: 1, tint: 0xffffff, hit: null, occKey: null, occView: 0, occFrame: 0, unit: null, figKey: "", figDir: 0, figFrame: 0 };
+      this.parts.push(p);
+    }
     p.tex = tex; p.x = Math.round(x); p.y = Math.round(y); p.px = px; p.py = py;
     p.rot = o.rot ?? 0; p.sx = o.sx ?? 1; p.sy = o.sy ?? 1; p.alpha = o.alpha ?? 1; p.tint = o.tint ?? 0xffffff; p.hit = o.hit ?? null;
+    p.occKey = null; p.unit = null;
     this.nParts++;
     it.p1 = this.nParts;
     // Bildrechteck
@@ -163,6 +210,11 @@ export class ObjectLayer {
     if (x0 < it.x0) it.x0 = x0; if (y0 < it.y0) it.y0 = y0;
     if (x1 > it.x1) it.x1 = x1; if (y1 > it.y1) it.y1 = y1;
     return p;
+  }
+
+  /** Teil als Verdecker für Figuren markieren (nur unverzerrte, deckende Gebäudeblatt-Sprites). */
+  private occluder(p: Part, key: string, view: number, frame: number): void {
+    p.occKey = key; p.occView = view; p.occFrame = frame;
   }
 
   private emit(p: Part): void {
@@ -187,7 +239,12 @@ export class ObjectLayer {
   }
 
   private hit(kind: Hit["kind"], id: number, team: number, src: Hit["src"], key: string, view: number, frame: number, x: number, y: number): Hit {
-    return { kind, id, team, src, key, view, frame, x: Math.round(x), y: Math.round(y) };
+    let h = this.hitPool[this.nHits];
+    if (!h) { h = { kind, id, team, src, key, view, frame, x: 0, y: 0 }; this.hitPool.push(h); }
+    this.nHits++;
+    h.kind = kind; h.id = id; h.team = team; h.src = src; h.key = key; h.view = view; h.frame = frame;
+    h.x = Math.round(x); h.y = Math.round(y);
+    return h;
   }
 
   /** Sprite-Schlüssel mit Ersatz; meldet Ersatz einmal. */
@@ -210,7 +267,10 @@ export class ObjectLayer {
     return null;
   }
 
-  /** Bild aus Animation: Blatt-Animation, sonst Gehen = Bilder 1..8, sonst Stehen. */
+  /**
+   * Bild aus Animation: Blatt-Animation; fehlt eine Arbeitsanimation, eine andere Arbeitsanimation derselben Figur,
+   * sonst die Gehbilder (bewegt, nie das Stehbild). Gehen = Bilder 1..8, Stehen = Bild 0.
+   */
   private figFrame(key: string, u: Unit): { frame: number; dead: boolean } {
     const anims = this.fs!.get(key)!.anims;
     const t = u.animT;
@@ -226,7 +286,10 @@ export class ObjectLayer {
         return { frame: 0, dead: true };
       default: {
         const a = anims[u.anim];
-        return { frame: a ? loop(a) : 0, dead: false };
+        if (a) return { frame: loop(a), dead: false };
+        const alt = WORK_ANIMS.find((k) => anims[k]);
+        warnOnce(`Figur „${key}“ hat keine Animation „${u.anim}“, Ersatz „${alt ?? "gehen"}“`);
+        return { frame: loop(alt ? anims[alt] : anims.gehen ?? [1, 8]), dead: false };
       }
     }
   }
@@ -250,8 +313,14 @@ export class ObjectLayer {
       this.part(it, tex, X, Y - 3, ax, ay - 4, { rot: dir < 4 ? Math.PI / 2 : -Math.PI / 2, tint: 0x8c8c8c, alpha: fade });
       return;
     }
-    this.part(it, tex, X, Y, ax, ay, { hit: u.dead ? null : this.hit("unit", u.id, u.team, "f", key, dir, frame, Math.round(X) - ax, Math.round(Y) - ay) });
-    if (!u.dead) this.units.push({ id: u.id, team: u.team, x: Math.round(X), y: Math.round(Y), hp: u.hp, maxHp: u.maxHp, selected, top: Math.round(Y) - 34 });
+    const p = this.part(it, tex, X, Y, ax, ay, { hit: u.dead ? null : this.hit("unit", u.id, u.team, "f", key, dir, frame, Math.round(X) - ax, Math.round(Y) - ay) });
+    if (u.dead) return;
+    p.unit = u; p.figKey = key; p.figDir = dir; p.figFrame = frame;
+    let os = this.unitPool[this.units.length];
+    if (!os) { os = { id: 0, team: 0, x: 0, y: 0, hp: 0, maxHp: 0, selected: false, top: 0 }; this.unitPool.push(os); }
+    os.id = u.id; os.team = u.team; os.x = Math.round(X); os.y = Math.round(Y); os.hp = u.hp; os.maxHp = u.maxHp;
+    os.selected = selected; os.top = Math.round(Y) - 34;
+    this.units.push(os);
   }
 
   private unitItem(u: Unit, x: number, y: number, z: number, opt: SceneOptions): void {
@@ -261,10 +330,80 @@ export class ObjectLayer {
     this.closeItem(it);
   }
 
+  /**
+   * Verdeckte Figuren: Stichproben im Figurenbild gegen später gezeichnete Gebäude- und Baumsprites prüfen.
+   * Ist mindestens die Hälfte verdeckt, kommt eine Silhouette in Teamfarbe über die Objektebene, mit Treffer ganz oben.
+   */
+  private silhouetteFigures(): void {
+    this.silPool.reset();
+    let n = 0;
+    const fs = this.fs, bs = this.bs;
+    const drawn = this.drawn, parts = this.parts;
+    if (fs && bs) {
+      const [ax, ay] = fs.anchor;
+      // Verdecker in Zeichenreihenfolge (Position in drawn)
+      const occ = this.occList;
+      occ.length = 0;
+      for (let j = 0; j < drawn.length; j++) if (parts[drawn[j]].occKey) occ.push(j);
+      const cand = this.candList;
+      let first = 0;
+      for (let i = 0; i < drawn.length; i++) {
+        const f = parts[drawn[i]];
+        while (first < occ.length && occ[first] <= i) first++;
+        if (!f.unit) continue;
+        const fx0 = f.x - ax, fy0 = f.y - ay, fx1 = fx0 + fs.cell, fy1 = fy0 + fs.cell;
+        cand.length = 0;
+        for (let k = first; k < occ.length; k++) {
+          const o = parts[drawn[occ[k]]];
+          const ox = o.x - o.px, oy = o.y - o.py;
+          if (ox > fx1 || oy > fy1 || ox + o.tex.frame.width < fx0 || oy + o.tex.frame.height < fy0) continue;
+          cand.push(o);
+        }
+        if (!cand.length) continue;
+        let total = 0, covered = 0;
+        for (const [sx, sy] of SAMPLES) {
+          if (fs.alpha(f.figKey, f.figDir, f.figFrame, ax + sx, ay + sy) <= 40) continue;
+          total++;
+          const wx = f.x + sx, wy = f.y + sy;
+          for (const o of cand) {
+            const sp = bs.get(o.occKey!);
+            if (!sp) continue;
+            const lx = wx - (o.x - o.px), ly = wy - (o.y - o.py);
+            if (lx < 0 || ly < 0 || lx >= bs.cell[0] || ly >= bs.cell[1]) continue;
+            if (sp.pixels.alpha(o.occFrame * bs.cell[0] + lx, o.occView * bs.cell[1] + ly) > 100) { covered++; break; }
+          }
+        }
+        if (!total || covered / total < SIL_MIN) continue;
+        const tex = fs.silhouette(f.figKey, f.figDir, f.figFrame);
+        if (!tex) continue;
+        const s = this.silPool.next(tex);
+        s.pivot.set(ax, ay);
+        s.position.set(f.x, f.y);
+        s.tint = SIL_COLOR[f.unit.team] ?? SIL_COLOR[0];
+        s.alpha = SIL_ALPHA;
+        n++;
+        const h = f.hit;
+        if (h) this.hits.push(this.hit("unit", h.id, h.team, "f", h.key, h.view, h.frame, h.x, h.y));
+      }
+    }
+    this.silPool.finish();
+    this.stats.silhouettes = n;
+  }
+
   // ---------------------------------------------------------------- Gebäude
 
+  /** Tor offen: eine eigene Bodenfigur steht auf dem Tor oder direkt daneben. */
+  private gateOpen(b: Building, state: SimState): boolean {
+    const cx = b.x + 0.5, cy = b.y + 0.5;
+    for (const u of state.units) {
+      if (u.team !== b.team || u.dead || u.layer > 0 || u.z > 0.2) continue;
+      if (Math.abs(u.x - cx) < 1.4 && Math.abs(u.y - cy) < 1.4) return true;
+    }
+    return false;
+  }
+
   /** Sprite, Ausrichtung (für die Ansicht) und Variante eines Gebäudes. */
-  private buildingSprite(b: Building): { keys: [string, number][]; frame: number } | null {
+  private buildingSprite(b: Building, state: SimState): { keys: [string, number][]; frame: number } | null {
     const def = BUILDINGS[b.key];
     if (b.key === "mauer") {
       const { piece, o } = wallPiece(b.wallMask);
@@ -276,10 +415,9 @@ export class ObjectLayer {
       return { keys: cross ? [[k, o], [k, o + 1]] : [[k, o]], frame: 0 };
     }
     if (b.key === "tor") {
-      const m = b.wallMask;
-      const o = m & 0b1010 ? 0 : m & 0b0101 ? 1 : b.o;
       const k = this.bkey("tor", "mauer");
-      return k ? { keys: [[k, o]], frame: 0 } : null;
+      const open = k === "tor" && b.built >= 1 && this.gateOpen(b, state);
+      return k ? { keys: [[k, gateOrientation(b.wallMask, b.o)]], frame: open ? 1 : 0 } : null;
     }
     if (b.key === "lager") {
       const k = this.bkey(def.sprite, "lager");
@@ -303,14 +441,14 @@ export class ObjectLayer {
     return { keys: [[k, b.o]], frame };
   }
 
-  private buildingItems(b: Building, opt: SceneOptions): void {
+  private buildingItems(b: Building, state: SimState, opt: SceneOptions): void {
     const bs = this.bs;
     if (!bs) return;
     const def = BUILDINGS[b.key];
     const fp = def.footprint;
     const [w, h] = b.o % 2 === 0 ? fp : [fp[1], fp[0]];
     const [u0, u1, v0, v1] = this.box(b.x, b.y, b.x + w, b.y + h);
-    const spr = this.buildingSprite(b);
+    const spr = this.buildingSprite(b, state);
     const lagerFlat = b.key === "lager" && spr?.keys[0][0] !== "lager";
     const it = this.newItem(u0, u1, v0, v1, lagerFlat, false);
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
@@ -322,13 +460,15 @@ export class ObjectLayer {
         const view = viewOf(o, this.r);
         const tex = bs.texture(key, view, spr.frame, b.team);
         if (!tex) continue;
-        const hit = this.hit("building", b.id, b.team, "b", key, view, Math.min(spr.frame, bs.get(key)!.frames - 1), X - ax, Y - ay);
+        const frame = Math.min(spr.frame, bs.get(key)!.frames - 1);
+        const hit = this.hit("building", b.id, b.team, "b", key, view, frame, X - ax, Y - ay);
         if (b.built >= 1) {
-          this.part(it, tex, X, Y, ax, ay, { tint, hit });
+          const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
+          if (!lagerFlat) this.occluder(p, key, view, frame);
         } else {
           // Baustelle: voller Umriss halbtransparent, darüber von unten nach oben aufgedeckt
           this.part(it, tex, X, Y, ax, ay, { alpha: 0.28, tint: 0xc8d4ff, hit });
-          const bb = bs.get(key)!.bbox[view]?.[Math.min(spr.frame, bs.get(key)!.frames - 1)];
+          const bb = bs.get(key)!.bbox[view]?.[frame];
           if (bb && b.built > 0) {
             const q = Math.round(b.built * 48) / 48;
             const cut = Math.round(bb.y1 - q * (bb.y1 - bb.y0));
@@ -352,7 +492,18 @@ export class ObjectLayer {
       }
     }
     this.closeItem(it);
-    if (b.key === "lager" && lagerFlat) this.stackItems(b);
+    if (b.key === "lager" && lagerFlat) {
+      this.stackItems(b);
+      // Vorderer Zaun als eigenes Objekt nach Stapeln und Figuren im Hof (lager_boden → Stapel/Figuren → Front)
+      const key = spr!.keys[0][0], view = viewOf(spr!.keys[0][1], this.r);
+      const ft = b.built >= 1 ? bs.texture(key, view, 0, b.team, "front") : null;
+      if (ft) {
+        const fit = this.newItem(u0, u1, v0, v1, false, false, 0, true);
+        const p = this.part(fit, ft, X, Y, ax, ay, { tint });
+        this.occluder(p, key, view, 0);
+        this.closeItem(fit);
+      }
+    }
     if (b.built < 1) this.siteItems(b);
   }
 
@@ -401,6 +552,20 @@ export class ObjectLayer {
     });
   }
 
+  /** Bauvorschau als halbtransparentes Objekt in der Tiefensortierung (Figuren davor bleiben unverdeckt). */
+  private ghostItem(g: Ghost): void {
+    const bs = this.bs;
+    if (!bs) return;
+    const view = viewOf(g.o, this.r);
+    const tex = bs.texture(g.key, view, g.frame);
+    if (!tex) return;
+    const [u0, u1, v0, v1] = this.box(g.x0, g.y0, g.x1, g.y1);
+    const it = this.newItem(u0, u1, v0, v1);
+    const [X, Y] = this.scr(g.cx, g.cy);
+    this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1], { alpha: g.alpha, tint: g.tint });
+    this.closeItem(it);
+  }
+
   // ---------------------------------------------------------------- Bäume und Felsen
 
   private treeItem(t: Tree): void {
@@ -425,12 +590,19 @@ export class ObjectLayer {
       this.part(it, tex, X, Y, ax, ay, { rot: e * (Math.PI / 2) * nx, sy: scaleY });
     };
     switch (t.state) {
-      case "stehend": this.part(it, tex, X, Y, ax, ay); break;
-      case "faellt": fallen(Math.min(1, t.progress * t.progress)); break;
+      case "stehend": this.occluder(this.part(it, tex, X, Y, ax, ay), key, view, frame); break;
+      case "faellt": {
+        // zwischen den Ticks weiterlaufen lassen (wie Figuren und Pfeile)
+        const p = Math.min(1, t.progress + this.alpha * FALL_STEP);
+        fallen(p * p);
+        break;
+      }
       case "liegt": {
         if (bs.has("baum_liegt")) {
+          // Varianten: 3, 2, 1 Stämme
           const o = axisOrientation(t.fallX, t.fallY);
-          const lt = bs.texture("baum_liegt", viewOf(o, this.r), t.kind === "tanne" ? 1 : 0);
+          const v = Math.max(0, Math.min(bs.get("baum_liegt")!.frames - 1, TUNING.treeLogs - t.logs));
+          const lt = bs.texture("baum_liegt", viewOf(o, this.r), v);
           if (lt) { this.part(it, lt, X, Y, ax, ay); break; }
         }
         warnOnce("Sprite „baum_liegt“ fehlt im Gebäudeblatt, Ersatz: gekippter Baum");
@@ -439,7 +611,8 @@ export class ObjectLayer {
       }
       case "stumpf": {
         if (bs.has("baum_stumpf")) {
-          const st = bs.texture("baum_stumpf", view, 0);
+          // Varianten: Laubbaum, Tanne
+          const st = bs.texture("baum_stumpf", view, t.kind === "tanne" ? 1 : 0);
           if (st) { this.part(it, st, X, Y, ax, ay); break; }
         }
         warnOnce("Sprite „baum_stumpf“ fehlt im Gebäudeblatt, Ersatz: unterster Stammteil des Baums");
@@ -460,8 +633,9 @@ export class ObjectLayer {
     if (bs?.has("fels")) {
       const sp = bs.get("fels")!;
       const stage = Math.max(0, Math.min(sp.frames - 1, Math.floor(used * sp.frames)));
-      const tex = bs.texture("fels", viewOf(hash4(k.id), this.r), stage);
-      if (tex) this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]);
+      const view = viewOf(hash4(k.id), this.r);
+      const tex = bs.texture("fels", view, stage);
+      if (tex) this.occluder(this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]), "fels", view, stage);
     } else {
       warnOnce("Sprite „fels“ fehlt im Gebäudeblatt, Ersatz: einfacher Felsbrocken");
       this.part(it, rockTexture(Math.max(0, Math.min(4, Math.floor(used * 5)))), X, Y, 32, 40);
@@ -493,4 +667,12 @@ export class ObjectLayer {
     }
     return null;
   }
+}
+
+/**
+ * Ausrichtung eines Tors aus der Mauer-Nachbarschaft (wie placeSite in sim/build.ts): Nachbarn in O/W → o = 0,
+ * in N/S → o = 1, sonst die gewünschte Ausrichtung.
+ */
+export function gateOrientation(mask: number, o: number): number {
+  return mask & 0b1010 ? 0 : mask & 0b0101 ? 1 : o;
 }

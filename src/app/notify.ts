@@ -1,32 +1,57 @@
 /**
- * Kurzer Hinweis am Mauszeiger (z. B. warum hier nicht gebaut werden kann). Blendet nach kurzer Zeit aus.
+ * Hinweise. Absprache: Vorübergehende Hinweise (Toasts) zeigt allein die Oberfläche; die App reicht sie über
+ * bridge.notify an die onNotify-Abonnenten weiter (NotifyHub). Einzige Ausnahme ist der Live-Grund einer roten
+ * Bauvorschau: Er steht als kleiner Zeiger-Hinweis direkt am Mauszeiger (PointerHint), über allen Leisten.
  */
-export class Notifier {
-  private el: HTMLDivElement;
-  private timer = 0;
-  private mx = 0;
-  private my = 0;
+export type NotifyKind = "info" | "warnung";
+type Listener = (text: string, kind?: NotifyKind) => void;
 
-  constructor(host: HTMLElement) {
+export class NotifyHub {
+  private subs = new Set<Listener>();
+
+  subscribe(fn: Listener): () => void {
+    this.subs.add(fn);
+    return () => { this.subs.delete(fn); };
+  }
+
+  emit(text: string, kind: NotifyKind = "info"): void {
+    if (!this.subs.size) { console.info(`[Hinweis] ${text}`); return; }
+    for (const fn of [...this.subs]) {
+      try { fn(text, kind); } catch (e) { console.error("Fehler beim Anzeigen eines Hinweises", e); }
+    }
+  }
+}
+
+/** Kleiner Hinweis am Mauszeiger, solange die Bauvorschau rot ist (Grund der Ablehnung). */
+export class PointerHint {
+  private el: HTMLDivElement;
+  private text = "";
+  private x = -1;
+  private y = -1;
+
+  constructor() {
     this.el = document.createElement("div");
-    this.el.className = "mk-hinweis";
+    this.el.className = "mk-zeiger";
     this.el.setAttribute("role", "status");
     this.el.setAttribute("aria-live", "polite");
-    host.appendChild(this.el);
-    const track = (e: PointerEvent) => { this.mx = e.clientX; this.my = e.clientY; };
-    window.addEventListener("pointermove", track, { passive: true });
-    window.addEventListener("pointerdown", track, { passive: true, capture: true });
+    this.el.hidden = true;
+    document.body.appendChild(this.el);
   }
 
-  show(text: string, kind: "info" | "warnung" = "info"): void {
-    const el = this.el;
-    el.textContent = text;
-    el.dataset.kind = kind;
-    const x = Math.min(window.innerWidth - 16, Math.max(16, this.mx + 18));
-    const y = Math.min(window.innerHeight - 40, Math.max(16, this.my + 18));
-    el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-    el.classList.add("sichtbar");
-    window.clearTimeout(this.timer);
-    this.timer = window.setTimeout(() => el.classList.remove("sichtbar"), kind === "warnung" ? 2600 : 1800);
+  /** Text an Bildschirmposition (clientX/Y) zeigen; leerer Text blendet aus. Ändert das DOM nur bei Änderungen. */
+  set(text: string, cx: number, cy: number): void {
+    if (text !== this.text) {
+      this.text = text;
+      this.el.textContent = text;
+      this.el.hidden = !text;
+    }
+    if (!text) return;
+    const x = Math.round(Math.min(window.innerWidth - 16, Math.max(8, cx + 16)));
+    const y = Math.round(Math.min(window.innerHeight - 30, Math.max(8, cy + 20)));
+    if (x === this.x && y === this.y) return;
+    this.x = x; this.y = y;
+    this.el.style.transform = `translate(${x}px, ${y}px)`;
   }
+
+  hide(): void { this.set("", 0, 0); }
 }

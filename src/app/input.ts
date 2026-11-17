@@ -1,18 +1,24 @@
 /**
  * Eingabe: Maus und Tastatur → Kamera, Auswahl, Werkzeuge und Befehle an die Simulation.
  *
- * Kamera: WASD/Pfeile, Bildschirmrand, mittlere oder rechte Maustaste ziehen, Mausrad (zur Maus hin), Q/E drehen.
+ * Kamera: WASD/Pfeile, Bildschirmrand (Fensterrand, auch über den Leisten), mittlere oder rechte Maustaste ziehen,
+ * Mausrad (zur Maus hin), Q dreht nach links (rotate −1), E nach rechts (rotate +1), wie die Knöpfe ⟲/⟳.
+ * Leertaste: Pause/Weiter (global, auch wenn ein Knopf den Fokus hat).
  * Auswahl: Linksklick (pixelgenau, oberstes Objekt), Rahmen ziehen (eigene Einheiten), Shift ergänzt,
  * Doppelklick wählt alle sichtbaren gleicher Art. Rechtsklick: Feind angreifen, sonst bewegen (auch auf den Wehrgang).
  * T stationieren, H halten, Strg+Ziffer Gruppe speichern, Ziffer Gruppe wählen.
  * Bauen: Vorschau, R dreht, Linksklick baut, Shift hält das Werkzeug, Esc/Rechtsklick bricht ab.
  * Mauer: von Start- zu End-Tile ziehen, Loslassen baut. Abriss: Klick auf ein eigenes Gebäude.
+ *
+ * Leistung: Treffer und Vorschau unter der Maus werden nur neu berechnet, wenn sich Maus, Kamera, Werkzeug, Auswahl
+ * oder der Tick ändern; der Mauszeiger (CSS cursor) wird nur bei Änderung gesetzt.
  */
 import { BUILDINGS, UNITS, type BuildingKey } from "../data";
 import { footprint } from "../sim/geom";
-import type { Command, CommandResult, Game, PlacementCheck } from "../sim/types";
+import type { CommandResult, Game, PlacementCheck } from "../sim/types";
 import type { FrameInput, GameRenderer, Marker, Preview } from "../render";
-import type { Tool } from "./contract";
+import type { Tool, UiBridge } from "./contract";
+import type { PointerHint } from "./notify";
 import type { AppStore } from "./store";
 
 const DRAG_PX = 5;
@@ -25,14 +31,20 @@ export interface InputContext {
   game: Game;
   store: AppStore;
   renderer: GameRenderer;
-  dispatch: (cmd: Command) => CommandResult;
-  notify: (text: string, kind?: "info" | "warnung") => void;
+  bridge: UiBridge;
+  hint: PointerHint;
   toggleDebug: () => void;
 }
+
+type HoverOut = Pick<FrameInput, "danger" | "highlight" | "preview">;
 
 export class Input {
   private mx = -1;
   private my = -1;
+  /** Zeiger in Fensterkoordinaten (für den Randbildlauf) und ob er im Fenster ist. */
+  private cx = -1;
+  private cy = -1;
+  private inWindow = false;
   private over = false;
   private keys = new Set<string>();
   private left: { sx: number; sy: number; drag: boolean; shift: boolean } | null = null;
@@ -43,20 +55,29 @@ export class Input {
   private lastClick = { t: 0, id: 0 };
   private check: { id: string; tick: number; res: PlacementCheck } | null = null;
   private time = 0;
+  private cursor = "";
+  /** Zwischenspeicher der Mausauswertung (Treffer, Vorschau) und ihr Schlüssel. */
+  private hover: HoverOut = { danger: null, highlight: null, preview: null };
+  private hoverKey = "";
+  private moved = true;
 
   constructor(private ctx: InputContext) {
     const c = ctx.canvas;
     c.addEventListener("pointerdown", (e) => this.down(e));
-    window.addEventListener("pointermove", (e) => this.move(e));
+    window.addEventListener("pointermove", (e) => this.move(e), { passive: true });
     window.addEventListener("pointerup", (e) => this.up(e));
-    c.addEventListener("pointerenter", () => { this.over = true; });
-    c.addEventListener("pointerleave", () => { this.over = false; });
-    document.addEventListener("mouseleave", () => { this.over = false; });
+    c.addEventListener("pointerenter", () => { this.over = true; this.moved = true; });
+    c.addEventListener("pointerleave", () => { this.over = false; this.moved = true; });
+    document.addEventListener("mouseleave", () => { this.inWindow = false; this.over = false; });
+    document.addEventListener("mouseenter", () => { this.inWindow = true; });
     c.addEventListener("contextmenu", (e) => e.preventDefault());
     c.addEventListener("wheel", (e) => this.wheel(e), { passive: false });
+    // Leertaste vor allen anderen (Knöpfe der Oberfläche sollen sie nicht erneut auslösen)
+    window.addEventListener("keydown", (e) => this.space(e), true);
+    window.addEventListener("keyup", (e) => { if (e.code === "Space" && !typing(e)) e.preventDefault(); }, true);
     window.addEventListener("keydown", (e) => this.keydown(e));
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    window.addEventListener("blur", () => { this.keys.clear(); this.left = null; this.pan = null; });
+    window.addEventListener("blur", () => { this.keys.clear(); this.left = null; this.pan = null; this.inWindow = false; });
   }
 
   private get r(): GameRenderer { return this.ctx.renderer; }
@@ -67,11 +88,27 @@ export class Input {
     return [e.clientX - b.left, e.clientY - b.top];
   }
 
+  private notify(text: string, kind: "info" | "warnung" = "info"): void {
+    this.ctx.bridge.notify(text, kind);
+  }
+
+  /** Ergebnis eines Befehls melden: Ablehnung als Warnung, Teil-Erfolg (ok mit Grund) als Info. */
+  private report(res: CommandResult, fallback: string): void {
+    if (!res.ok) this.notify(res.reason ?? fallback, "warnung");
+    else if (res.reason) this.notify(res.reason, "info");
+  }
+
+  private setCursor(c: string): void {
+    if (c === this.cursor) return;
+    this.cursor = c;
+    this.ctx.canvas.style.cursor = c;
+  }
+
   // ---------------------------------------------------------------- Maus
 
   private down(e: PointerEvent): void {
     const [x, y] = this.pos(e);
-    this.mx = x; this.my = y; this.over = true;
+    this.mx = x; this.my = y; this.over = true; this.moved = true;
     try { this.ctx.canvas.setPointerCapture(e.pointerId); } catch { /* Zeiger nicht aktiv (z. B. synthetisch) */ }
     if (e.button === 1 || e.button === 2) {
       this.pan = { sx: x, sy: y, moved: false, button: e.button };
@@ -89,6 +126,7 @@ export class Input {
   }
 
   private move(e: PointerEvent): void {
+    this.cx = e.clientX; this.cy = e.clientY; this.inWindow = true;
     const [x, y] = this.pos(e);
     if (this.pan) {
       const dx = x - this.mx, dy = y - this.my;
@@ -96,12 +134,13 @@ export class Input {
       if (this.pan.moved) this.r.camera.pan(-dx, -dy);
     }
     if (this.left && !this.left.drag && Math.abs(x - this.left.sx) + Math.abs(y - this.left.sy) > DRAG_PX && this.tool.t === "auswahl") this.left.drag = true;
+    if (x !== this.mx || y !== this.my) this.moved = true;
     this.mx = x; this.my = y;
   }
 
   private up(e: PointerEvent): void {
     const [x, y] = this.pos(e);
-    this.mx = x; this.my = y;
+    this.mx = x; this.my = y; this.moved = true;
     if (this.pan && (e.button === 1 || e.button === 2)) {
       const p = this.pan;
       this.pan = null;
@@ -113,8 +152,9 @@ export class Input {
       const s = this.wallStart;
       this.wallStart = null;
       const end = this.r.tileAt(x, y);
-      const res = this.ctx.dispatch({ t: "mauer", x0: s.x, y0: s.y, x1: end.x, y1: end.y });
-      if (!res.ok) this.ctx.notify(res.reason ?? "Hier kann keine Mauer stehen.", "warnung");
+      const res = this.ctx.bridge.dispatch({ t: "mauer", x0: s.x, y0: s.y, x1: end.x, y1: end.y });
+      this.check = null;
+      this.report(res, "Hier kann keine Mauer stehen.");
       return;
     }
     const l = this.left;
@@ -146,21 +186,22 @@ export class Input {
     const hit = this.r.pick(x, y);
     const now = performance.now();
     if (hit?.kind === "unit") {
-      const dbl = now - this.lastClick.t < DBL_MS && this.lastClick.id === hit.id;
-      this.lastClick = { t: now, id: hit.id };
-      if (dbl && hit.team === 0) {
+      const id = hit.id, team = hit.team;
+      const dbl = now - this.lastClick.t < DBL_MS && this.lastClick.id === id;
+      this.lastClick = { t: now, id };
+      if (dbl && team === 0) {
         // alle sichtbaren eigenen Einheiten gleicher Art
-        const key = game.state.units.find((u) => u.id === hit.id)?.key;
+        const key = game.state.units.find((u) => u.id === id)?.key;
         const ids = this.r.unitsInRect(0, 0, this.r.camera.sw, this.r.camera.sh, 0)
-          .filter((id) => game.state.units.find((u) => u.id === id)?.key === key);
+          .filter((uid) => game.state.units.find((u) => u.id === uid)?.key === key);
         store.select({ units: shift ? [...store.selection.units, ...ids] : ids, building: null });
         return;
       }
-      if (shift && hit.team === 0) {
+      if (shift && team === 0) {
         const cur = store.selection.units;
-        const units = cur.includes(hit.id) ? cur.filter((id) => id !== hit.id) : [...cur, hit.id];
+        const units = cur.includes(id) ? cur.filter((u) => u !== id) : [...cur, id];
         store.select({ units, building: null });
-      } else store.select({ units: [hit.id], building: null });
+      } else store.select({ units: [id], building: null });
       return;
     }
     this.lastClick = { t: now, id: 0 };
@@ -180,21 +221,21 @@ export class Input {
   }
 
   private rightClick(x: number, y: number, _shift: boolean): void {
-    const { store, dispatch, notify } = this.ctx;
+    const { store, bridge } = this.ctx;
     if (this.tool.t !== "auswahl") { store.setTool({ t: "auswahl" }); this.wallStart = null; return; }
     const units = this.ownSelected();
     if (!units.length) return;
     const enemy = this.r.pick(x, y, (h) => h.team !== 0);
     if (enemy) {
-      const res = dispatch({ t: "angreifen", units, target: enemy.id });
-      if (!res.ok) notify(res.reason ?? "Angriff nicht möglich.", "warnung");
-      else this.marker(x, y, 0xe0503c);
+      const res = bridge.dispatch({ t: "angreifen", units, target: enemy.id });
+      this.report(res, "Angriff nicht möglich.");
+      if (res.ok) this.marker(x, y, 0xe0503c);
       return;
     }
     const tile = this.r.tileAt(x, y, (tx, ty) => this.ctx.game.walkLayerAt(tx, ty));
-    const res = dispatch({ t: "bewegen", units, x: tile.x, y: tile.y });
-    if (!res.ok) notify(res.reason ?? "Dort kommen sie nicht hin.", "warnung");
-    else this.markers.push({ x: tile.x + 0.5, y: tile.y + 0.5, z: tile.z, t0: this.time, color: tile.layer ? 0x8fd0ff : 0x9fe07a });
+    const res = bridge.dispatch({ t: "bewegen", units, x: tile.x, y: tile.y });
+    this.report(res, "Dort kommen sie nicht hin.");
+    if (res.ok) this.markers.push({ x: tile.x + 0.5, y: tile.y + 0.5, z: tile.z, t0: this.time, color: tile.layer ? 0x8fd0ff : 0x9fe07a });
   }
 
   private marker(x: number, y: number, color: number): void {
@@ -220,28 +261,35 @@ export class Input {
 
   private build(t: Extract<Tool, { t: "bauen" }>, x: number, y: number, shift: boolean): void {
     const [bx, by] = this.buildOrigin(t.key, t.o, x, y);
-    const check = this.placement(t.key, bx, by, t.o);
-    if (!check.ok) { this.ctx.notify(check.reason ?? "Hier kann nicht gebaut werden.", "warnung"); return; }
-    const res = this.ctx.dispatch({ t: "bauen", key: t.key, x: bx, y: by, o: t.o });
+    // Auch bei roter Vorschau an die Simulation schicken: Sie nennt den Grund und die passende Ansage.
+    const res = this.ctx.bridge.dispatch({ t: "bauen", key: t.key, x: bx, y: by, o: t.o });
     this.check = null;
-    if (!res.ok) { this.ctx.notify(res.reason ?? "Hier kann nicht gebaut werden.", "warnung"); return; }
-    if (!shift) this.ctx.store.setTool({ t: "auswahl" });
+    this.report(res, "Hier kann nicht gebaut werden.");
+    if (res.ok && !shift) this.ctx.store.setTool({ t: "auswahl" });
   }
 
   private demolish(x: number, y: number, shift: boolean): void {
     const hit = this.r.pick(x, y, (h) => h.kind === "building" && h.team === 0);
     if (!hit) return;
-    const res = this.ctx.dispatch({ t: "abreissen", id: hit.id });
-    if (!res.ok) this.ctx.notify(res.reason ?? "Das lässt sich nicht abreißen.", "warnung");
-    else if (!shift) this.ctx.store.setTool({ t: "auswahl" });
+    const res = this.ctx.bridge.dispatch({ t: "abreissen", id: hit.id });
+    this.report(res, "Das lässt sich nicht abreißen.");
+    if (res.ok && !shift) this.ctx.store.setTool({ t: "auswahl" });
   }
 
   // ---------------------------------------------------------------- Tastatur
 
+  /** Leertaste: Pause/Weiter, global und vor den Knöpfen der Oberfläche. */
+  private space(e: KeyboardEvent): void {
+    if (e.code !== "Space" || typing(e)) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    const { bridge, store } = this.ctx;
+    bridge.setSpeed(store.speed ? 0 : store.resumeSpeed || 1);
+  }
+
   private keydown(e: KeyboardEvent): void {
-    const tg = e.target as HTMLElement | null;
-    if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable)) return;
-    const { store, dispatch, notify } = this.ctx;
+    if (typing(e) || e.code === "Space") return;
+    const { store, bridge } = this.ctx;
     this.keys.add(e.code);
     if (e.code === "F3") { e.preventDefault(); this.ctx.toggleDebug(); return; }
     if (e.ctrlKey || e.metaKey) {
@@ -249,7 +297,7 @@ export class Input {
       if (n !== null && e.ctrlKey) {
         e.preventDefault();
         store.groups.set(n, this.ownSelected());
-        notify(`Gruppe ${n} gespeichert`);
+        this.notify(`Gruppe ${n} gespeichert`);
       }
       return;
     }
@@ -260,8 +308,8 @@ export class Input {
       return;
     }
     switch (e.code) {
-      case "KeyQ": this.r.rotate(1); store.emit("view"); break;
-      case "KeyE": this.r.rotate(-1); store.emit("view"); break;
+      case "KeyQ": bridge.rotate(-1); break;
+      case "KeyE": bridge.rotate(1); break;
       case "KeyR": {
         const t = store.tool;
         if (t.t === "bauen") store.setTool({ ...t, o: (t.o + (e.shiftKey ? 3 : 1)) % 4 });
@@ -272,23 +320,22 @@ export class Input {
           const u = this.ctx.game.state.units.find((q) => q.id === id);
           return u && UNITS[u.key].canStation;
         });
-        if (!units.length) { notify("Keine Soldaten ausgewählt, die auf die Mauer können.", "warnung"); break; }
-        const res = dispatch({ t: "stationieren", units });
-        if (!res.ok) notify(res.reason ?? "Kein freier Posten.", "warnung");
+        if (!units.length) { this.notify("Keine Soldaten ausgewählt, die auf die Mauer können.", "warnung"); break; }
+        this.report(bridge.dispatch({ t: "stationieren", units }), "Kein freier Posten.");
         break;
       }
       case "KeyH": {
         const units = this.ownSelected();
-        if (units.length) dispatch({ t: "halten", units });
+        if (units.length) this.report(bridge.dispatch({ t: "halten", units }), "Halten nicht möglich.");
         break;
       }
       case "Escape":
         if (store.tool.t !== "auswahl") { store.setTool({ t: "auswahl" }); this.wallStart = null; }
         else store.select({ units: [], building: null });
         break;
-      case "Equal": case "NumpadAdd": case "BracketRight": if (this.r.zoom(1)) store.emit("view"); break;
-      case "Minus": case "NumpadSubtract": case "Slash": if (this.r.zoom(-1)) store.emit("view"); break;
-      case "KeyP": case "Pause": store.speed = store.speed ? 0 : 1; store.emit("tick"); break;
+      case "Equal": case "NumpadAdd": case "BracketRight": bridge.zoom(1); break;
+      case "Minus": case "NumpadSubtract": case "Slash": bridge.zoom(-1); break;
+      case "KeyP": case "Pause": bridge.setSpeed(store.speed ? 0 : store.resumeSpeed || 1); break;
       default: return;
     }
   }
@@ -299,31 +346,50 @@ export class Input {
   frame(dt: number, time: number): Omit<FrameInput, "selectedUnits" | "selectedBuilding"> {
     this.time = time;
     const cam = this.r.camera;
-    // Tastatur und Bildschirmrand
+    // Tastatur und Fensterrand (auch über Kopf- und Fußleiste)
     let dx = 0, dy = 0;
     const k = this.keys;
     if (k.has("KeyA") || k.has("ArrowLeft")) dx -= 1;
     if (k.has("KeyD") || k.has("ArrowRight")) dx += 1;
     if (k.has("KeyW") || k.has("ArrowUp")) dy -= 1;
     if (k.has("KeyS") || k.has("ArrowDown")) dy += 1;
-    if (this.over && !this.pan && document.hasFocus()) {
-      if (this.mx >= 0 && this.mx < EDGE_PX) dx -= 1;
-      if (this.mx > cam.sw - EDGE_PX) dx += 1;
-      if (this.my >= 0 && this.my < EDGE_PX) dy -= 1;
-      if (this.my > cam.sh - EDGE_PX) dy += 1;
+    if (this.inWindow && this.cx >= 0 && !this.pan && !this.left?.drag && document.hasFocus()) {
+      if (this.cx < EDGE_PX) dx -= 1;
+      if (this.cx > window.innerWidth - 1 - EDGE_PX) dx += 1;
+      if (this.cy < EDGE_PX) dy -= 1;
+      if (this.cy > window.innerHeight - 1 - EDGE_PX) dy += 1;
     }
     if (dx || dy) {
       const len = Math.hypot(dx, dy);
       const sp = PAN_SPEED * Math.min(0.05, dt) * Math.max(1, cam.zoom / 2);
       cam.pan((dx / len) * sp, (dy / len) * sp);
     }
-    this.markers = this.markers.filter((m) => time - m.t0 < 0.8);
+    if (this.markers.length && time - this.markers[0].t0 >= 0.8) this.markers = this.markers.filter((m) => time - m.t0 < 0.8);
 
+    // Treffer und Vorschau nur bei Änderungen neu auswerten
+    const t = this.tool;
+    const store = this.ctx.store;
+    const key = `${this.mx},${this.my},${this.over ? 1 : 0},${this.pan ? 1 : 0},${this.ctx.game.state.tick},${cam.x},${cam.y},${cam.r},${cam.zoom},` +
+      `${t.t === "bauen" ? t.key + t.o : t.t},${this.wallStart ? this.wallStart.x + ":" + this.wallStart.y : ""},${store.selection.units.length}`;
+    if (this.moved || key !== this.hoverKey) {
+      this.hoverKey = key;
+      this.moved = false;
+      this.hover = this.evaluate();
+    }
+    const l = this.left;
+    return {
+      ...this.hover, markers: this.markers,
+      dragRect: l?.drag ? { x0: l.sx, y0: l.sy, x1: this.mx, y1: this.my } : null,
+    };
+  }
+
+  /** Mausauswertung: Bauvorschau, Abriss-Ziel, Hervorhebung, Zielkachel auf dem Wehrgang; Zeiger und Zeiger-Hinweis. */
+  private evaluate(): HoverOut {
     let preview: Preview | null = null;
     let danger: number | null = null;
     let highlight: number | null = null;
+    let reason = "";
     const t = this.tool;
-    const canvas = this.ctx.canvas;
     const inside = this.over && this.mx >= 0;
     if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
       const end = this.r.tileAt(this.mx, this.my);
@@ -333,30 +399,49 @@ export class Input {
       if (!this.check || this.check.id !== id || tick - this.check.tick > 5) this.check = { id, tick, res: this.ctx.game.wallPath(s.x, s.y, end.x, end.y) };
       const res = this.check.res;
       preview = { kind: "mauer", check: res.tiles.length ? res : { ...res, tiles: [{ x: end.x, y: end.y, ok: res.ok }] } };
-      canvas.style.cursor = "crosshair";
+      if (!res.ok) reason = res.reason ?? "Hier kann keine Mauer stehen.";
+      this.setCursor("crosshair");
     } else if (t.t === "bauen" && inside) {
       const [bx, by] = this.buildOrigin(t.key, t.o, this.mx, this.my);
-      preview = { kind: "bauen", key: t.key, x: bx, y: by, o: t.o, check: this.placement(t.key, bx, by, t.o) };
-      canvas.style.cursor = "crosshair";
+      const check = this.placement(t.key, bx, by, t.o);
+      preview = { kind: "bauen", key: t.key, x: bx, y: by, o: t.o, check };
+      if (!check.ok) reason = check.reason ?? "Hier kann nicht gebaut werden.";
+      this.setCursor("crosshair");
     } else if (t.t === "abriss" && inside) {
       danger = this.r.pick(this.mx, this.my, (h) => h.kind === "building" && h.team === 0)?.id ?? null;
-      canvas.style.cursor = danger ? "pointer" : "not-allowed";
+      this.setCursor(danger ? "pointer" : "not-allowed");
     } else if (inside && !this.pan) {
       const hit = this.r.pick(this.mx, this.my);
       const sel = this.ownSelected().length > 0;
-      if (hit?.kind === "building") highlight = hit.id;
-      canvas.style.cursor = hit ? (sel && hit.team !== 0 ? "crosshair" : "pointer") : "default";
-      if (sel && !hit) {
+      let wall = false;
+      if (sel && (!hit || (hit.kind === "building" && hit.team === 0 && this.walkable(hit.id)))) {
+        // Ziel auf dem Wehrgang (oder Boden ohne Treffer) als Kachel zeigen statt das Gebäude hervorzuheben
         const tile = this.r.tileAt(this.mx, this.my, (tx, ty) => this.ctx.game.walkLayerAt(tx, ty));
-        if (tile.layer > 0) preview = { kind: "kachel", x: tile.x, y: tile.y, z: tile.z, color: 0x8fd0ff };
+        if (tile.layer > 0) { preview = { kind: "kachel", x: tile.x, y: tile.y, z: tile.z, color: 0x8fd0ff }; wall = true; }
       }
-    } else if (this.pan?.moved) canvas.style.cursor = "grabbing";
-    const l = this.left;
-    return {
-      danger, highlight, preview, markers: this.markers,
-      dragRect: l?.drag ? { x0: l.sx, y0: l.sy, x1: this.mx, y1: this.my } : null,
-    };
+      if (hit?.kind === "building" && !wall) highlight = hit.id;
+      this.setCursor(wall ? "crosshair" : hit ? (sel && hit.team !== 0 ? "crosshair" : "pointer") : "default");
+    } else if (this.pan?.moved) this.setCursor("grabbing");
+    if (reason && inside) {
+      const b = this.ctx.canvas.getBoundingClientRect();
+      this.ctx.hint.set(reason, this.mx + b.left, this.my + b.top);
+    } else this.ctx.hint.hide();
+    return { danger, highlight, preview };
   }
+
+  /** Gebäude mit Wehrgang oder Turmplattform? */
+  private walkable(id: number): boolean {
+    const b = this.ctx.game.state.buildings.find((q) => q.id === id);
+    return !!b && b.built >= 1 && !!BUILDINGS[b.key].walkway;
+  }
+}
+
+/** Tastendruck gehört einem Texteingabefeld? (Regler, Häkchen und Knöpfe zählen nicht: dort gilt die Leertaste als Pause.) */
+function typing(e: KeyboardEvent): boolean {
+  const tg = e.target as HTMLElement | null;
+  if (!tg) return false;
+  if (tg.tagName === "INPUT") return !["range", "checkbox", "radio", "button", "submit", "reset", "color"].includes((tg as HTMLInputElement).type);
+  return tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable;
 }
 
 function digit(code: string): number | null {

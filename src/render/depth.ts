@@ -19,6 +19,11 @@ export interface DepthItem {
   fig: boolean;
   /** Feinsortierung bei Gleichstand (z. B. Höhe). */
   bias: number;
+  /**
+   * Vorderteil (z. B. vorderer Lagerzaun): wird nach allem gezeichnet, was seine Box überlappt (Stapel, Figuren im Hof).
+   * Was ganz vor der Box liegt, kommt weiter danach.
+   */
+  cover?: boolean;
 }
 
 const EPS = 1e-3;
@@ -32,6 +37,7 @@ export function relation(a: DepthItem, b: DepthItem): number {
   if (bBehind && !aBehind) return -1;
   if (aBehind && bBehind) return 0;
   // Boxen überlappen sich
+  if (!!a.cover !== !!b.cover) return a.cover ? -1 : 1;
   if (a.flat !== b.flat) return a.flat ? 1 : -1;
   if (a.fig !== b.fig) return a.fig ? -1 : 1;
   const da = a.u0 + a.u1 + a.v0 + a.v1 + a.bias, db = b.u0 + b.u1 + b.v0 + b.v1 + b.bias;

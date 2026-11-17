@@ -11,6 +11,8 @@ export class AppStore {
   selection: Selection = { units: [], building: null };
   tool: Tool = { t: "auswahl" };
   speed = 1;
+  /** Geschwindigkeit, mit der es nach der Pause weitergeht (Leertaste). */
+  resumeSpeed = 1;
   groups = new Map<number, number[]>();
   private listeners = new Map<AppEvent, Set<() => void>>();
 

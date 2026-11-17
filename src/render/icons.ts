@@ -1,6 +1,6 @@
 /**
  * Kleine Icons für die Oberfläche, aus den echten Sprites geschnitten: Gebäude (Ansicht 0), Figur (Richtung S, Stehen),
- * Ware (Stapel in voller Füllstufe, sonst der Träger). Quadratisch, pixelscharf skaliert, gecacht.
+ * Ware (Stapel in voller Füllstufe, sonst der Träger). Team 1 mit roter Teamfarbe (team_swap). Quadratisch, pixelscharf skaliert, gecacht.
  */
 import { BUILDINGS, GOODS, UNITS, type Good, type UnitKey } from "../data";
 import type { IconKind } from "../app/contract";
@@ -29,14 +29,14 @@ function draw(src: HTMLCanvasElement, sx: number, sy: number, bb: Box, size: num
   return out;
 }
 
-function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number): HTMLCanvasElement | null {
+function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number, team = 0): HTMLCanvasElement | null {
   const bs = sheets.buildings;
   if (!bs) return null;
   let sk = (BUILDINGS as Record<string, { sprite: string } | undefined>)[key]?.sprite ?? key;
   if (key === "lager" && bs.has("lager")) sk = "lager";
   if (!bs.has(sk) && key === "tor") sk = "mauer";
   const sp = bs.get(sk);
-  const c = bs.canvas(sk);
+  const c = bs.canvas(sk, team);
   if (!sp || !c) return null;
   const f = Math.min(sp.frames - 1, frame ?? (key === "lager" ? sp.frames - 1 : 0));
   const bb = sp.bbox[0][f];
@@ -44,34 +44,31 @@ function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number)
   return draw(c, f * bs.cell[0], 0, bb, size);
 }
 
-function figureIcon(sheets: Sheets, key: string, size: number): HTMLCanvasElement | null {
+function figureIcon(sheets: Sheets, key: string, size: number, team = 0): HTMLCanvasElement | null {
   const fs = sheets.figures;
   if (!fs) return null;
   const k = fs.has(key) ? key : ["tageloehner", "traeger"].find((f) => fs.has(f));
-  const cell = k ? fs.canvasCell(k, 0, 0) : null;
+  const cell = k ? fs.canvasCell(k, 0, 0, team) : null;
   if (!cell) return null;
   const bb = bboxOf(cell.canvas, cell.x, cell.y, fs.cell, fs.cell);
   return bb ? draw(cell.canvas, cell.x, cell.y, bb, size) : null;
 }
 
-export function makeIcon(sheets: Sheets, kind: IconKind, key: string, size: number): HTMLCanvasElement | null {
-  const id = `${kind}:${key}:${size}`;
+export function makeIcon(sheets: Sheets, kind: IconKind, key: string, size: number, team: 0 | 1 = 0): HTMLCanvasElement | null {
+  const id = `${kind}:${key}:${size}:${team}`;
   const hit = cache.get(id);
   if (hit) return hit;
   let out: HTMLCanvasElement | null = null;
-  if (kind === "gebaeude") out = buildingIcon(sheets, key, size);
-  else if (kind === "einheit") out = figureIcon(sheets, (UNITS as Record<string, { sprite: string } | undefined>)[key as UnitKey]?.sprite ?? key, size);
+  if (kind === "gebaeude") out = buildingIcon(sheets, key, size, undefined, team);
+  else if (kind === "einheit") out = figureIcon(sheets, (UNITS as Record<string, { sprite: string } | undefined>)[key as UnitKey]?.sprite ?? key, size, team);
   else if (kind === "ware") {
     const g = (GOODS as Record<string, { stack: string; carrier: string } | undefined>)[key as Good];
     if (g) {
-      out = sheets.buildings?.has(g.stack) ? buildingIcon(sheets, g.stack, size, 4) : null;
-      if (!out) out = figureIcon(sheets, sheets.figures?.has(g.carrier) ? g.carrier : "traeger", size);
+      out = sheets.buildings?.has(g.stack) ? buildingIcon(sheets, g.stack, size, 4, team) : null;
+      if (!out) out = figureIcon(sheets, sheets.figures?.has(g.carrier) ? g.carrier : "traeger", size, team);
     }
   }
   if (out) cache.set(id, out);
   return out;
 }
-
-/** Nach dem Nachladen von Blättern alte Icons verwerfen. */
-export function clearIcons(): void { cache.clear(); }
 
