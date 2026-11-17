@@ -301,3 +301,75 @@ describe("Tätigkeit und Rekruten", () => {
     expect(fresh.length).toBe(1);
   });
 });
+
+describe("Dauerlauf-Ungereimtheiten", () => {
+  it("Tor meldet gateOpen, solange eigene Leute davor stehen, für Angreifer nie", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    for (let y = 0; y < 40; y++) buildNow(g, y === 20 ? "tor" : "mauer", 20, y, 1);
+    const tor = g.state.buildings.find((b) => b.key === "tor")!;
+    run(g, 1);
+    expect(tor.gateOpen).toBe(false);
+    const u = spawn(g, "schwert", 0, 10, 20);
+    g.dispatch({ t: "bewegen", units: [u.id], x: 30, y: 20 });
+    let opened = false;
+    run(g, 20 * TPS, () => { opened ||= !!tor.gateOpen; });
+    expect(opened).toBe(true);
+    run(g, 2);
+    expect(tor.gateOpen).toBe(false);
+    spawn(g, "schwert", 1, 21, 20);
+    run(g, 2);
+    expect(tor.gateOpen).toBe(false);
+  });
+
+  it("eine Mauerlinie baut das Laufraster nur einmal neu und schiebt Leute aus der Linie", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    buildNow(g, "lager", 2, 2, 0);
+    stockUp(g, "stein", 60);
+    const w = worldOf(g);
+    const u = spawn(g, "tageloehner", 0, 14, 10);
+    const v = w.meta.navVersion;
+    const r = g.dispatch({ t: "mauer", x0: 10, y0: 10, x1: 25, y1: 10 });
+    expect(r.ids).toHaveLength(16);
+    expect(w.meta.navVersion).toBe(v + 1);
+    expect(Math.floor(u.y)).not.toBe(10);
+  });
+
+  it("zugebauter Sammelplatz: Tagelöhner suchen sich freien Boden", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    const w = worldOf(g);
+    const [cx, cy] = w.meta.camp;
+    for (let x = cx - 5; x <= cx + 5; x += 2) for (let y = cy - 5; y <= cy + 5; y += 2) buildNow(g, "haus", x, y, 0);
+    const p = spawn(g, "tageloehner", 0, 2, 2);
+    run(g, 30 * TPS);
+    expect(w.nav.open(w.nav.node(0, Math.floor(p.x), Math.floor(p.y)), 0)).toBe(true);
+    expect(Math.hypot(p.x - cx, p.y - cy)).toBeLessThan(12);
+    expect(p.activity).toBe("wartet");
+  });
+
+  it("Soldat tritt bei zugebautem Kasernen-Eingang auf freien Boden", () => {
+    const g = createGame({ seed: 1, raids: false });
+    const l = lagerOf(g);
+    const [kx, ky] = findSpot(g, "kaserne", l.x + 6, l.y - 5);
+    const k = buildNow(g, "kaserne", kx, ky, 0);
+    expect(g.dispatch({ t: "rekrutieren", building: k.id, unit: "speer" }).ok).toBe(true);
+    run(g, 60 * TPS, () => !!k.training);
+    expect(k.training).not.toBeNull();
+    const [ex, ey] = entrance("kaserne", k.x, k.y, k.o);
+    buildNow(g, "mauer", ex, ey, 0);
+    run(g, 20 * TPS, () => g.state.units.some((u) => u.key === "speer"));
+    const s = g.state.units.find((u) => u.key === "speer")!;
+    const w = worldOf(g);
+    expect(w.nav.open(w.nav.node(0, Math.floor(s.x), Math.floor(s.y)), 0)).toBe(true);
+  });
+
+  it("Abriss einer Mauer: Wachen steigen ohne Schaden herab", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    buildNow(g, "lager", 2, 2, 0);
+    for (let x = 10; x <= 14; x++) buildNow(g, "mauer", x, 20, 0);
+    const a = spawn(g, "bogen", 0, 12, 20, 1);
+    const wall = g.state.buildings.find((b) => b.key === "mauer" && b.x === 12)!;
+    g.dispatch({ t: "abreissen", id: wall.id });
+    expect(a.layer).toBe(0);
+    expect(a.hp).toBe(a.maxHp);
+  });
+});

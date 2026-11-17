@@ -6,7 +6,7 @@
  * → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
 import { GOODS, START, TUNING, type BuildingKey, type Good } from "../data";
-import { canPlace, completeBuilding, placeSite, placeVoice, removeBuilding, walkLayerAt, wallPath } from "./build";
+import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
 import { footprintTiles } from "./geom";
@@ -16,7 +16,7 @@ import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, update
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
 import { storeDirect, updateStock } from "./storage";
-import { updateActivity, updateRecruits } from "./activity";
+import { updateActivity, updateGates, updateRecruits } from "./activity";
 import type { Command, CommandResult, Game, PlacementCheck, SimState } from "./types";
 import { PATH_BUDGET, SAVE_VERSION, TPS, World, type Meta, type SBuilding, type SState, type SUnit } from "./world";
 
@@ -123,6 +123,7 @@ export function step(w: World): void {
     updateActivity(w, u);
   }
   updateRecruits(w);
+  updateGates(w);
   separate(w);
   updateProjectiles(w);
   updateDeaths(w);
@@ -151,7 +152,8 @@ export function runCommand(w: World, c: Command): CommandResult {
       // Dasselbe Ergebnis wie die Vorschau (wallPath): bei Hindernis nichts, sonst die bezahlbaren Stücke
       const p = wallPath(w, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1));
       if (!p.ok) return withVoice({ ok: false, reason: p.reason }, p.costFail ? "zu_teuer" : "kein_platz");
-      const ids = p.build.map(([x, y]) => placeSite(w, "mauer", x, y, 0).id);
+      const ids = p.build.map(([x, y]) => placeSite(w, "mauer", x, y, 0, true).id);
+      refreshAfterPlace(w);
       return p.reason ? { ok: true, ids, reason: p.reason, voice: "zu_teuer" } : { ok: true, ids };
     }
     case "abreissen": {

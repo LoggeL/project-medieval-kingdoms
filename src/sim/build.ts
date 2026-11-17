@@ -5,7 +5,7 @@
  */
 import { BUILDINGS, GOODS, TERRAIN, type BuildingKey, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
-import { NEIGHBOURS, center, entrance, footprintTiles, stairEnds, wallPiece } from "./geom";
+import { NEIGHBOURS, center, entrance, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
 import { abortJobsAt } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
@@ -163,14 +163,14 @@ function affordable(w: World, key: BuildingKey, max: number): number {
 }
 
 // ---------------------------------------------------------------- Baustellen
-export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: number): SBuilding {
+/** Baustelle setzen. deferNav: Laufraster nicht sofort neu aufbauen (mehrere Stücke auf einmal, danach refreshAfterPlace). */
+export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: number, deferNav = false): SBuilding {
   const def = BUILDINGS[key];
   o = ((o % 4) + 4) % 4;
   if (key === "tor") {
     // Tor quer zur Mauerlinie ausrichten: Linie entlang x (Nachbarn O + W) → o = 0, entlang y → o = 1
     const old = w.buildingAt(x, y);
-    const mask = fortMaskAt(w, x, y, old?.id);
-    if (mask) o = mask & 0b1010 ? 0 : 1;
+    o = gateOrientation(fortMaskAt(w, x, y, old?.id), o);
     if (old && old.key === "mauer") removeBuilding(w, old, "ersetzt");
   }
   const b = w.addBuilding(key, 0, x, y, o);
@@ -181,10 +181,15 @@ export function placeSite(w: World, key: BuildingKey, x: number, y: number, o: n
   w.s.gold -= def.cost.gold ?? 0;
   for (const [g, n] of Object.entries(def.cost) as [Good | "gold", number][]) if (g !== "gold" && n > 0) b.needs[g] = n;
   b.hp = Math.max(1, Math.round(def.hp * 0.2));
+  if (!deferNav) refreshAfterPlace(w);
+  return b;
+}
+
+/** Nach dem Setzen von Baustellen: Mauermasken, Laufraster, Einheiten aus den Grundrissen schieben. */
+export function refreshAfterPlace(w: World): void {
   updateWallMasks(w);
   w.nav.rebuild();
   evictUnits(w);
-  return b;
 }
 
 export function completeBuilding(w: World, b: SBuilding): void {
@@ -222,11 +227,16 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
   }
   updateWallMasks(w);
   w.nav.rebuild();
-  // Wer auf einem verschwundenen Wehrgang stand, fällt herunter
+  // Wer auf einem verschwundenen Wehrgang stand, fällt herunter (Schaden nur, wenn der Bau zerstört wurde);
+  // wer am Boden auf einer verschwundenen Treppe stand, steht wieder auf dem Boden
   for (const u of w.s.units) {
-    if (u.dead || u.layer === 0) continue;
+    if (u.dead) continue;
+    if (u.layer === 0) { if (u.z !== 0 && w.nav.stairZ(u.x, u.y) < 0) u.z = 0; continue; }
     const n = w.nav.node(u.layer, Math.floor(u.x), Math.floor(u.y));
-    if (!w.nav.open(n, u.team)) { u.layer = 0; u.z = 0; u.hp = Math.max(1, u.hp - 10); u.ai.path = null; u.ai.goal = ""; }
+    if (!w.nav.open(n, u.team)) {
+      u.layer = 0; u.z = 0; u.ai.path = null; u.ai.goal = "";
+      if (why === "zerstoert") u.hp = Math.max(1, u.hp - 10);
+    }
   }
   evictUnits(w);
   if (why === "zerstoert" && b.team === 0) {

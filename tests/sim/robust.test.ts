@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BUILDINGS, type BuildingKey, type UnitKey } from "../../src/data";
 import { createGame } from "../../src/sim";
 import type { Simulation } from "../../src/sim/game";
-import { TPS } from "../../src/sim/world";
+import { TPS, type SUnit } from "../../src/sim/world";
 import { lagerOf } from "./helpers";
 
 /** Prüft Grundregeln des Zustands: keine negativen Bestände, nichts außerhalb der Karte, keine NaN. */
@@ -46,8 +46,19 @@ describe("Dauerlauf", () => {
     const keys: BuildingKey[] = ["holzfaeller", "steinbruch", "haus", "kaserne", "lager", "turm", "treppe"];
     const units: UnitKey[] = ["speer", "schwert", "bogen"];
     let placed = 0;
+    // Hänger: Tagelöhner mit Trage-, Bau- oder Rekrutenauftrag, der sich 60 s nicht vom Fleck rührt
+    const still = new Map<number, { x: number; y: number; sec: number; job: string }>();
+    const stuck: string[] = [];
     for (let sec = 0; sec < 20 * 60; sec++) {
       for (let t = 0; t < TPS; t++) g.tick();
+      for (const u of g.state.units as SUnit[]) {
+        const j = u.ai.job;
+        if (u.dead || u.team !== 0 || !j || j.k === "cycle") { still.delete(u.id); continue; }
+        const key = `${j.k}${"ph" in j ? j.ph : ""}`;
+        const p = still.get(u.id);
+        if (!p || p.job !== key || Math.hypot(p.x - u.x, p.y - u.y) > 0.3) { still.set(u.id, { x: u.x, y: u.y, sec, job: key }); continue; }
+        if (sec - p.sec > 60 && u.anim !== "bauen") stuck.push(`${u.id} ${key} bei ${u.x.toFixed(1)},${u.y.toFixed(1)} seit ${sec - p.sec}s`);
+      }
       if (sec % 10 === 0) {
         // zufälliger Bauauftrag in der Nähe des Lagers
         const key = keys[Math.floor(rnd() * keys.length)];
@@ -65,6 +76,7 @@ describe("Dauerlauf", () => {
       if (sec % 30 === 0) checkInvariants(g);
     }
     checkInvariants(g);
+    expect(stuck.slice(0, 5)).toEqual([]);
     expect(placed).toBeGreaterThan(3);
     if (raids) expect(g.state.raid.wave).toBeGreaterThanOrEqual(4);
     else expect(g.state.buildings.filter((b) => b.built >= 1).length).toBeGreaterThan(5);

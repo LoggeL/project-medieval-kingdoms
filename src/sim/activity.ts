@@ -60,6 +60,21 @@ export function updateActivity(w: World, u: SUnit): void {
   u.activity = activityOf(w, u);
 }
 
+/** Building.gateOpen für fertige Tore: eigene Einheit am Boden höchstens 1,3 Tiles von der Tormitte. */
+export function updateGates(w: World): void {
+  for (const b of w.s.buildings) {
+    if (!BUILDINGS[b.key].gate) continue;
+    let open = false;
+    if (b.built >= 1) {
+      const cx = b.x + 0.5, cy = b.y + 0.5;
+      w.grid.query(cx, cy, 1.3, (o) => {
+        if (!open && !o.dead && o.team === b.team && o.layer === 0 && Math.hypot(o.x - cx, o.y - cy) <= 1.3) open = true;
+      });
+    }
+    b.gateOpen = open;
+  }
+}
+
 /** Building.recruits für alle Ausbildungsstätten: der Tagelöhner, der die Waffe holt („waffe“) bzw. bringt („weg“). */
 export function updateRecruits(w: World): void {
   for (const b of w.s.buildings) {

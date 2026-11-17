@@ -85,6 +85,14 @@ export function stairEnds(x: number, y: number, o: number): { top: [number, numb
 /** Welt-Richtungen der Mauer-Nachbarschaft: Bit 0 = −y (N), 1 = +x (O), 2 = +y (S), 3 = −x (W). */
 export const NEIGHBOURS: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
+/**
+ * Ausrichtung eines Tors aus der Nachbarschaftsmaske (Bits wie NEIGHBOURS): Mauerlinie entlang x (O + W) → 0,
+ * entlang y (N + S) → 1, sonst die gewünschte Ausrichtung o. Dieselbe Regel nutzen Bau (build.ts) und Vorschau.
+ */
+export function gateOrientation(mask: number, o: number): number {
+  return mask & 0b1010 ? 0 : mask & 0b0101 ? 1 : o;
+}
+
 /** Ansicht r: Welt → (u, v) (Tabelle aus docs/concept/09-technik.md §3, Karte W × H). */
 export function toView(x: number, y: number, r: Rot, W: number, H: number): [number, number] {
   switch (r) {

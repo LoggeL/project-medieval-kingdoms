@@ -323,7 +323,12 @@ export function updateTraining(w: World): void {
     b.training = null; b.ai.inside = null;
     if (!u) continue;
     const def = UNITS[tr.unit];
-    const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
+    let [ex, ey] = entrance(b.key, b.x, b.y, b.o);
+    if (!w.inMap(ex, ey) || !w.nav.open(w.nav.node(0, ex, ey), 0)) {
+      // Eingang zugebaut: am nächsten freien Tile heraustreten
+      const n = w.nav.nearestOpen(0, Math.min(w.s.w - 1, Math.max(0, ex)), Math.min(w.s.h - 1, Math.max(0, ey)), 0, 8);
+      if (n >= 0) { ex = w.nav.tileX(n); ey = w.nav.tileY(n); }
+    }
     u.key = tr.unit; u.maxHp = def.hp; u.hp = def.hp;
     u.x = u.px = ex + 0.5; u.y = u.py = ey + 0.5; u.z = u.pz = 0; u.layer = 0;
     u.carry = null; u.home = 0; u.dead = false; u.order = { t: "idle" };

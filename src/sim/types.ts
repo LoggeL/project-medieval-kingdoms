@@ -68,6 +68,8 @@ export interface Building {
   queue: UnitKey[];
   /** Rekruten auf dem Weg: holen die Waffe im Lager bzw. tragen sie zur Kaserne (für die Anzeige). */
   recruits?: { unit: UnitKey; stage: "waffe" | "weg" }[];
+  /** Nur Tor: offen, solange eigene Leute am Boden im Tor oder direkt davor stehen (Darstellung: Variante „offen“). */
+  gateOpen?: boolean;
 }
 
 export type UnitOrder =

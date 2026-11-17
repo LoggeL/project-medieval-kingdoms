@@ -172,7 +172,9 @@ function campSpot(w: World, u: SUnit): [number, number] {
     const x = cx + dx, y = cy + dy;
     if (w.inMap(x, y) && w.nav.open(w.nav.node(0, x, y), 0)) return [x, y];
   }
-  return [cx, cy];
+  // Sammelplatz zugebaut: nächster freie Tile weiter draußen
+  const n = w.nav.nearestOpen(0, cx, cy, 0, 16);
+  return n >= 0 ? [w.nav.tileX(n), w.nav.tileY(n)] : [cx, cy];
 }
 
 // ---------------------------------------------------------------- Bäume
