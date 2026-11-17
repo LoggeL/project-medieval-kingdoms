@@ -16,7 +16,11 @@ import { Spatial } from "./spatial";
 export const TPS = TICKS_PER_SECOND;
 /** Pfadsuchen pro Tick (gestaffelt, damit 300 Einheiten nicht im selben Tick rechnen). */
 export const PATH_BUDGET = 24;
-export const SAVE_VERSION = 1;
+/**
+ * Version der Spielstände. 2: mit Bergfried (Sitz, Forschung, Niederlage) und der neuen Einführung. Stände der
+ * Version 1 hatten keinen Bergfried und werden abgelehnt (die Oberfläche speichert noch nicht, es gibt keine zu retten).
+ */
+export const SAVE_VERSION = 2;
 
 // ---------------------------------------------------------------- Aufträge der Arbeiter
 export type Job =

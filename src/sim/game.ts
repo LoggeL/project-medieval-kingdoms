@@ -90,8 +90,10 @@ export function createGame(opts: GameOptions = {}): Simulation {
 /** Spielstand laden (aus Simulation.save()). Folge-Ticks sind identisch mit dem gespeicherten Spiel. */
 export function loadGame(json: string): Simulation {
   const d = JSON.parse(json) as { v: number; state: SState; meta: Meta };
+  if (typeof d.v === "number" && d.v < SAVE_VERSION) {
+    throw new Error(`Spielstand aus einer älteren Version (${d.v}, ohne Bergfried) kann nicht geladen werden`);
+  }
   if (d.v !== SAVE_VERSION) throw new Error(`Unbekannte Spielstand-Version ${d.v}`);
-  d.state.research ??= { done: [], cur: null }; // Spielstände von vor der Forschung
   return new Simulation(new World(d.state, d.meta, false));
 }
 

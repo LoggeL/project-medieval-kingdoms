@@ -38,10 +38,13 @@ function gateReason(w: World, x: number, y: number): string | null {
   return old ? "Ein Tor passt nur in ein gerades Mauerstück, nicht in Ecken oder Enden" : "Ein Tor gehört in eine gerade Mauerlinie";
 }
 
-/** Gebäude mit Tür, durch die Figuren ein- und ausgehen (Werkstatt, Kaserne, Wohnhaus, Lagerhaus, Bergfried). */
+/**
+ * Gebäude mit Tür, durch die Figuren ein- und ausgehen: alle mit Daten `door` (Werkstatt, Kaserne, Wohnhaus, Lagerhaus,
+ * Bergfried, auch der Mauerturm, dessen Tür der Übergang Boden ↔ Plattform ist) und alle, die Leute aufnehmen.
+ */
 export function hasDoor(key: BuildingKey): boolean {
   const def = BUILDINGS[key];
-  return !!(def.workers || def.trains || def.housing || def.storage || def.seat);
+  return !!(def.door || def.workers || def.trains || def.housing || def.storage || def.seat);
 }
 
 /** Gebäude, dessen Tür bzw. Vorplatz (vor einer Einfahrt im Grundriss) auf (x, y) liegt, oder undefined. */
@@ -72,14 +75,19 @@ function tileReason(w: World, x: number, y: number, key: BuildingKey): string | 
 }
 
 /**
- * Kosten eines Baus an (x, y): Ein Tor in einem fertigen Mauerstück übernimmt dessen Steine,
- * es kostet also nur den Unterschied (Mauer ziehen, dann das Tor hineinsetzen, verschwendet nichts).
+ * Kosten eines Baus an (x, y): Ein Tor in einem Mauerstück übernimmt dessen Steine, es kostet also nur den Unterschied
+ * (Mauer ziehen, dann das Tor hineinsetzen, verschwendet nichts). Bei einer fertigen Mauer zählt ihr ganzes Material,
+ * bei einer Mauer-Baustelle das schon angelieferte (liegend oder verbaut, also Kosten minus needs); Gold zählt dort nicht,
+ * es ist mit der Baustelle bezahlt.
  */
 export function costAt(w: World, key: BuildingKey, x: number, y: number): Cost {
   const cost: Cost = { ...BUILDINGS[key].cost };
   const old = key === "tor" ? w.buildingAt(x, y) : undefined;
-  if (old && old.key === "mauer" && old.team === 0 && old.built >= 1) {
-    for (const [g, n] of Object.entries(BUILDINGS.mauer.cost) as [Good | "gold", number][]) cost[g] = Math.max(0, (cost[g] ?? 0) - n);
+  if (old && old.key === "mauer" && old.team === 0) {
+    for (const [g, n] of Object.entries(BUILDINGS.mauer.cost) as [Good | "gold", number][]) {
+      const have = old.built >= 1 ? n : g === "gold" ? 0 : Math.max(0, n - (old.needs[g] ?? 0));
+      if (have > 0) cost[g] = Math.max(0, (cost[g] ?? 0) - have);
+    }
   }
   return cost;
 }
@@ -286,7 +294,8 @@ export function completeBuilding(w: World, b: SBuilding): void {
 /**
  * Gebäude entfernen. why: "abriss" gibt die Hälfte der Kosten zurück (Waren direkt ins Lager; bei einer Baustelle nur
  * die Hälfte des Goldes und des schon verbauten Materials, unverbautes Material auf der Baustelle ganz),
- * "zerstoert" verliert alles, "ersetzt" (Mauer unter einem neuen Tor) gibt nichts zurück.
+ * "zerstoert" verliert alles, "ersetzt" (Mauer unter einem neuen Tor) gibt nichts zurück: Das Tor hat ihr fertiges oder
+ * schon angeliefertes Material in costAt übernommen.
  */
 export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoert" | "ersetzt"): void {
   const def = BUILDINGS[b.key];
@@ -324,9 +333,12 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
   }
   evictUnits(w);
   if (why === "zerstoert" && b.team === 0 && def.seat && !w.s.outcome) {
-    // Der Bergfried ist gefallen: Die Partie ist verloren, es kommen keine Wellen und keine Leute mehr
-    // Die Simulation läuft weiter (Tests, Zuschauen); die Oberfläche zeigt die Niederlage und hält das Spiel an.
+    // Der Bergfried ist gefallen: Die Partie ist verloren, es kommen keine Wellen und keine Leute mehr (raidTick,
+    // updatePopulation prüfen outcome). Eine laufende Forschung verfällt samt angelieferter Waren; ihre Träger hat
+    // abortJobsAt schon entlassen. Die Simulation läuft weiter (Tests, Zuschauen); die Oberfläche zeigt die Niederlage
+    // und hält das Spiel an.
     w.s.outcome = "niederlage";
+    w.s.research.cur = null;
     w.msg(`Der ${def.name} ist gefallen! Die Burg ist verloren.`, "kampf", undefined, 20, "zerstoert");
   } else if (why === "zerstoert" && b.team === 0) {
     if (FORT.has(b.key)) w.msg(`${def.name} wurde zerstört! Die Mauer ist offen.`, "kampf", `zerstoert-${b.key}`, 5, "mauer_faellt");

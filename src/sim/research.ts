@@ -14,6 +14,7 @@
  * dieselben Regeln anzeigt, die die Simulation anwendet.
  */
 import { BUILDINGS, GOODS, TECHS, TECH_KEYS, UNITS, levelDef, maxLevel, type AnimKey, type BuildingKey, type BuildingLevel, type Cost, type Good, type TechKey, type UnitKey } from "../data";
+import { inFootprint } from "./geom";
 import type { Building, CommandResult, Delivery, SimState, Unit } from "./types";
 import { available, storeDirect } from "./storage";
 import { TPS, type SBuilding, type SUnit, type World } from "./world";
@@ -241,6 +242,14 @@ export function completeUpgrade(w: World, b: SBuilding, refresh: () => void): vo
   b.needs = {}; b.site = {};
   b.ai.enroute = {}; b.ai.picked = {}; b.ai.builder = 0;
   refresh();
+  // Wer schon auf der Wehrplattform steht (frei oder auf einem Posten), steht danach auf der neuen Höhe (deck)
+  const lay = def.walkway ?? 0;
+  if (lay > 0) {
+    for (const u of w.s.units) {
+      if (u.dead || u.layer !== lay || !inFootprint(b.key, b.x, b.y, b.o, Math.floor(u.x), Math.floor(u.y))) continue;
+      u.z = w.nav.z[w.nav.node(lay, Math.floor(u.x), Math.floor(u.y))];
+    }
+  }
   w.msg(`${BUILDINGS[b.key].name} ausgebaut: ${def.name}.${def.posts?.length ? ` ${def.posts.length} Posten auf der Wehrplattform (Taste T).` : ""}`, "info", undefined, 20, "bau_fertig");
 }
 

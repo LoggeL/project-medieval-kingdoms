@@ -22,10 +22,12 @@ export const RAID_WARNING_SECONDS = 30;
 
 export function raidTick(w: World): void {
   const s = w.s;
-  if (w.meta.raidsEnabled && s.tick === s.raid.next - RAID_WARNING_SECONDS * TPS) {
+  // Nach der Niederlage (Bergfried gefallen) keine Vorwarnung und keine neuen Wellen mehr
+  const due = w.meta.raidsEnabled && !s.outcome;
+  if (due && s.tick === s.raid.next - RAID_WARNING_SECONDS * TPS) {
     w.msg("Späher melden Krieger auf dem Weg. In 30 Sekunden sind sie hier.", "kampf", "ueberfall-bald", 20, "ueberfall_bald");
   }
-  if (w.meta.raidsEnabled && s.tick >= s.raid.next) {
+  if (due && s.tick >= s.raid.next) {
     spawnWave(w);
     s.raid.next = s.tick + START.raid.everySeconds * TPS;
   }

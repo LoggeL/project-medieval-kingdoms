@@ -184,7 +184,7 @@ export interface SimState {
   capacity: number;
   raid: { next: number; wave: number; active: boolean };
   messages: Message[];
-  /** Forschung (fehlt in alten Spielständen, loadGame ergänzt sie). */
+  /** Forschung (seit Spielstand-Version 2 immer vorhanden). */
   research: ResearchState;
   /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
   outcome?: "niederlage";

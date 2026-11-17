@@ -2,8 +2,8 @@
  * Wirtschaft: Disponent (2× pro Sekunde), Bäume, Zuzug und untätige Tagelöhner.
  *
  * Der Disponent verteilt freie Tagelöhner auf Aufgaben, in dieser Reihenfolge: Werkstätten besetzen,
- * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Baumaterial anliefern und Hofstapel
- * ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
+ * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Material anliefern (Baustellen und
+ * Forschung im Wechsel) und Hofstapel ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
 import { BUILDINGS, TUNING, UNITS, levelDef, type Good, type TechKey } from "../data";
 import { canWork } from "./build";
@@ -77,20 +77,27 @@ export function dispatcher(w: World): void {
     u.ai.job = { k: "build", site: b.id, spot: b.ai.nextSpot ?? 0 }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
-  // 4. Anliefern (Baustellen, Ausbau, dann Forschung im Bergfried) und Abholen abwechselnd
-  const supplies: { site: SBuilding; good: Good; rk?: TechKey }[] = [];
+  // 4. Anliefern (Baustellen, Ausbau, Forschung im Bergfried) und Abholen abwechselnd. Die Forschung wechselt sich mit
+  //    den Baustellen ab (Forschung, Baustelle, Forschung …), damit sie auch bei vielen Baustellen gleich Träger bekommt.
+  type Supply = { site: SBuilding; good: Good; rk?: TechKey };
+  const build: Supply[] = [], study: Supply[] = [];
   for (const b of own) {
     if (!isSite(b)) continue;
     for (const [g, n] of Object.entries(b.needs) as [Good, number][]) {
-      for (let k = n - (b.ai.enroute[g] ?? 0); k > 0; k--) supplies.push({ site: b, good: g });
+      for (let k = n - (b.ai.enroute[g] ?? 0); k > 0; k--) build.push({ site: b, good: g });
     }
   }
   const cur = w.s.research.cur;
   const seat = cur ? own.find((b) => b.built >= 1 && BUILDINGS[b.key].seat) : undefined;
   if (cur && seat) {
     for (const [g, n] of Object.entries(cur.needs) as [Good, number][]) {
-      for (let k = n - (cur.enroute[g] ?? 0); k > 0; k--) supplies.push({ site: seat, good: g, rk: cur.key });
+      for (let k = n - (cur.enroute[g] ?? 0); k > 0; k--) study.push({ site: seat, good: g, rk: cur.key });
     }
+  }
+  const supplies: Supply[] = [];
+  for (let i = 0; i < build.length || i < study.length; i++) {
+    if (i < study.length) supplies.push(study[i]);
+    if (i < build.length) supplies.push(build[i]);
   }
   const hauls: SBuilding[] = [];
   for (const b of own) {
@@ -207,7 +214,7 @@ export function updatePopulation(w: World): void {
   for (const u of s.units) if (u.team === 0 && !u.dead) pop++;
   for (const b of s.buildings) if (b.ai.inside) pop++;
   s.housing = housing; s.population = pop;
-  if (!w.meta.immigration || s.tick < w.meta.nextImmigrant) return;
+  if (!w.meta.immigration || s.outcome || s.tick < w.meta.nextImmigrant) return; // nach der Niederlage kein Zuzug
   w.meta.nextImmigrant = s.tick + TUNING.immigrantSeconds * TPS;
   if (pop >= housing) {
     w.msg("Kein Wohnraum mehr: Baue Wohnhäuser, damit weitere Leute zuziehen.", "warnung", "wohnraum", 120, "wohnraum");
