@@ -285,7 +285,9 @@ def front_mask(mpath):
     return blocks_mean(((m[..., 0] > 127) & (m[..., 3] > 127)).astype(np.float32)) >= 0.5
 
 
-def render(mat, band, base_only=False, outline=True, f=0, ground_shadow=None):
+def render(mat, band, base_only=False, outline=True, f=0, ground_shadow=None, joined=None):
+    """joined: where connected neighbours stand (wall pieces). The piece continues there, so its edge towards
+    them is no silhouette: no rim and no outline ring (else every tile joint shows a dark seam)."""
     h, w = mat.shape
     out = np.zeros((h, w, 4), np.uint8)
     fig = mat >= 0
@@ -305,7 +307,7 @@ def render(mat, band, base_only=False, outline=True, f=0, ground_shadow=None):
     out[fig, 3] = 255
     mode = PX.get("outline", "dark")
     if outline and mode == "rim":
-        pm = np.pad(mat, 1, constant_values=-1)
+        pm = np.pad(np.where(joined & ~fig, M, mat) if joined is not None else mat, 1, constant_values=-1)
         if RIM_SIDES == "shade" and BLD:
             # buildings: no rim on 2:1 edges rising to the right (would give a dotted line), only on true right/bottom edges
             edge = fig & ((pm[2:, 1:-1] < 0) | ((pm[1:-1, 2:] < 0) & (pm[2:, 2:] < 0)))
@@ -373,6 +375,8 @@ def render(mat, band, base_only=False, outline=True, f=0, ground_shadow=None):
         for (dy, dx), l_ in order:
             cand = pm[dy:dy + h, dx:dx + w]
             take = (nbm < 0) & (cand >= 0) & ~fig
+            if joined is not None:
+                take &= ~joined
             nbm[take] = cand[take]
             lit[take] = l_
         ring = nbm >= 0
@@ -398,13 +402,14 @@ for ui, u in enumerate(units):
             mat, band = analyse(img, Image.open(p[:-4] + "_l.png"), f, "%s d%d f%d" % (u, d, f), p[:-4] + "_h.png")
             band = despeckle(mat, band)
             gsh = None
+            joined = front_mask(p[:-4] + "_n.png") if os.path.exists(p[:-4] + "_n.png") else None
             if os.path.exists(p[:-4] + "_h.png"):
                 gsh, selfb = height_shadows(img, p[:-4] + "_h.png")
                 if os.path.exists(p[:-4] + "_n.png"):
                     # no ground shadow where a connected neighbour stands (wall pieces)
-                    gsh = drop_small(gsh & ~front_mask(p[:-4] + "_n.png"), 12)
+                    gsh = drop_small(gsh & ~joined, 12)
                 band = np.where(selfb & (mat >= 0), np.maximum(band - SELF_BANDS, 0), band)
-            fr = render(mat, band, f=f, ground_shadow=gsh)
+            fr = render(mat, band, f=f, ground_shadow=gsh, joined=joined)
             used |= set(map(tuple, fr[fr[..., 3] == 255][:, :3]))
             sheet.paste(Image.fromarray(fr, "RGBA"), (f * CW, d * CH))
             if os.path.exists(p[:-4] + "_m.png"):
