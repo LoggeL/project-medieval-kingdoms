@@ -35,11 +35,11 @@ export const MUSIC: Record<MusicKey, MusicDef> = {
   },
   kampf_sturm: {
     file: "audio/musik/kampf_sturm.mp3", title: "Sturm auf die Mauern", mood: "kampf", loop: true,
-    prompt: `Tense driving medieval battle music for defending a castle wall. Large war drums and pounding taiko-like frame drums, low droning hurdy-gurdy, aggressive fiddle ostinato in D phrygian, bursts of natural horns and a low wordless male drone choir hum (no words). About 128 BPM, urgent and relentless, loopable with a steady energy and no fade-out. ${STYLE.replace("no vocals, no lyrics", "no sung words, no lyrics")}`,
+    prompt: `Urgent, driving piece played by a small authentic medieval folk ensemble, like a reenactment band at a castle siege: pounding davul and tabor drums, a loud shawm and bagpipe playing a fierce modal riff in D phrygian, a buzzing hurdy-gurdy drone, a fast fiddle ostinato, rattling tambourine. About 128 BPM, tense and relentless, steady energy throughout so it can loop, no fade-out. Period instruments only. No orchestra, no string section, no brass section, no choir, no synthesizer, no electronic drums or beats, no cinematic or trailer sound design. ${STYLE}`,
   },
   sieg_abgewehrt: {
     file: "audio/musik/sieg_abgewehrt.mp3", title: "Abgewehrt", mood: "sieg", loop: false,
-    prompt: `Short triumphant medieval fanfare and relieved coda after a battle is won. Natural horns and trumpets call a bright motif in D major, timpani and frame drum roll, then lute and recorder settle into a warm, calm ending. About 30 seconds, ends cleanly. ${STYLE}`,
+    prompt: `Short joyful medieval victory dance played by a small authentic folk ensemble after a siege is repelled: shawm and bagpipe play a bright festive estampie tune in D major over tabor drum and tambourine, then a lute and recorder take over for a warm, calm ending. About 40 seconds, ends cleanly. Period instruments only. No orchestra, no string section, no brass section, no timpani, no choir, no synthesizer, no cinematic sound. ${STYLE}`,
   },
 };
 
@@ -93,7 +93,13 @@ export const VOICE: Record<VoiceKey, VoiceDef> = {
   kein_platz: v("kein_platz", "Dort lässt sich nicht bauen.", 1, 8, "Bauen scheitert an Platz oder Gelände"),
 };
 
-/** Sprecher-Anweisung für die Sprachsynthese (Stil, nicht vorgelesen). */
+/** Sprecher (vorgefertigte Stimme von Gemini TTS). */
+export const VOICE_SPEAKER = "Charon";
+
+/**
+ * Gewünschte Sprecherrolle – nur zur Dokumentation und Prüfung. gemini-3.8-flash-tts liest Stilanweisungen mit vor,
+ * deshalb geht an das Modell nur der reine Satz; die Rolle ergibt sich aus VOICE_SPEAKER und dem Text.
+ */
 export const VOICE_STYLE =
   "Sprich auf Deutsch als erfahrener, ruhiger Burgvogt mittleren Alters: tiefe, warme, klare Stimme, " +
   "würdevoll und knapp, leicht erzählend wie ein Herold. Bei Alarm dringlich und laut, sonst gelassen.";

@@ -22,6 +22,11 @@ Ein eigenständiges, isometrisches 2D-Pixelart-RTS mit sichtbarer Wirtschaft und
 - Bildgenerierung über `tools/codex-imagegen.py` (siehe [tools/IMAGEGEN.md](tools/IMAGEGEN.md)). Einen fehlgeschlagenen Bildauftrag nicht stillschweigend durch programmatisch gezeichnete Grafik ersetzen.
 - Ein Bild gilt erst als vorhanden, wenn es geprüft wurde (Maße, Transparenz, Stil).
 
+## Audio
+
+- Musik (Lyria 3.5) und Sprecheransagen (Gemini 3.8 Flash TTS) über `tools/audio/audio-gen.py` (siehe [tools/audio/README.md](tools/audio/README.md)). Inhalte und Prompts stehen in `src/data/audio.ts`.
+- Eine Audiodatei gilt erst als vorhanden, wenn die automatische Prüfung bestanden ist. Fehlschläge nicht durch andere Töne ersetzen.
+
 ## Grenzen
 
 Nur in diesem Projekt arbeiten. Keine anderen Projekte, globalen Einstellungen, Zugangsdaten oder Infrastruktur verändern. Lokale Pakete, lokale Server, Tests, Screenshots und lokale Commits sind erlaubt. Nichts veröffentlichen, keine Remote-Repositories anlegen und keine Nachrichten verschicken ohne ausdrückliche Freigabe.
