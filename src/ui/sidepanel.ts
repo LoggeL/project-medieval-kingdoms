@@ -8,11 +8,13 @@
  * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
-import { BUILDINGS, GOODS, RECIPES, TECHS, UNITS, levelDef, recipesOf, type Good, type RecipeKey, type UnitKey } from "../data";
+import { BUILDINGS, CROPS, FOOD, GOODS, RATIONS, RATION_KEYS, RECIPES, TECHS, UNITS, levelDef, recipesOf, type Good, type RecipeKey, type UnitKey } from "../data";
+import { farmReason, stageCounts } from "../sim/farm";
+import { foodSeconds } from "../sim/food";
 import { inputCap, outputCap, procProgress, procReason } from "../sim/production";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
-import { h, num, setBar, setClass, setText } from "./dom";
+import { clock, h, num, setAttr, setBar, setClass, setText } from "./dom";
 import { BUTTON_KEYS, TRAIN_KEYS } from "../data/hotkeys";
 import { setKey } from "./hotkeys";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
@@ -105,6 +107,8 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     }
 
     if (def.production && b0.proc && b0.built >= 1 && b0.team === 0) productionView(b0);
+    if (def.fields && b0.farm && b0.team === 0) farmView(b0);
+    if (def.storage?.kind === "nahrung" && b0.built >= 1 && b0.team === 0) foodView();
 
     if (def.output && b0.built >= 1) {
       const val = h("span.mk-num");
@@ -259,6 +263,58 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       setClass(why, "mk-warn", !!reason && p.why?.k !== "unterwegs");
       setText(pauseLbl, p.paused ? "Fortsetzen" : "Anhalten");
       setClass(pause, "mk-on", !!p.paused);
+    });
+  }
+
+  // ------------------------------------------------------------ Landwirtschaft und Ernährung (ADR 0013)
+  /** Felder: Beete je Stufe der Feldfrucht, was den Hof aufhält, Ernte insgesamt. */
+  function farmView(b0: Building): void {
+    const id = b0.id;
+    const get = (s: SimState) => s.buildings.find((q) => q.id === id);
+    const crop = CROPS[b0.farm!.crop];
+    const vals = crop.stages.map((st) => {
+      const val = h("span.mk-num");
+      const el = h("div.mk-row.mk-farm-stage", { title: st.work ? `Der Bauer ${st.work.verb} (${st.work.seconds} s je Beet)` : `Wächst ${st.grow} s` },
+        h("span.mk-row-label", { text: st.name }), h("span.mk-sub", { text: st.work ? st.work.verb : "wächst" }), val);
+      return { el, val };
+    });
+    const why = h("p.mk-sub.mk-proc-why");
+    body.append(section(`Felder: ${crop.name}`, ...vals.map((v) => v.el), why));
+    upd.push((s) => {
+      const b = get(s); if (!b?.farm) return;
+      const n = stageCounts(b.farm);
+      vals.forEach((v, i) => { setText(v.val, `${n[i]}`); setClass(v.el, "mk-empty", !n[i]); });
+      const reason = b.built >= 1 ? farmReason(s, b) : "Die Beete sind abgesteckt; bestellt wird, sobald der Hof steht.";
+      setText(why, reason ?? `${b.farm.plots.length} Beete, ${num(b.farm.harvested)} ${GOODS[BUILDINGS[b.key].output?.good ?? "getreide"].name} geerntet.`);
+      setClass(why, "mk-warn", !!reason && b.built >= 1);
+    });
+  }
+
+  /** Ernährung (an der Kornkammer): Vorrat, Verbrauch, Rationen, Hunger. */
+  function foodView(): void {
+    const stock = h("span.mk-num"), rate = h("span.mk-num"), left = h("span.mk-num");
+    const desc = h("p.mk-sub");
+    const btns = RATION_KEYS.map((k) => {
+      const b = h("button.mk-btn.mk-ration-btn", { type: "button", title: `${RATIONS[k].name}: ${RATIONS[k].desc}`, text: RATIONS[k].name, onclick: () => {
+        const r = bridge.dispatch({ t: "rationen", ration: k });
+        if (!r.ok) ctx.toast(r.reason ?? "Rationen lassen sich nicht ändern.", "warnung");
+      } });
+      return { k, b };
+    });
+    const kinds = (Object.keys(FOOD.goods) as Good[]).map((g) => GOODS[g].name).join(", ");
+    body.append(section("Ernährung",
+      row("Vorrat", null, stock), row("Verbrauch", null, rate), row("Reicht", null, left),
+      h("p.mk-label", { text: "Rationen" }), h("div.mk-actions.mk-rations", null, ...btns.map((x) => x.b)), desc,
+      h("p.mk-sub", { text: `Gegessen werden ${kinds} aus allen Kornkammern. Mehrere Sorten im Vorrat locken Leute schneller an.` })));
+    upd.push((s) => {
+      const f = s.food; if (!f) return;
+      setText(stock, `${num(f.stock)} Portionen`);
+      setText(rate, `${f.perMinute.toLocaleString("de-DE", { maximumFractionDigits: 1 })} je Minute`);
+      const sec = foodSeconds(f);
+      setText(left, f.hunger > 0 ? "Hunger!" : Number.isFinite(sec) ? `etwa ${clock(sec)}` : "niemand isst");
+      setClass(left, "mk-warn", f.hunger > 0 || sec < 60);
+      for (const x of btns) { setClass(x.b, "mk-on", x.k === f.ration); setAttr(x.b, "aria-pressed", String(x.k === f.ration)); }
+      setText(desc, RATIONS[f.ration].desc);
     });
   }
 

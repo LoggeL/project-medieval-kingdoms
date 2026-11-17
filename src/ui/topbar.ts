@@ -4,8 +4,9 @@
  * Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe. Neue Waren und Lagertypen erscheinen
  * hier aus den Daten, ohne Änderung an dieser Datei.
  */
-import { BUILDINGS, GOODS, GOOD_GROUPS, GOOD_KEYS, STORES, STORE_KEYS, TICKS_PER_SECOND, type BuildingKey, type Good, type StoreKey } from "../data";
+import { BUILDINGS, FOOD, GOODS, GOOD_GROUPS, GOOD_KEYS, RATIONS, STORES, STORE_KEYS, TICKS_PER_SECOND, type BuildingKey, type Good, type StoreKey } from "../data";
 import { ZOOMS, zoomLabel } from "../data/view";
+import { foodSeconds } from "../sim/food";
 import type { SimState } from "../sim/types";
 import { createAudioControl } from "./audio";
 import { northOnScreen } from "./compass";
@@ -31,6 +32,12 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
 
   const popVal = h("span.mk-num");
   const pop = h("div.mk-res", { title: "Bevölkerung / Wohnraum" }, icons.make("einheit", "tageloehner", 24, 24), popVal);
+
+  // Nahrung (ADR 0013): essbarer Vorrat und Verbrauch je Minute; warnt bei Hunger und wenn der Vorrat bald endet
+  const foodVal = h("span.mk-num");
+  const foodRate = h("span.mk-food-rate.mk-num");
+  const food = h("div.mk-res.mk-res-food", { title: "Nahrung" }, icons.make("gebaeude", "bauernhof", 28, 28),
+    h("span.mk-cap-col", null, foodVal, foodRate));
 
   // Bestand / Kapazität je Lagertyp, mit dem Bild des Lagers, das diesen Typ aufnimmt
   const storeBuilding = (k: StoreKey): BuildingKey =>
@@ -78,7 +85,7 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
   const el = h("header.mk-top.mk-wood", null,
     h("div.mk-top-res", null,
       ...groups.flatMap((x) => [h(`div.mk-res-group.mk-res-group-${x.gr.key}` as "div", { "aria-label": x.gr.label }, ...x.cells.map((r) => r.el)), h("span.mk-sep")]),
-      gold, pop, ...caps.map((c) => c.el)),
+      gold, pop, food, ...caps.map((c) => c.el)),
     events,
     h("div.mk-top-ctl", null,
       h("div.mk-group", { role: "group", "aria-label": "Geschwindigkeit" }, ...speedBtns),
@@ -92,6 +99,18 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
       setText(goldVal, num(s.gold));
       setText(popVal, `${num(s.population)}/${num(s.housing)}`);
       setClass(pop, "mk-warn", s.population >= s.housing);
+      const f = s.food;
+      if (f) {
+        const left = foodSeconds(f);
+        const kinds = (Object.keys(FOOD.goods) as Good[]).map((g) => `${GOODS[g].name} ${num(s.stock[g] ?? 0)}`).join(", ");
+        setText(foodVal, num(f.stock));
+        setText(foodRate, `−${f.perMinute.toLocaleString("de-DE", { maximumFractionDigits: 1 })}/min`);
+        setClass(food, "mk-warn", f.hunger > 0 || left < 60);
+        setClass(food, "mk-food-hunger", f.hunger > 0);
+        setAttr(food, "title", `Nahrung: ${num(f.stock)} Portionen (${kinds}). Verbrauch ${f.perMinute.toLocaleString("de-DE", { maximumFractionDigits: 1 })} je Minute, Rationen ${RATIONS[f.ration].name}. `
+          + (f.hunger > 0 ? "Die Leute hungern!" : Number.isFinite(left) ? `Reicht etwa ${clock(left)}.` : "Niemand isst."));
+      }
+      food.hidden = !f;
       for (const c of caps) {
         const st = s.stores?.[c.k] ?? { used: 0, cap: 0 };
         setText(c.val, `${num(st.used)}/${num(st.cap)}`);

@@ -542,5 +542,153 @@
     12
    ]
   }
+ },
+ "bauer": {
+  "torso": "worker",
+  "tunic": "leather",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "straw",
+  "name": "Bauer",
+  "gear": [
+   "sickle"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -40,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "ernten",
+   "motion": "maehen"
+  }
+ },
+ "bauer_hacke": {
+  "torso": "worker",
+  "tunic": "leather",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "straw",
+  "name": "Bauer mit Hacke",
+  "showcase": false,
+  "gear": [
+   "hoe"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -30,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "pfluegen",
+   "motion": "hacke"
+  }
+ },
+ "bauer_saat": {
+  "torso": "worker",
+  "tunic": "leather",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "straw",
+  "name": "Bauer beim Säen",
+  "showcase": false,
+  "gear": [
+   "seed_bag"
+  ],
+  "action": {
+   "anim": "saeen",
+   "motion": "saeen"
+  }
+ },
+ "bauer_garbe": {
+  "torso": "worker",
+  "tunic": "leather",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "straw",
+  "name": "Bauer mit Garbe",
+  "showcase": false,
+  "gear": [
+   "sheaf"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -110,
+    0,
+    -5
+   ]
+  }
+ },
+ "obstbauer": {
+  "name": "Obstbauer",
+  "torso": "worker",
+  "tunic": "brown",
+  "legs": "hose2",
+  "skirt": 0.3,
+  "helmet": "hood",
+  "hood": "team",
+  "gear": [
+   "hip_basket"
+  ],
+  "action": {
+   "anim": "pfluecken",
+   "motion": "pfluecken"
+  }
+ },
+ "traeger_apfel": {
+  "name": "Tagelöhner mit Apfelkorb",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "apple_basket"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "swing": 0.0,
+  "pose": {
+   "armR": [
+    -55,
+    0,
+    -12
+   ],
+   "armL": [
+    -55,
+    0,
+    12
+   ]
+  }
  }
 }

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { BUILDINGS, CROPS, FOOD, GOODS, RATIONS, RATION_KEYS, RECIPES, START, TUNING, UNITS, type BuildingKey, type CropKey, type Good } from "../../src/data";
 import { createGame, loadGame } from "../../src/sim";
 import { buildNow, run, spawn, stockUp, worldOf } from "../../src/sim/debug";
+import { rotate } from "../../src/sim/economy";
 import { fieldRect, plotAt, stageCounts } from "../../src/sim/farm";
 import { approach, footprintTiles, modelToWorld, center } from "../../src/sim/geom";
 import type { Simulation } from "../../src/sim/game";
@@ -351,5 +352,17 @@ describe("Standardkarte", () => {
       const b: SBuilding = buildNow(g, key, x, y, 0);
       expect(b.farm!.plots.length).toBeGreaterThanOrEqual(BUILDINGS[key].fields!.min);
     }
+  });
+});
+
+describe("Disponent", () => {
+  it("der Startpunkt der Verschränkung wechselt je Durchgang, damit kein Gebäude dauerhaft zuletzt bedient wird", () => {
+    expect(rotate([1, 2, 3], 0)).toEqual([1, 2, 3]);
+    expect(rotate([1, 2, 3], 1)).toEqual([2, 3, 1]);
+    expect(rotate([1, 2, 3], 5)).toEqual([3, 1, 2]);
+    expect(rotate([], 7)).toEqual([]);
+    const seen = new Set<number>();
+    for (let k = 0; k < 3; k++) seen.add(rotate([1, 2, 3], k)[0]);
+    expect(seen.size).toBe(3);
   });
 });

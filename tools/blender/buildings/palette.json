@@ -42,5 +42,10 @@
  "skin": "#d39a74",
  "hair": "#4b3324",
  "bread": "#b8743a",
- "flour": "#f3eee0"
+ "flour": "#f3eee0",
+ "furrow": "#6e5236",
+ "wheat": "#e2c368",
+ "sprout": "#8fbf45",
+ "apple": "#c63a26",
+ "blossom": "#f4dfe4"
 }

@@ -70,5 +70,13 @@
  "geruest_baeckerei": {"name": "Gerüst Bäckerei", "footprint": [3, 2], "variants": ["Standard"], "seed": 222, "front": true, "shadow_fill": false},
  "stapel_getreide": {"name": "Stapel Getreide", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 230},
  "stapel_mehl": {"name": "Stapel Mehl", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 231},
- "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232}
+ "stapel_brot": {"name": "Stapel Brot", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 232},
+ "bauernhof": {"name": "Getreidehof", "footprint": [2, 2], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 400},
+ "baustelle_bauernhof": {"name": "Baustelle Getreidehof", "footprint": [2, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 401},
+ "geruest_bauernhof": {"name": "Gerüst Getreidehof", "footprint": [2, 2], "variants": ["Standard"], "seed": 402, "front": true, "shadow_fill": false},
+ "obstgarten": {"name": "Obstgarten", "footprint": [2, 2], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 403},
+ "baustelle_obstgarten": {"name": "Baustelle Obstgarten", "footprint": [2, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 404},
+ "acker": {"name": "Getreidebeet", "footprint": [1, 1], "variants": ["brach", "umgegraben", "gesät", "keimt", "wächst", "reif"], "seed": 405},
+ "apfelbaum": {"name": "Apfelbaum", "footprint": [1, 1], "variants": ["Setzling", "belaubt", "blüht", "trägt Früchte"], "seed": 406},
+ "stapel_apfel": {"name": "Stapel Äpfel", "footprint": [1, 1], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 407}
 }

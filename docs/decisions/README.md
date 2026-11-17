@@ -15,5 +15,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0009](0009-baustellen.md) | Baustellen: Fortschritt aus Material und Arbeit, sichtbare Bauphasen | Angenommen |
 | [0010](0010-gebaeude-als-hindernis.md) | Gebäude als feste Hindernisse, Zugang über Türkacheln | Angenommen |
 | [0011](0011-verarbeitung-und-lagertypen.md) | Verarbeitung nach Rezept, Lagertypen und Kornkammer | Angenommen |
+| [0013](0013-landwirtschaft-und-ernaehrung.md) | Landwirtschaft mit sichtbaren Feldern, Ernährung mit Rationen und Hunger | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

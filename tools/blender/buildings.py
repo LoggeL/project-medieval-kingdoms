@@ -2500,6 +2500,233 @@ def b_baeckerei_innen(mb, var):
     bk_outside(mb)
 
 
+# ---------------------------------------------------------------- farming (ADR 0013): grain farm, orchard, plots, apples
+# Farmhouse body and orchard hut in model metres; the door of both sits at x = 0 in the south wall (door [0, -1.5]).
+FH_W, FH_D, FH_CY = 3.4, 2.6, 0.75
+OG_W, OG_D, OG_CX, OG_CY = 2.6, 2.2, -0.45, 0.9
+
+
+def sheaf(mb, x, y, z, s=1.0, rz=0.0, lean=0.0):
+    """Sheaf of grain on its cut end: straw bundle, rope band, flared ears; lean tilts the top towards local -y."""
+    sl, cl = math.sin(math.radians(lean)), math.cos(math.radians(lean))
+    with mb.at((x, y, z), rz):
+        mb.box("thatch", (0, -sl * 0.32 * s, cl * 0.32 * s), (0.2 * s, 0.2 * s, 0.64 * s), rot=(lean, 0, 0))
+        mb.cyl("rope", (0, -sl * 0.3 * s, cl * 0.3 * s), 0.12 * s, 0.05 * s, n=8, rot=(lean, 0, 0))
+        mb.cyl("wheat", (0, -sl * 0.74 * s, cl * 0.74 * s), 0.17 * s, 0.24 * s, n=8, r2=0.08 * s, rot=(lean, 0, 0))
+
+
+def stook(mb, x, y, s=1.0):
+    """Stook: four sheaves leaning against a fifth (how the grain dries on the farm yard)."""
+    for i in range(4):
+        a = 90.0 * i + 25
+        ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+        sheaf(mb, x + 0.2 * s * ca, y + 0.2 * s * sa, 0, s, rz=a - 90, lean=14)
+    sheaf(mb, x, y, 0.02, s * 1.08)
+
+
+def apple(mb, x, y, z, r=0.07):
+    mb.blob("apple", (x, y, z + r), (r, r, r * 0.92), seg=6, rings=4, jitter=0.05)
+
+
+def apple_basket(mb, x, y, z, r=0.26, h=0.24):
+    """Wicker basket heaped with apples and a leaf."""
+    basket(mb, x, y, z, None, r=r, h=h)
+    k = r / 0.26
+    for (dx, dy, dz) in ((-0.1, -0.08, 0), (0.1, -0.07, 0), (0.0, 0.1, 0), (-0.11, 0.07, 0), (0.11, 0.07, 0), (0.0, -0.01, 0.07)):
+        apple(mb, x + dx * k, y + dy * k, z + h - 0.07 + dz, r=0.08 * k)
+    mb.box("leaf_hi", (x + 0.05 * k, y + 0.03 * k, z + h + 0.1), (0.1 * k, 0.05 * k, 0.015), rot=(0, 20, 35))
+
+
+def b_stapel_apfel(mb, var):
+    """Apples: baskets heaped with apples (1-4) on the boards, a crate of apples at the back at level 4."""
+    if not var:
+        return
+    spots = [(-0.34, -0.28), (0.34, -0.28), (-0.34, 0.32), (0.34, 0.32)]
+    for (x, y) in spots[:var]:
+        apple_basket(mb, x, y, STACK_Z)
+    if var >= 4:
+        mb.bx("crate", -0.6, 0.6, 0.64, 0.95, STACK_Z, STACK_Z + 0.3)
+        for k in range(6):
+            apple(mb, -0.45 + k * 0.18, 0.79, STACK_Z + 0.29, r=0.075)
+
+
+def fh_body(mb):
+    W, D = FH_W, FH_D
+    with mb.at((0, FH_CY, 0)):
+        masonry(mb, -W / 2 - 0.08, W / 2 + 0.08, -D / 2 - 0.08, D / 2 + 0.08, 0, 0.4, row=0.2, top=True)
+        timber_frame(mb, -W / 2, W / 2, -D / 2, D / 2, 0.4, 2.5, spacing=0.85)
+        gable_roof(mb, W, D / 2 + 0.5, 2.5, 2.1, "thatch", ov=0.34, row=0.42, thick=0.2, gable="wood", ridge="thatch_dk")
+        door(mb, "s", (0.0, -D / 2, 0.4), w=0.95, h=1.85)
+        mb.bx("stone_top", -0.6, 0.6, -D / 2 - 0.4, -D / 2 - 0.08, 0, 0.2)
+        window(mb, "s", (-1.05, -D / 2, 1.3), w=0.5, h=0.5)
+        window(mb, "s", (1.05, -D / 2, 1.3), w=0.5, h=0.5)
+        window(mb, "e", (W / 2, 0.1, 1.3), w=0.5, h=0.5)
+        # hay loft hatch in the east gable with a hoist beam and rope
+        mb.bx("door", W / 2 + 0.01, W / 2 + 0.06, -0.32, 0.32, 2.65, 3.25)
+        mb.box("timber", (W / 2 + 0.4, 0, 3.45), (0.8, 0.12, 0.12))
+        mb.cyl("rope", (W / 2 + 0.72, 0, 3.05), 0.025, 0.75, n=5)
+
+
+def fh_tools(mb):
+    """Hoe and scythe leaning at the west wall, a water trough at the back corner."""
+    x = -FH_W / 2 - 0.14
+    mb.box("wood_hi", (x - 0.12, FH_CY - 0.75, 0.85), (0.05, 0.05, 1.75), rot=(0, -12, 0))
+    mb.box("steel", (x - 0.28, FH_CY - 0.75, 0.08), (0.08, 0.26, 0.05), rot=(0, -12, 0))
+    mb.box("wood_hi", (x - 0.12, FH_CY - 0.2, 0.9), (0.05, 0.05, 1.85), rot=(0, -10, 0))
+    mb.box("steel", (x - 0.2, FH_CY - 0.02, 1.72), (0.04, 0.5, 0.08), rot=(25, -10, 0))
+    with mb.at((-2.05, 1.6, 0), 90):
+        mb.bx("wood", -0.45, 0.45, -0.2, 0.2, 0, 0.36)
+        mb.bx("window", -0.38, 0.38, -0.13, 0.13, 0.34, 0.37)
+
+
+def b_bauernhof(mb, var):
+    """Grain farm 2 x 2: half-timbered farmhouse with a thatched roof, hay loft and tools. The yard (Hofstapel) shows
+    the harvest as stooks of sheaves on the side corners, so a part shows in every view: Hof leer, halb, voll."""
+    ground(mb, "dirt", -2.5, 2.5, -2.5, 2.5, ragged=0.35)
+    fh_body(mb)
+    fh_tools(mb)
+    r = mb.rnd
+    for i in range(12):  # straw wisps on the yard
+        mb.box("thatch", (r.uniform(-2.2, 2.2), r.uniform(-2.3, -0.8), 0.04), (r.uniform(0.18, 0.35), 0.03, 0.02), rot=(0, 0, r.uniform(0, 180)))
+    stooks = [(2.15, 2.12), (-1.85, -1.85), (1.75, -1.75), (-2.1, -1.0)]
+    for (x, y) in stooks[:[0, 2, 4][var]]:
+        stook(mb, x, y, s=1.3)
+    if var >= 2:
+        sack(mb, 2.15, 0.15, 0.0, "sack", s=0.95, fill="wheat")
+        sack(mb, 2.1, -0.4, 0.0, "sack", s=0.9, rz=30)
+
+
+def og_hut(mb):
+    W, D = OG_W, OG_D
+    with mb.at((OG_CX, OG_CY, 0)):
+        mb.bx("stone", -W / 2 - 0.08, W / 2 + 0.08, -D / 2 - 0.08, D / 2 + 0.08, 0, 0.3)
+        board_wall(mb, -W / 2, W / 2, -D / 2, D / 2, 0.3, 2.2)
+        gable_roof(mb, W + 0.1, D / 2 + 0.45, 2.2, 1.45, "shingle", ov=0.3, row=0.3, thick=0.07, gable="wood", ridge="timber")
+        door(mb, "s", (-OG_CX, -D / 2, 0.3), w=0.9, h=1.8)
+        window(mb, "s", (-0.85, -D / 2, 1.1), w=0.45, h=0.4)
+        window(mb, "e", (W / 2, 0.0, 1.1), w=0.45, h=0.4)
+    # orchard ladder leaning against the east wall
+    x = OG_CX + OG_W / 2 + 0.05
+    tilt = math.radians(14)
+    for dy in (-0.24, 0.24):
+        mb.box("wood_hi", (x + 0.3, OG_CY + dy, 1.2), (0.07, 0.07, 2.45), rot=(0, -14, 0))
+    for k in range(6):
+        z = 0.3 + k * 0.36
+        mb.box("wood", (x + 0.3 + (1.2 - z) * math.tan(tilt), OG_CY, z), (0.06, 0.5, 0.05))
+
+
+def b_obstgarten(mb, var):
+    """Orchard 2 x 2: the orchard keeper's hut (plank walls, shingles) with a ladder; the yard (Hofstapel) shows apple
+    baskets on the corners (0, 2, 4) and a crate of apples when full."""
+    ground(mb, "dirt", -2.5, 2.5, -2.5, 2.5, ragged=0.35)
+    og_hut(mb)
+    spots = [(1.8, -1.75), (-1.95, -1.7), (2.0, 2.0), (-1.2, -2.0)]
+    for (x, y) in spots[:[0, 2, 4][var]]:
+        apple_basket(mb, x, y, 0.0, r=0.3, h=0.28)
+    if var >= 2:
+        crate(mb, 1.0, -1.95, 0.0, s=0.55, rz=12)
+        for k in range(3):
+            apple(mb, 0.86 + k * 0.14, -1.95, 0.55, r=0.08)
+
+
+def b_acker(mb, var):
+    """Grain plot 1 x 1 (stages of landwirtschaft.ts): 0 stubble, 1 dug, 2 sown, 3 sprouting, 4 growing green,
+    5 ripe golden ears. Ridges run along model x across the whole tile, so neighbouring plots join up."""
+    H = T / 2 - 0.02
+    r = mb.rnd
+    pitch = 2 * H / 5
+    rows = [-H + pitch * (i + 0.5) for i in range(5)]
+    mb.bx("furrow" if var else "dirt", -H, H, -H, H, 0, 0.03)
+    if var == 0:
+        # stubble: short cut stalks in rows, a few weeds
+        for y in rows:
+            x = -H + 0.1
+            while x < H - 0.08:
+                mb.box("thatch_dk" if r.random() < 0.5 else "thatch", (x, y + r.uniform(-0.05, 0.05), 0.09), (0.05, 0.05, r.uniform(0.08, 0.16)))
+                x += r.uniform(0.12, 0.2)
+        for i in range(6):
+            mb.blob("leaf", (r.uniform(-H + 0.2, H - 0.2), r.uniform(-H + 0.2, H - 0.2), 0.05), (0.13, 0.13, 0.07), seg=5, rings=3, jitter=0.25)
+        return
+    for y in rows:
+        mb.box("dirt", (0, y, 0.065), (2 * H - 0.06, pitch * 0.5, 0.07))
+    if var == 2:
+        for y in rows:
+            for i in range(16):  # seed corn scattered on the ridges
+                mb.box("wheat", (r.uniform(-H + 0.1, H - 0.1), y + r.uniform(-0.07, 0.07), 0.105), (0.07, 0.07, 0.025))
+    elif var == 3:
+        for y in rows:
+            x = -H + 0.12
+            while x < H - 0.1:
+                mb.box("sprout", (x, y, 0.15), (0.045, 0.045, r.uniform(0.08, 0.15)), rot=(r.uniform(-15, 15), r.uniform(-15, 15), 0))
+                x += r.uniform(0.1, 0.15)
+    elif var == 4:
+        for y in rows:
+            x = -H + 0.1
+            while x < H - 0.08:
+                h = r.uniform(0.4, 0.55)
+                mb.box("sprout" if r.random() < 0.55 else "leaf", (x, y + r.uniform(-0.04, 0.04), 0.1 + h / 2), (0.06, 0.06, h), rot=(r.uniform(-8, 8), r.uniform(-8, 8), 0))
+                mb.box("leaf_hi", (x + 0.04, y, 0.1 + h * 0.6), (0.13, 0.03, 0.02), rot=(0, -30, r.uniform(0, 180)))
+                x += r.uniform(0.09, 0.13)
+    elif var == 5:
+        for y in rows:
+            x = -H + 0.08
+            while x < H - 0.06:
+                h = r.uniform(0.72, 0.9)
+                yy = y + r.uniform(-0.07, 0.07)
+                mb.box("thatch", (x, yy, 0.1 + h / 2), (0.05, 0.05, h), rot=(r.uniform(-6, 6), r.uniform(-6, 6), 0))
+                mb.box("wheat", (x + r.uniform(-0.02, 0.02), yy, 0.1 + h + 0.08), (0.08, 0.08, 0.18), rot=(r.uniform(-12, 12), r.uniform(-12, 12), 0))
+                x += r.uniform(0.07, 0.1)
+
+
+def apple_crown(mb, zc, R, Hc, n, extra=None, extra_n=0):
+    """Leafy crown lit from the back left (like b_baum); extra = blossom or apple dots on its surface."""
+    r = mb.rnd
+    mb.blob("leaf_dk", (0, 0, zc - 0.1), (R * 0.82, R * 0.82, Hc * 0.85), seg=9, rings=6, jitter=0.12)
+    for i in range(n):
+        u = r.uniform(0, 2 * math.pi)
+        v = r.uniform(-0.6, 1.0)
+        d = math.sqrt(max(0.0, 1 - v * v)) * R * r.uniform(0.8, 1.0)
+        z = zc + v * Hc * 0.9
+        s_ = r.uniform(0.22, 0.36)
+        lit = math.cos(u - 2.75) * 0.6 + v * 0.8
+        m = "leaf_hi" if lit > 0.55 else ("leaf" if lit > -0.25 else "leaf_dk")
+        mb.blob(m, (d * math.cos(u), d * math.sin(u), z), (s_, s_, s_ * 0.8), seg=5, rings=4, jitter=0.3)
+    for i in range(extra_n):
+        u = r.uniform(0, 2 * math.pi)
+        v = r.uniform(-0.75, 0.9)
+        d = math.sqrt(max(0.0, 1 - v * v)) * R * r.uniform(1.0, 1.1)
+        z = zc + v * Hc * 0.95
+        if extra == "apple":
+            mb.blob("apple", (d * math.cos(u), d * math.sin(u), z), (0.15, 0.15, 0.14), seg=6, rings=4, jitter=0.05)
+        else:
+            mb.blob("blossom", (d * math.cos(u), d * math.sin(u), z), (0.13, 0.13, 0.1), seg=5, rings=3, jitter=0.2)
+
+
+def b_apfelbaum(mb, var):
+    """Apple tree 1 x 1 (stages of landwirtschaft.ts): 0 sapling at a stake, 1 in leaf, 2 in blossom, 3 bearing apples
+    (a few windfalls in the grass). Smaller than the forest trees, on a dug tree disc."""
+    r = mb.rnd
+    mb.cyl("furrow", (0, 0, 0.015), 0.5 if var else 0.32, 0.03, n=10)
+    if var == 0:
+        mb.cyl("bark", (0, 0, 0.6), 0.05, 1.2, n=6, r2=0.035)
+        mb.box("wood_hi", (0.14, 0.0, 0.65), (0.05, 0.05, 1.3))
+        mb.cyl("rope", (0.07, 0, 0.85), 0.09, 0.04, n=6)
+        apple_crown(mb, 1.45, 0.42, 0.38, 26)
+        return
+    mb.cyl("bark", (0, 0, 0.75), 0.15, 1.5, n=8, r2=0.11)
+    for a in (40, 160, 280):
+        ca, sa = math.cos(math.radians(a)), math.sin(math.radians(a))
+        mb.box("bark", (0.3 * ca, 0.3 * sa, 1.6), (0.09, 0.09, 0.8), rot=(-35 * sa, 35 * ca, 0))
+    apple_crown(mb, 2.25, 1.05, 0.85, 80, extra={2: "blossom", 3: "apple"}.get(var), extra_n={2: 150, 3: 38}.get(var, 0))
+    if var == 3:
+        for i in range(3):
+            a = r.uniform(0, 2 * math.pi)
+            apple(mb, 0.6 * math.cos(a), 0.6 * math.sin(a), 0.0, r=0.08)
+    if var == 2:
+        for i in range(8):
+            mb.box("blossom", (r.uniform(-0.8, 0.8), r.uniform(-0.8, 0.8), 0.035), (0.07, 0.07, 0.01))
+
+
 # ---------------------------------------------------------------- construction sites
 # Outlines of the main bodies (metres, model axes), taken from the b_* functions above. A site shows: stake-out
 # (variant 0), foundation (variant 1); the game then draws the scaffold, reveals the finished sprite from the bottom up
@@ -2521,6 +2748,8 @@ SITE_RECTS = {
     "kornkammer": [(-KK_X, KK_X, KK_Y0, KK_Y1)],
     "muehle": [(-ML_R0, ML_R0, -ML_R0, ML_R0)],
     "baeckerei": [(BK_X0, BK_X1, BK_Y0, BK_Y1)],
+    "bauernhof": [(-FH_W / 2, FH_W / 2, FH_CY - FH_D / 2, FH_CY + FH_D / 2)],
+    "obstgarten": [(OG_CX - OG_W / 2, OG_CX + OG_W / 2, OG_CY - OG_D / 2, OG_CY + OG_D / 2)],
 }
 SITE_KIND = {"steinbruch": "yard", "lager": "yard", "muehle": "round"}
 # scaffold: outline, number of levels, level height (m)
@@ -2533,6 +2762,7 @@ SCAFFOLDS = {
     "kornkammer": (SITE_RECTS["kornkammer"][0], 2, 1.4),
     "muehle": (SITE_RECTS["muehle"][0], 3, 1.85),
     "baeckerei": (SITE_RECTS["baeckerei"][0], 2, 1.3),
+    "bauernhof": (SITE_RECTS["bauernhof"][0], 2, 1.3),
 }
 SIDE_GROUP = {"s": "f:0:-1", "n": "f:0:1", "e": "f:1:0", "w": "f:-1:0"}
 
@@ -2734,7 +2964,9 @@ BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruc
          "bergfried_burg_innen": b_bergfried_innen(3),
          "kornkammer": b_kornkammer, "kornkammer_innen": b_kornkammer_innen, "muehle": b_muehle, "muehle_innen": b_muehle_innen,
          "baeckerei": b_baeckerei, "baeckerei_innen": b_baeckerei_innen,
-         "stapel_getreide": b_stapel_getreide, "stapel_mehl": b_stapel_mehl, "stapel_brot": b_stapel_brot}
+         "stapel_getreide": b_stapel_getreide, "stapel_mehl": b_stapel_mehl, "stapel_brot": b_stapel_brot,
+         "bauernhof": b_bauernhof, "obstgarten": b_obstgarten, "acker": b_acker, "apfelbaum": b_apfelbaum,
+         "stapel_apfel": b_stapel_apfel}
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})

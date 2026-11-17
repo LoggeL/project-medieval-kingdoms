@@ -336,6 +336,8 @@ export interface UnitDef {
    * Bauer mit Hacke beim Umgraben und mit Saattuch beim Säen.
    */
   animSprite?: Partial<Record<AnimKey, string>>;
+  /** Nur Darstellung: eigene Figur beim Tragen einer Ware statt GOODS[ware].carrier (Bauer mit Garbe, Obstbauer mit Korb). */
+  carrySprite?: Partial<Record<Good, string>>;
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -344,8 +346,8 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   steinmetz: { name: "Steinmetz", sprite: "steinmetz", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
   mueller: { name: "Müller", sprite: "mueller", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
   baecker: { name: "Bäcker", sprite: "baecker", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
-  bauer: { name: "Bauer", sprite: "bauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, animSprite: { pfluegen: "bauer_hacke", saeen: "bauer_saat" } },
-  obstbauer: { name: "Obstbauer", sprite: "obstbauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0 },
+  bauer: { name: "Bauer", sprite: "bauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, animSprite: { pfluegen: "bauer_hacke", saeen: "bauer_saat" }, carrySprite: { getreide: "bauer_garbe" } },
+  obstbauer: { name: "Obstbauer", sprite: "obstbauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, carrySprite: { apfel: "obstbauer" } },
   speer: {
     name: "Speerträger", sprite: "speer", role: "nahkampf", hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
     range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
