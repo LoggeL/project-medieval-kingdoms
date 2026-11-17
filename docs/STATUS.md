@@ -1,5 +1,50 @@
 # Status
 
+**2026-11-17 (9): Umbau nach Spielerrückmeldung – Startseite, Bergfried, Lagerhaus, Bauanimation, Wegfindung, Tasten, Zoom.** Sechs Zweige parallel gebaut, nacheinander zusammengeführt, danach Gesamtprüfung mit drei Prüfern und Fehlerbehebung. Entscheidungen ADR 0005–0010.
+- **Startseite (ADR 0007):** `/` öffnet Laden und Titel, der Titel hat den Punkt „Design-Dokument“ (`/konzept/`), die Konzeptseite einen Link „Zum Spiel“. `/spiel/…` leitet per 301 auf `/…` um (Suchteil bleibt). `vite build` erzeugt `konzept/index.html` und `fonts/` selbst (`deploy/konzeptseite.ts`), Dev-Server und `vite preview` liefern dieselben Adressen.
+- **Lagerhaus und Innenansicht (ADR 0005):** Der offene Lagerplatz ist ein geschlossenes Lagerhaus. Träger gehen durch das Tor an ihr Fach und wieder hinaus, drinnen sind sie kein Ziel. Kisten vor dem Tor zeigen den Füllstand. Beim Überfahren oder Auswählen öffnen Lagerhaus, Wohnhaus, Holzfällerhütte, Kaserne und Bergfried ein Schnittbild (Waren je Fach, Figuren drinnen, Rekrut an der Puppe, Bewohner).
+- **Bergfried und Forschung (ADR 0006):** Der Bergfried ist der Sitz neben dem Lagerhaus, nicht baubar und nicht abreißbar. Fällt er, ist das Spiel verloren (Tafel, Pause, danach keine Wellen und kein Zuzug mehr). Er hat drei Ausbaustufen (Holz, Stein, Burgfried) mit mehr Leben, Wohnraum, Steuern und einer Plattform mit Posten. Forschung als Daten (`src/data/research.ts`, 7 Techniken mit Voraussetzungen und Effekten), die Waren tragen Tagelöhner hinein. Dazu Forschungsbaum, Bergfried-Panel und Sperranzeigen.
+- **Bauanimation (ADR 0009):** Baustellen werden abgesteckt, bekommen ein Fundament und wachsen dann von unten (Mauer, Tor, Treppe und Turm in Lagen). Dazu ein Gerüst mit Vorderteil, Baustoffstapel mit fünf Füllstufen, ein hämmernder Bauarbeiter, der die Seite wechselt, Späne und Staub sowie Abrissstaub über den Grundmauern. Gebaut wird parallel zur Lieferung, so weit das gelieferte Material reicht.
+- **Wegfindung (ADR 0010):** Jedes Gebäude sperrt seinen Grundriss, auch Lagerhaus, Bergfried, Baustellen und Mauertürme. Zugang nur über die Tür (`BUILDINGS[..].door`, dreht mit). Keine Diagonale an gesperrten Ecken. Auf den Türvorplatz lässt sich nichts bauen. Dazu ein Sortierfehler behoben: Figuren dicht hinter einer Wand.
+- **Tasten und Zoom (ADR 0008):** Belegung als Daten (`src/data/hotkeys.ts`):
+  - Bau-Reiter F2–F5, Baukarten Y X C V B N M, Ausbilden U I O.
+  - Forschung F, Bergfried-Ausbau G, Abriss Entf, dazu wie bisher T, H und Esc.
+  - Jeder Knopf zeigt ein Messingschild, das beim Drücken aufleuchtet.
+  - Debug-Anzeige auf F9.
+  - Acht Zoomstufen von 0,25× bis 4× mit 160 ms Übergang zur Maus.
+- **Gesamtprüfung danach:** Behoben wurden:
+  - Der Docker-Build brach ab, weil Testdateien fehlten.
+  - Bei Bildschirmen unter 1000 px lagen Knöpfe außerhalb.
+  - Die Überfall-Anzeige war abgeschnitten.
+  - F5 lud die Seite neu.
+  - F1 öffnete die Hilfe unter dem Forschungsbaum.
+  - Nach der Niederlage kamen weiter Wellen.
+  - Die Turmtür ließ sich zumauern.
+  - Ein Tor auf einer belieferten Mauerbaustelle verlor Steine.
+  - Die Plattformhöhe nach dem Ausbau stimmte nicht.
+  - Forschung bekam keine Träger, solange gebaut wurde.
+  - Spielstände tragen jetzt Version 2, ältere werden mit Meldung abgelehnt.
+- *Grafik:* Alles aus der Blender-Pipeline, nur Stil „Vorgerendert“: `lagerhaus`, Schnittbilder `*_innen` (+`_front`), `bergfried_holz/stein/burg` mit Schnittbildern, `baustelle_*`, `geruest_*`, `baustoff_holz/stein`, nach dem Zusammenführen `baustelle_lagerhaus`, `geruest_lagerhaus`, `baustelle_bergfried`. Technik-Ikonen per Codex (`assets/ui/forschung.png`). Maße, Transparenz und Stil geprüft, alte Sprites byte-gleich.
+- *Tests:* 299 grün in 27 Dateien, Typprüfung grün. Neu unter anderem: Wegfindung um alle Gebäude in allen Ausrichtungen mit Langzeitlauf und Prüfung jedes Ticks, Lagerhaus, Bergfried und Forschung, Baustellen, Tastenbelegung, Kamera, Adresstabelle von nginx (Nachbau) und Dockerfile. Dazu ein Chaoslauf über 8 Seeds mit Prüfung aller Reservierungen.
+- *Im Browser geprüft* (kopfloser Chrome, stumm, 1440 × 900 und 390 × 844):
+  - Start, Konzept und zurück.
+  - Träger am Lagerhaus-Tor, niemand läuft durch Gebäude.
+  - Bauen mit Gerüst und Stapeln in vier Drehungen.
+  - Innenansichten.
+  - Forschung und Ausbau per G.
+  - Alle Zoomstufen, Tasten und Schilder.
+  - Welle mit Mauerverteidigung, Niederlage-Tafel.
+  - Keine Konsolenfehler.
+- *Grenzen:*
+  - **Auslieferung:** Docker-Image und nginx lokal nicht gebaut bzw. nicht mit `nginx -t` geprüft, nur durch Nachbau im Test. Vor dem Push das Image einmal bauen.
+  - **Nur Mechanik, noch kein Inhalt:** Kein Gebäude und keine Einheit ist bisher hinter Forschung gesperrt. Gesperrte Konzept-Einheiten im Raster sind weiter keine Daten.
+  - **Text und Ton:** Die Ansage „Lager voll“ sagt noch „Lagerplatz“, das braucht einen neuen TTS-Lauf. Die Konzepttexte nennen teils noch den Lagerplatz.
+  - **Lagerhaus:** Alle Träger teilen sich die Türkachel und stehen dort zeitweise übereinander.
+  - **Bergfried:** Der Ausbau hat kein eigenes Gerüst. Die Tür ist nur bei Stufe 1 gegen das Sprite geprüft.
+  - **Zoom:** 1,5× kostet rund 1,8-mal so viel Füllarbeit. 0,25× wirkt ohne Mipmaps körnig.
+  - **Tasten:** F-Tasten brauchen am Mac je nach Einstellung fn.
+  - **Bäume:** bleiben begehbar.
+
 **2026-11-17 (8):** Lesbarere Überschriften. *Code:* Die Pixel-Fraktur Jacquarda Bastarda 9 war bei Logo, Menü, Reitern und Panel-Titeln schwer lesbar und ist im Spiel durch Cinzel 600/700 ersetzt (selbst gehostet über `@fontsource/cinzel`, `src/ui/fonts.css`; Variablen `--mk-f-head` und `--s-f-head`). Die Konzeptseite behält ihre Schriften. *Tests:* 120 grün, Typprüfung und Build grün. *Im Browser geprüft* (kopfloser Chrome, stumm): Ladebildschirm, Titel bei 1440 × 900 und 375 × 812, Steuerungstafel, Bau-Reiter und Auswahlpanel ohne Überlauf.
 
 **2026-11-17 (7):** Lade- und Titelbildschirm für den Prototyp. *Code:* Ladebildschirm steht als Gerüst in `index.html` (Stil `src/ui/start/start.css`, im Build als blockierendes Stylesheet im Kopf) und erscheint vor Pixi und den Sprite-Blättern; `src/ui/start/` übernimmt ihn mit echtem Fortschritt aus acht gewichteten Abschnitten (Spielcode, Schriften, Oberfläche/Titelbilder, Welt, Grafik, Gebäude, Figuren, Gelände; je Datei über einen neuen Rückruf `loadSheets(onFile)` in `src/render/assets.ts`), Ornament-Leiste, 25 Tipps aus `src/data/tips.ts` (alle 6–8 s, Klick oder Taste zeigt den nächsten), Hinweis nach 25 s ohne Fortschritt und verständlicher Fehlermeldung statt ewigem Balken. Danach Titel: Schlüsselbild vollflächig (cover, Vignette, langsamer Schwenk, ohne bei reduzierter Bewegung), Wappen und Schriftzug in Jacquarda Bastarda 9, Menü Neues Spiel, Klang (Musik/Sprecher/stumm über die Bridge), Steuerung, im Build Konzept (`../`); „Fortsetzen“ fehlt, weil der Prototyp keinen Spielstand im Browser speichert. Tastatur: Pfeile, Enter, Esc, sichtbarer Fokus. Die Simulation tickt erst nach „Neues Spiel“ (Pixi-Ticker steht bis dahin), der Klick schaltet Audio frei (Begrüßung, Aufbaumusik wie bisher), auf dem Titel nach einer Geste leise „Abend am Feuer“. Nur im Entwicklungsmodus: `?direkt=1` überspringt den Titel, `?halten=1` hält den Ladebildschirm, `?fehlertest=<schritt>` erzwingt die Fehlermeldung, `window.mkStart`. *Grafik:* zwei Bilder per Codex (`art/prompts/titel_schluesselbild.txt`, `titel_ladebild_2.txt`), Originale in `art/ui-quelle/`, im Spiel auf 256 Farben reduziert (0,85 und 1,09 MB); geprüft auf Maße (1672 × 941), Stil, keine Schrift. Ein erster Kartenentwurf hatte einen eingemalten Ladebalken und wurde verworfen. *Tests:* Vitest für Tippdaten (Deutsch, eindeutig, Länge, Zahlen gegen `src/data`) und Ladefortschritt/Tippwechsel. *Im Browser geprüft* (kopfloser Chrome, stumm): Laden mit mehreren Tipps, Titel bei 1440 × 900, 1920 × 1080 und 375 × 812 ohne waagrechtes Scrollen, Klang- und Steuerungstafel, Übergang ins Spiel, Tick bleibt 0 bis zum Start, Build mit Konzept-Link, keine Konsolenfehler. Grenzen: Titelmusik nur über Zustand geprüft, nie hörbar.
@@ -26,11 +71,11 @@
 
 ## Stand
 
-- Konzept: Entwurf v1 vollständig, **nicht abgestimmt**
-- Entscheidungen: ADR 0001–0004 angenommen (Browser mit TypeScript + PixiJS, Koordinaten und Drehung, Prototyp-Architektur, Audio); offen: Art-Pipeline, Pfadfindung mit Laufebenen, Speicherformat
-- Code: spielbarer Prototyp nach Briefing §14 (Meilensteine M1–M3 der Roadmap) in `src/`, Grafikwerkzeuge in `tools/blender/`, Audiowerkzeug in `tools/audio/`, Bauskript der Konzeptseite in `tools/konzeptseite/`
-- Tests: 120 automatisierte Tests (Vitest) grün; Typprüfung grün; Docker-Build führt beides aus
-- Im Browser geprüft: Prototyp im kopflosen Chrome und im App-Browser (Details im Eintrag 6); seit 17.11. live auf https://medieval-kingdoms.logge.top/spiel/ (Titel, Spielstart und Schriften dort im kopflosen Chrome geprüft)
+- Konzept: Entwurf v1 vollständig, **nicht abgestimmt**; Abgleich mit dem Briefing (311 Anforderungen) in [BRIEFING-ABGLEICH.md](BRIEFING-ABGLEICH.md)
+- Entscheidungen: ADR 0001–0010 angenommen (Browser mit TypeScript + PixiJS, Koordinaten und Drehung, Prototyp-Architektur, Audio, Lagerhaus, Bergfried und Forschung, Adressen, Tasten und Zoom, Baustellen, Gebäude als Hindernis); offen: Art-Pipeline, Speicherformat
+- Code: spielbarer Prototyp nach Briefing §14 (Meilensteine M1–M3 der Roadmap) mit Bergfried, Forschung, Lagerhaus und Bauanimation in `src/`, Grafikwerkzeuge in `tools/blender/`, Audiowerkzeug in `tools/audio/`, Bauskript der Konzeptseite in `tools/konzeptseite/`
+- Tests: 299 automatisierte Tests (Vitest) grün; Typprüfung grün; Docker-Build führt beides aus
+- Im Browser geprüft: Prototyp im kopflosen Chrome und im App-Browser (Details im Eintrag 6); live auf https://medieval-kingdoms.logge.top/spiel/ ist noch der Stand vor Eintrag 9 (nicht gepusht); nach dem nächsten Push liegt das Spiel unter / und die Konzeptseite unter /konzept/
 - Grafik: Figuren, Gebäude (mit Mauer-Autotiling, Tor, Treppe, Turm, Lagerstapeln) und Gelände aus der Blender-Pipeline im Stil „Vorgerendert“
 - Audio: 5 Musikstücke und 23 Ansagen, automatisch geprüft, nicht von Menschen abgehört
 
