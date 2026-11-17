@@ -13,6 +13,7 @@ import { goalAround, goalEntrance, goalSlot, tileGoal, travel, unitNode, type Tr
 import { fullMessage, hasRoom, reservePut, reserveTake, tidy } from "./storage";
 import { haulable, inputAvailable, inputOrders, reserveOutput } from "./production";
 import { isSite, levelOf } from "./research";
+import { hungerBlocks, immigrationFactor } from "./food";
 import type { StorageSlot } from "./types";
 import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -103,12 +104,15 @@ export function dispatcher(w: World): void {
     const orders = inputOrders(b);
     if (orders.length) proc.push(orders.map((g) => ({ site: b, good: g, pk: true as const })));
   }
-  const supplies = interleave([study, build.flat(), interleave(proc)]);
-  const hauls = interleave(own.filter((b) => b.built >= 1).map((b) => {
+  // Reihum mit wechselndem Anfang: Sind weniger Tagelöhner frei als Gebäude Waren abzugeben haben, käme sonst immer
+  // dasselbe erste Gebäude zum Zug und das letzte nie (ADR 0013: Hof, Mühle, Bäckerei geben gleichzeitig ab).
+  const turn = Math.floor(w.s.tick / DISPATCH_EVERY);
+  const supplies = interleave([study, build.flat(), interleave(rotate(proc, turn))]);
+  const hauls = interleave(rotate(own.filter((b) => b.built >= 1).map((b) => {
     const out: { b: SBuilding; good: Good }[] = [];
     for (const [g, n] of haulable(b)) for (let k = 0; k < n; k++) out.push({ b, good: g });
     return out;
-  }));
+  }).filter((l) => l.length), turn));
   const noStock = new Set<Good>();
   const noReach = new Set<number>();
   const full = new Set<StoreKey>();
@@ -157,6 +161,13 @@ export function interleave<T>(lists: T[][]): T[] {
   const out: T[] = [];
   for (let i = 0; lists.some((l) => i < l.length); i++) for (const l of lists) if (i < l.length) out.push(l[i]);
   return out;
+}
+
+/** Liste um k Stellen drehen (Anfang wechselt reihum). */
+export function rotate<T>(list: T[], k: number): T[] {
+  if (list.length < 2) return list;
+  const i = ((k % list.length) + list.length) % list.length;
+  return [...list.slice(i), ...list.slice(0, i)];
 }
 
 /** Reservierung zum Abholen zurückgeben (Auftrag kam nicht zustande). */
@@ -227,11 +238,14 @@ export function updatePopulation(w: World): void {
   for (const b of s.buildings) if (b.ai.inside) pop++;
   s.housing = housing; s.population = pop;
   if (!w.meta.immigration || s.outcome || s.tick < w.meta.nextImmigrant) return; // nach der Niederlage kein Zuzug
-  w.meta.nextImmigrant = s.tick + TUNING.immigrantSeconds * TPS;
+  // Abstand nach Ration und Vielfalt der Nahrung (ADR 0013); eine hungernde Siedlung bekommt keinen Zuzug
+  w.meta.nextImmigrant = s.tick + Math.round(TUNING.immigrantSeconds * immigrationFactor(w) * TPS);
   if (pop >= housing) {
     w.msg("Kein Wohnraum mehr: Baue Wohnhäuser, damit weitere Leute zuziehen.", "warnung", "wohnraum", 120, "wohnraum");
     return;
   }
+  const hungry = hungerBlocks(w);
+  if (hungry) { w.msg(hungry, "warnung", "hunger-zuzug", 120); return; }
   const [ex, ey] = w.meta.entry;
   const u = w.addUnit("tageloehner", 0, ex + 0.5, ey + 0.5);
   u.ai.fresh = true;

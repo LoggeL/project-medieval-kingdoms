@@ -70,6 +70,7 @@ const PILE: Record<Good, [string, string]> = {
   getreide: ["#9a7a3a", "#d9b866"],
   mehl: ["#a89c86", "#ece4d2"],
   brot: ["#7a4a1e", "#c88a4a"],
+  apfel: ["#8a2e1e", "#c8503a"],
 };
 
 /** Ersatz für einen Warenstapel, Füllstufe 1..4. Pivot (16, 22). */

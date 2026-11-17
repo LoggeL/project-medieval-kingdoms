@@ -43,6 +43,10 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
         if (j.ins === undefined || u.anim === "gehen") return moving ? "unterwegs" : "wartet";
         return u.anim === "stehen" ? "wartet" : "verarbeitet";
       }
+      if (step.do === "farm") {
+        if (u.carry) return moving ? "traegt" : "wartet";
+        return moving ? "unterwegs" : u.anim === "stehen" ? "wartet" : "bestellt";
+      }
       if (step.do === "work") {
         if (u.anim === "stehen") return "wartet";
         return step.effect === "fellTree" ? "faellt" : step.effect === "cutTree" ? "zerlegt" : step.effect === "mineRock" ? "baut_ab" : "baut";
@@ -55,6 +59,7 @@ export function activityOf(w: World, u: SUnit): UnitActivity {
     case "supply": return j.ph === 1 ? (moving ? "traegt" : "wartet") : moving ? "unterwegs" : "wartet";
     case "build": return u.anim === "bauen" ? "baut" : moving ? "unterwegs" : "wartet";
     case "recruit": return "holt_waffe";
+    case "leave": return "zieht_fort";
   }
   return "wartet";
 }

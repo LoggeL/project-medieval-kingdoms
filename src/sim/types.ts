@@ -3,7 +3,7 @@
  * Die Simulation ist die einzige Stelle, die diesen Zustand verändert. Darstellung und UI lesen ihn nur
  * und schicken Befehle (Command). Alles hier ist in Welt-Koordinaten; Drehung kennt nur die Darstellung.
  */
-import type { AnimKey, BuildingKey, Good, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
+import type { AnimKey, BuildingKey, CropKey, Good, RationKey, RecipeKey, StoreKey, TechKey, TerrainKey, UnitKey } from "../data";
 import type { VoiceKey } from "../data/audio";
 
 export type Team = 0 | 1; // 0 = Spieler (blau), 1 = Angreifer (rot)
@@ -84,6 +84,48 @@ export interface Building {
   upgrade?: { level: number; t: number };
   /** Verarbeitung nach Rezept (nur Gebäude mit BuildingDef.production, ab Fertigstellung). */
   proc?: ProcState;
+  /** Felder eines Hofs (nur Gebäude mit BuildingDef.fields, ab dem Setzen der Baustelle; ADR 0013). */
+  farm?: FarmState;
+}
+
+/** Felder eines Hofs (src/sim/farm.ts): Beete mit Stufe der Feldfrucht (CROPS in src/data/landwirtschaft.ts). */
+export interface FarmState {
+  crop: CropKey;
+  plots: Plot[];
+  /** Geerntete Stück insgesamt. */
+  harvested: number;
+}
+
+/** Ein Beet auf einer Feldkachel (Welt-Tile x, y). */
+export interface Plot {
+  x: number; y: number;
+  /** Stufe der Feldfrucht (Index in CROPS[..].stages). */
+  stage: number;
+  /** Sekunden in der Stufe (Wachstum bzw. Arbeit des Bauern). */
+  t: number;
+  /** Bauer, der hier arbeitet oder auf dem Weg ist (0 = keiner). */
+  by: number;
+}
+
+/**
+ * Ernährung (src/sim/food.ts, ADR 0013): gewählte Ration, Verbrauch, Vorrat an Portionen in den Kornkammern und Hunger.
+ */
+export interface FoodState {
+  ration: RationKey;
+  /** Verbrauch in Portionen je Minute bei der aktuellen Bevölkerung. */
+  perMinute: number;
+  /** Essbarer Vorrat in Portionen (alle Kornkammern). */
+  stock: number;
+  /** Vorrätige Nahrungsarten (Vielfalt). */
+  kinds: number;
+  /** Offene Portionen (Bruchteil, der beim nächsten Stück gegessen wird). */
+  debt: number;
+  /** Sekunden ohne Essen (0 = satt). */
+  hunger: number;
+  /** Sekunden seit dem letzten Fortgang eines Hungernden. */
+  leave: number;
+  /** Gegessene Portionen insgesamt. */
+  eaten: number;
 }
 
 /**
@@ -189,7 +231,7 @@ export interface Unit {
 
 export type UnitActivity =
   | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
-  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet";
+  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet" | "bestellt" | "zieht_fort";
 
 export interface Projectile {
   id: number;
@@ -225,6 +267,8 @@ export interface SimState {
   stores?: Record<StoreKey, { used: number; cap: number }>;
   raid: { next: number; wave: number; active: boolean };
   messages: Message[];
+  /** Ernährung (ADR 0013); fehlt in alten Spielständen bis zum ersten Tick. */
+  food?: FoodState;
   /** Forschung (seit Spielstand-Version 2 immer vorhanden). */
   research: ResearchState;
   /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
@@ -253,7 +297,9 @@ export type Command =
   /** Rezept eines Verarbeitungsgebäudes wählen (nicht passende Puffer-Waren gehen ins Lager zurück). */
   | { t: "rezept"; building: number; recipe: RecipeKey }
   /** Verarbeitung anhalten (an = false) oder fortsetzen. */
-  | { t: "produktion"; building: number; an: boolean };
+  | { t: "produktion"; building: number; an: boolean }
+  /** Ration der Siedlung wählen (RATIONS in src/data/nahrung.ts). */
+  | { t: "rationen"; ration: RationKey };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }

@@ -26,9 +26,10 @@ export const SAVE_VERSION = 2;
 export type Job =
   /**
    * Arbeitszyklus des Gebäudes u.home (Schritt im Datenzyklus, Zeit im Schritt in Ticks, reserviertes Ziel). ins nur
-   * beim Verarbeiten: im Gebäude zurückgelegte Strecke von der Tür zum Arbeitsplatz (Tiles), fehlt = draußen.
+   * beim Verarbeiten: im Gebäude zurückgelegte Strecke von der Tür zum Arbeitsplatz (Tiles), fehlt = draußen. n nur beim
+   * Feldbau: Stück der getragenen Ernte (u.carry), fehlt = 1.
    */
-  | { k: "cycle"; step: number; t: number; tgt: number; wait: number; ins?: number }
+  | { k: "cycle"; step: number; t: number; tgt: number; wait: number; ins?: number; n?: number }
   /** Tagelöhner geht zur Werkstatt und wird dort Arbeiter. */
   | { k: "employ"; b: number }
   /** Hofstapel → Lager-Slot. ph 0 = zur Abholung, 1 = mit Ware zum Lager. */
@@ -42,7 +43,9 @@ export type Job =
   /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
   | { k: "build"; site: number; spot?: number; t?: number }
   /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
-  | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 };
+  | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 }
+  /** Hungernder Tagelöhner verlässt die Siedlung (geht zum Kartenrand und verschwindet, food.ts). */
+  | { k: "leave" };
 
 export interface UnitAI {
   /** Knoten (Laufebene · W · H + y · W + x) bis zum Ziel. */
@@ -145,6 +148,8 @@ export interface Meta {
   raidLosses?: number;
   /** Nächster Schritt der Einführung (Index in TUTORIAL), fehlt = keine Einführung. */
   tutorial?: number;
+  /** Kein Essen (leeres Szenario der Tests): Niemand isst, niemand hungert. Fehlt = es wird gegessen. */
+  hungerOff?: boolean;
   /** Angesammelte Steuern in Gold · Ticks je Minute (60 · TPS ergeben ein Gold), fehlt = 0. */
   tax?: number;
 }

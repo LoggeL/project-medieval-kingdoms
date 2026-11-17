@@ -591,6 +591,8 @@ const ACTIVITY: Record<UnitActivity, string> = {
   wache: "Hält Wache",
   haelt: "Hält die Stellung",
   zieht_zu: "Zieht in die Siedlung",
+  bestellt: "Bestellt das Feld",
+  zieht_fort: "Verlässt hungrig die Siedlung",
 };
 
 /** Tätigkeit für das Panel: aus Unit.activity (Simulation), sonst grob aus dem Befehl. */

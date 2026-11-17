@@ -2,7 +2,7 @@
  * Die Simulation: Spielstart, Tick mit fester Systemreihenfolge, Befehle, Speichern und Laden.
  *
  * Reihenfolge je Tick: Vorposition merken → Raum-Raster → Bäume → Disponent (alle 10 Ticks) → Bevölkerung →
- * Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
+ * Ernährung → Wachstum der Felder → Überfälle → Ausbildung → Forschung → Steuern → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Rekruten → Stillstandsgründe der Verarbeitung → Tore → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
 import { BUILDINGS, GOODS, START, TUNING, TUTORIAL, type BuildingKey, type Good, type TutorialGoal } from "../data";
@@ -13,6 +13,8 @@ import { footprintTiles } from "./geom";
 import { carryBack, releaseJob, runJob, toPeasant, walkOut } from "./jobs";
 import { cancelResearch, hasTech, levelOf, seatOf, startResearch, startUpgrade, updateIncome, updateResearch } from "./research";
 import { setPaused, setRecipe, updateProduction, worksInside } from "./production";
+import { updateFarms } from "./farm";
+import { newFood, setRation, updateFood } from "./food";
 import { emptyMap, generateMap } from "./mapgen";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
@@ -58,6 +60,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     nextImmigrant: TUNING.immigrantSeconds * TPS, throttle: {},
     camp: [0, 0], entry: [0, 0], raidSpawn: [0, 0],
     raidsEnabled: opts.raids ?? scenario === "standard", raidRunning: false, immigration: scenario === "standard",
+    ...(scenario === "leer" ? { hungerOff: true } : {}),
   };
   const rand = () => nextRandom(meta);
   const map = scenario === "leer" ? emptyMap(size, size) : generateMap(size, size, rand, () => meta.nextId++);
@@ -67,7 +70,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
     tick: 0, seed, w: size, h: size, tiles: map.tiles, trees: map.trees, rocks: map.rocks,
     buildings: [], units: [], projectiles: [], gold: START.gold, population: 0, housing: 0, stock, capacity: 0,
     raid: { next: START.raid.firstSeconds * TPS, wave: 0, active: false }, messages: [],
-    research: { done: [], cur: null },
+    research: { done: [], cur: null }, food: newFood(),
   };
   const w = new World(s, meta);
   if (scenario === "standard") {
@@ -83,6 +86,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
   }
   updatePopulation(w);
   updateStock(w);
+  updateFood(w);
   for (const u of s.units) updateActivity(w, u);
   updateRecruits(w);
   return new Simulation(w);
@@ -120,6 +124,8 @@ export function step(w: World): void {
   updateTrees(w);
   if (s.tick % DISPATCH_EVERY === 0) { pruneWorkers(w); dispatcher(w); }
   updatePopulation(w);
+  updateFood(w);
+  updateFarms(w);
   raidTick(w);
   if (s.tick % TPS === 0) updateTutorial(w);
   updateTraining(w);
@@ -209,6 +215,7 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "ausbauen": return startUpgrade(w, c.building);
     case "rezept": return setRecipe(w, c.building, c.recipe);
     case "produktion": return setPaused(w, c.building, c.an);
+    case "rationen": return setRation(w, c.ration);
   }
   return { ok: false, reason: "Unbekannter Befehl" };
 }
