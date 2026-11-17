@@ -48,5 +48,10 @@
  "wheat": "#e2c368",
  "sprout": "#8fbf45",
  "apple": "#c63a26",
- "blossom": "#f4dfe4"
+ "blossom": "#f4dfe4",
+ "ore": "#8c3f22",
+ "ore_hi": "#c4683a",
+ "ember": "#ff9a2a",
+ "coal": "#2b2624",
+ "clay": "#a87652"
 }

@@ -12,7 +12,7 @@ export function createDemoGame(): Game {
   const s: SimState = {
     tick: 0, seed: 1, w: W, h: H, tiles: [], trees: [], rocks: [], buildings: [], units: [], projectiles: [],
     gold: 150, population: 8, housing: 12,
-    stock: { holz: 40, stein: 30, eisen: 0, speer: 3, schwert: 2, bogen: 4, getreide: 0, mehl: 0, brot: 0, apfel: 0 }, capacity: 64,
+    stock: { holz: 40, stein: 30, eisen: 0, speer: 3, schwert: 2, bogen: 4, getreide: 0, mehl: 0, brot: 0, apfel: 0, erz: 0, armbrust: 0, pike: 0, ruestung: 0 }, capacity: 64,
     raid: { next: 6000, wave: 0, active: false }, messages: [{ tick: 0, text: "Willkommen, Burgherr.", kind: "info" }],
     research: { done: [], cur: null },
   };

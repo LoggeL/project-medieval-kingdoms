@@ -1,0 +1,14 @@
+Icon sheet for the research menu of an original isometric medieval strategy game (High to Late Middle Ages), second set: metal working and weapons.
+
+Layout: exactly 4 separate icons arranged in a regular grid of 2 columns and 2 rows on a fully transparent background. Every icon sits centred in its own equal square cell, with wide empty transparent gaps between the cells so each icon can be cut out cleanly. Icons must not touch or overlap each other. No background plates, no frames, no circles behind the icons, no shadows on the background.
+
+Row 1, left to right:
+1. Bloomery furnace: a small squat clay and fieldstone smelting furnace with a glowing orange-red opening at its base, a leather bellows leaning against it and a dark lump of raw iron bloom lying in front.
+2. Crossbow making: a wooden crossbow seen from above at an angle, steel bow arm, taut string, a short bolt with a square iron head lying beside it.
+Row 2, left to right:
+3. Chain mail forging: a black iron anvil with a pair of smith's tongs holding a strip of interlinked steel mail rings, a small hammer resting on the anvil.
+4. Pike square: four very long wooden pikes with narrow steel heads standing upright side by side in a tight bundle, one small royal blue pennant tied below the tip of the tallest pike.
+
+Style: hand-crafted pixel art game icons in the same style as detailed isometric pixel-art buildings, crisp hard pixel edges, no anti-aliased blur, no gradients, limited warm earthy palette (oak and clay brown, sandstone beige, slate grey, steel blue-grey, muted green) with small saturated heraldic accents (royal blue, gold, wax red, ember orange), dark brown 1-pixel outline around every object, light from the upper left in 3 to 4 hard steps. Objects seen slightly from above, in a three-quarter view, readable at 48 pixels. Consistent scale and line weight across all 4 icons.
+
+Strictly no text, no letters, no numbers, no runes, no labels, no watermark, no signature, no user interface, no frame. Original design, not resembling any existing game.

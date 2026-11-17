@@ -3,7 +3,7 @@
  * dazu Auswahl- und Abriss-Werkzeug. Der Reiter Militär zeigt außerdem das Einheitenraster (unitgrid.ts).
  * Rechts neben den Reitern öffnet „Forschung“ (F) den Forschungsbaum. Gebäude, die eine Forschung brauchen
  * (BuildingDef.tech), stehen gesperrt mit dem Namen der Forschung in der Leiste.
- * Tasten (src/data/hotkeys.ts): Reiter F2–F5, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
+ * Tasten (src/data/hotkeys.ts): Reiter F2–F7, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
  * Reiter Militär die ausbildbaren Einheiten), Forschung F, Auswahl Esc, Abriss Entf.
  */
 import type { Tool } from "../app/contract";
@@ -24,6 +24,7 @@ const TABS: { cat: Cat; label: string }[] = [
   { cat: "befestigung", label: "Befestigung" },
   { cat: "militaer", label: "Militär" },
   { cat: "nahrung", label: "Nahrung" },
+  { cat: "handwerk", label: "Handwerk" },
 ];
 
 export interface BuildBar { el: HTMLElement; update(s: SimState): void; updateTool(): void }

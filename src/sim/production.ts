@@ -19,7 +19,7 @@
  * Lesende Funktionen (procReason, inputCap …) arbeiten nur auf SimState bzw. Building, damit die Oberfläche dieselben
  * Regeln zeigt, die die Simulation anwendet.
  */
-import { BUILDINGS, GOODS, RECIPES, STORES, UNITS, recipesOf, storeOf, type BuildingKey, type Good, type RecipeDef, type RecipeKey } from "../data";
+import { BUILDINGS, GOODS, RECIPES, STORES, TECHS, UNITS, recipesOf, storeOf, type BuildingKey, type Good, type RecipeDef, type RecipeKey } from "../data";
 import { modelToWorld, polyAt, polyLength, workWalk } from "./geom";
 import { goalEntrance, stop, travel } from "./move";
 import { workFactor } from "./research";
@@ -262,7 +262,7 @@ export function setRecipe(w: World, id: number, key: RecipeKey): CommandResult {
   if (!b || b.team !== 0 || !b.proc) return { ok: false, reason: "Kein eigenes Verarbeitungsgebäude" };
   const r = RECIPES[key];
   if (!r || r.building !== b.key) return { ok: false, reason: "Dieses Rezept gibt es hier nicht" };
-  if (r.tech && !w.s.research.done.includes(r.tech)) return { ok: false, reason: "Erst erforschen" };
+  if (r.tech && !w.s.research.done.includes(r.tech)) return { ok: false, reason: `Erst erforschen: ${TECHS[r.tech].name}` };
   if (b.proc.recipe === key) return { ok: true, ids: [id] };
   const p = b.proc;
   if (p.busy) for (const [g, n] of goodsIn(RECIPES[p.recipe].inputs)) storeDirect(w, g, n);

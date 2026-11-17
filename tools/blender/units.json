@@ -690,5 +690,232 @@
     12
    ]
   }
+ },
+ "bergmann": {
+  "name": "Bergmann",
+  "torso": "worker",
+  "tunic": "leather",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "hood",
+  "hood": "dark",
+  "gear": [
+   "pick"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -20,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -40,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "abbauen",
+   "motion": "abbauen"
+  }
+ },
+ "schmelzer": {
+  "name": "Schmelzer",
+  "torso": "worker",
+  "tunic": "brown",
+  "legs": "hose2",
+  "skirt": 0.3,
+  "helmet": "hood",
+  "hood": "cap",
+  "gear": [
+   "apron"
+  ],
+  "action": {
+   "anim": "schmelzen",
+   "motion": "backen"
+  },
+  "action_gear": [
+   "poker"
+  ]
+ },
+ "schmied": {
+  "name": "Schmied",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose",
+  "skirt": 0.3,
+  "helmet": "hair",
+  "gear": [
+   "apron"
+  ],
+  "action": {
+   "anim": "schmieden",
+   "motion": "schmieden"
+  },
+  "action_gear": [
+   "hammer"
+  ]
+ },
+ "bogner": {
+  "name": "Bogner",
+  "torso": "worker",
+  "tunic": "hood",
+  "legs": "hose2",
+  "skirt": 0.3,
+  "helmet": "cap",
+  "capc": "team",
+  "action": {
+   "anim": "schnitzen",
+   "motion": "schnitzen"
+  },
+  "action_gear": [
+   "stave",
+   "drawknife"
+  ]
+ },
+ "waffenknecht": {
+  "name": "Waffenknecht",
+  "torso": "leather",
+  "sleeve": "cloth",
+  "legs": "hose",
+  "skirt": 0.32,
+  "helmet": "kettle",
+  "tabard_trim": "team",
+  "gear": [
+   "spear"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -30,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "angriff",
+   "motion": "stoss"
+  }
+ },
+ "pikenier": {
+  "name": "Pikenier",
+  "torso": "plate",
+  "legs": "team",
+  "legs2": "hose",
+  "skirt": 0.25,
+  "helmet": "kettle",
+  "gear": [
+   "pike"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "pose": {
+   "armR": [
+    -25,
+    0,
+    0
+   ],
+   "armL": [
+    -35,
+    0,
+    20
+   ]
+  },
+  "action": {
+   "anim": "angriff",
+   "motion": "stoss"
+  }
+ },
+ "armbrustschuetze": {
+  "name": "Armbrustschütze",
+  "torso": "mail_tabard",
+  "legs": "hose2",
+  "skirt": 0.35,
+  "helmet": "kettle",
+  "gear": [
+   "crossbow_hand",
+   "quiver"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -35,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    -10,
+    0,
+    0
+   ]
+  },
+  "action": {
+   "anim": "schiessen",
+   "motion": "armbrust"
+  }
+ },
+ "traeger_erz": {
+  "name": "Tagelöhner mit Erzkorb",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "ore_basket"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "swing": 0.0,
+  "pose": {
+   "armR": [
+    -55,
+    0,
+    -12
+   ],
+   "armL": [
+    -55,
+    0,
+    12
+   ]
+  }
+ },
+ "traeger_pike": {
+  "name": "Tagelöhner mit Piken",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "pike_bundle"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -112,
+    0,
+    -5
+   ]
+  }
  }
 }

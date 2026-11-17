@@ -36,10 +36,10 @@ export function slopeTiles(s: SimState): { list: number[]; set: Uint8Array } {
   return c;
 }
 
-/** Brocken (mit Blöcken), die auf der Halde liegen. */
+/** Steinbrocken (mit Blöcken), die auf der Halde liegen. Erzbrocken (ADR 0014) zählen nicht, auf der Halde rutscht nur Stein nach. */
 export function slopeRocks(s: SimState): Rock[] {
   const { set } = slopeTiles(s);
-  return s.rocks.filter((r) => r.amount > 0 && set[r.y * s.w + r.x]);
+  return s.rocks.filter((r) => r.amount > 0 && r.kind !== "erz" && set[r.y * s.w + r.x]);
 }
 
 const RING: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];

@@ -10,7 +10,7 @@
  * (Rand, Hang, Gipfel nach mountainClass), Variante und Ansicht aus der Tile-Nummer, in jeder Drehung tiefensortiert.
  */
 import { Container, Rectangle, Texture } from "pixi.js";
-import { BUILDINGS, CROPS, GOODS, RECIPES, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
+import { BUILDINGS, CROPS, GOODS, RECIPES, RESOURCE_TAGS, TICKS_PER_SECOND, TUNING, UNITS, levelDef, type AnimKey, type BuildingKey, type Good } from "../data";
 import { center, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import { mountainClass } from "../sim/mapgen";
 import type { Building, Rock, SimState, Tile, Tree, Unit } from "../sim/types";
@@ -574,7 +574,12 @@ export class ObjectLayer {
       frame = a <= 0 ? 0 : Math.min(sp.frames - 1, 1 + Math.floor(((a - 1) / cap) * (sp.frames - 1)));
     }
     // Arbeitsbild (Mühlenflügel): Varianten der Reihe nach, nur weiter, solange gearbeitet wird; sonst stehen sie still
-    if (def.workAnim && sp.frames > 1 && b.built >= 1) frame = Math.floor((this.workPhase.get(b.id) ?? 0) * def.workAnim.fps) % sp.frames;
+    if (def.workAnim && sp.frames > 1 && b.built >= 1) {
+      const ph = Math.floor((this.workPhase.get(b.id) ?? 0) * def.workAnim.fps);
+      const idle = def.workAnim.idle;
+      // mit Ruhebild (Schmelzhütte: kalter Ofen): ruhend dieses, bei der Arbeit reihum die übrigen Varianten
+      frame = idle === undefined ? ph % sp.frames : b.proc?.busy ? (idle + 1 + (ph % (sp.frames - 1))) % sp.frames : idle;
+    }
     return { keys: [[k, b.o]], frame };
   }
 
@@ -1134,12 +1139,16 @@ export class ObjectLayer {
     const [X, Y] = this.scr(k.x + 0.5, k.y + 0.5);
     const used = 1 - k.amount / Math.max(1, k.max);
     const bs = this.bs;
-    if (bs?.has("fels")) {
-      const sp = bs.get("fels")!;
+    // Sprite nach Art des Brockens (RESOURCE_TAGS: Stein „fels“, Erz „fels_erz“), Ersatz der Steinbrocken
+    const want = RESOURCE_TAGS[k.kind ?? "rock"].sprite ?? "fels";
+    const key = bs?.has(want) ? want : "fels";
+    if (want !== key) warnOnce(`Sprite „${want}“ fehlt im Gebäudeblatt, Ersatz: „fels“`);
+    if (bs?.has(key)) {
+      const sp = bs.get(key)!;
       const stage = Math.max(0, Math.min(sp.frames - 1, Math.floor(used * sp.frames)));
       const view = viewOf(hash4(k.id), this.r);
-      const tex = bs.texture("fels", view, stage);
-      if (tex) this.occluder(this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]), "fels", view, stage);
+      const tex = bs.texture(key, view, stage);
+      if (tex) this.occluder(this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1]), key, view, stage);
     } else {
       warnOnce("Sprite „fels“ fehlt im Gebäudeblatt, Ersatz: einfacher Felsbrocken");
       this.part(it, rockTexture(Math.max(0, Math.min(4, Math.floor(used * 5)))), X, Y, 32, 40);

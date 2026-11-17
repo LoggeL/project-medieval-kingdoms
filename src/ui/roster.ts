@@ -1,67 +1,53 @@
 /**
  * Einheitenraster für die Oberfläche (BRIEF §8.3, Konzept 08 „Einheitenraster“).
- * Spielbare Einheiten kommen aus UNITS (src/data). Dazu kommen Einheiten aus dem Konzept (Kapitel 05/06),
- * die im Prototyp noch gesperrt sind: Sie stehen ausgegraut im Raster und nennen ihre Voraussetzung.
- * Sobald es Forschung gibt, wandern diese Einträge in die Datendefinitionen.
+ * Liest nur Daten (ADR 0014): alle Soldaten aus UNITS, gruppiert nach UnitDef.group (UNIT_GROUPS, src/data/militaer.ts).
+ * Spielbar ist eine Einheit, die ein Gebäude in BuildingDef.trains führt und nichts Geplantes braucht; ihre
+ * Forschungssperre (UnitDef.tech) zeigt das Raster live. Die übrigen stehen ausgegraut mit ihren Voraussetzungen
+ * (Forschung aus UnitDef.tech, dazu UnitDef.planned für Gebäude, Waren und Forschung, die es noch nicht gibt).
  */
-import { UNITS, type UnitKey } from "../data";
+import { BUILDINGS, TECHS, UNITS, UNIT_GROUPS, type UnitKey } from "../data";
 
 export interface RosterEntry {
-  /** UnitKey, wenn spielbar, sonst ein eigener Schlüssel. */
-  key: string;
+  key: UnitKey;
   name: string;
-  /** Spielbare Einheit aus UNITS. */
+  /** Spielbare Einheit (ein Gebäude bildet sie aus); fehlt bei gesperrten Konzepteinheiten. */
   unit?: UnitKey;
-  /** Figur im Figurenblatt, falls es schon eine gibt (für gesperrte Einheiten). */
+  /** Daten der Einheit (Werte, Kosten), auch für gesperrte. */
+  data: UnitKey;
+  /** Figur im Figurenblatt, falls es schon eine gibt. */
   sprite?: string;
-  /** Rolle in einem Satz (gesperrte Einheiten). */
+  /** Rolle in einem Satz. */
   role?: string;
-  /** Fehlende Forschung bzw. fehlendes Gebäude. */
+  /** Fehlende Voraussetzungen (gesperrte Einheiten): Forschung, Gebäude, Waren. */
   needs?: string[];
 }
 
 export interface RosterGroup { title: string; building: string; entries: RosterEntry[] }
 
-const real = (k: UnitKey): RosterEntry => ({ key: k, name: UNITS[k].name, unit: k });
-const locked = (key: string, name: string, role: string, needs: string[], sprite?: string): RosterEntry =>
-  ({ key, name, role, needs, sprite });
+/** Einheiten, die ein Gebäude ausbildet (Datenreihenfolge der Gebäude und ihrer trains). */
+const TRAINED = new Set(Object.values(BUILDINGS).flatMap((b) => b.trains ?? []));
 
-export const ROSTER: RosterGroup[] = [
-  {
-    title: "Fußvolk", building: "Kaserne", entries: [
-      real("speer"),
-      real("schwert"),
-      locked("hellebardier", "Hellebardier", "Stark gegen Reiter und Plattenrüstung.", ["Forschung: Stangenwaffen"]),
-      locked("pikenier", "Pikenier", "Pikenblock, Rückgrat der späten Heere.", ["Forschung: Gewalthaufen"]),
-      locked("fusssoldat", "Gepanzerter Fußsoldat", "Schwere Front, langsam, kaum verwundbar.", ["Forschung: Plattnerei"], "ritter"),
-    ],
-  },
-  {
-    title: "Schützen", building: "Kaserne / Schießplatz", entries: [
-      real("bogen"),
-      locked("langbogen", "Langbogenschütze", "Große Reichweite, schnelle Schussfolge.", ["Forschung: Doktrin Fernkampf", "Gebäude: Schießplatz"]),
-      locked("armbrust", "Armbrustschütze", "Durchschlagend gegen Rüstung, lädt langsam.", ["Forschung: Armbrustbau", "Gebäude: Schießplatz"], "armbrust"),
-      locked("schwere_armbrust", "Schwerer Armbrustschütze", "Windenarmbrust, knackt Plattenrüstung.", ["Forschung: Doktrin Fernkampf", "Gebäude: Schießplatz"]),
-    ],
-  },
-  {
-    title: "Reiterei", building: "Reitstall", entries: [
-      locked("leichter_reiter", "Leichte Reiterei", "Späher, jagt Schützen und Belagerungsgerät.", ["Forschung: Gestüt", "Gebäude: Reitstall"]),
-      locked("ritter", "Ritter", "Lanzenangriff, Elite zu Pferd.", ["Forschung: Gestüt", "Gebäude: Reitstall"]),
-    ],
-  },
-  {
-    title: "Pulver und Söldner", building: "Büchsenmeisterei / Söldnerlager", entries: [
-      locked("arkebusier", "Arkebusier", "Hohe Durchschlagskraft, lädt sehr langsam.", ["Forschung: Luntenschloss", "Gebäude: Büchsenmeisterei"]),
-      locked("landsknecht", "Landsknecht", "Vielseitiger Elite-Söldner, hoher Sold.", ["Gebäude: Söldnerlager"], "landsknecht"),
-      locked("doppelsoeldner", "Doppelsöldner", "Zweihänder, bricht Pikenblöcke.", ["Gebäude: Söldnerlager"]),
-    ],
-  },
-];
+/** Spielbar: ein Gebäude bildet sie aus und sie braucht nichts, was es noch nicht gibt. */
+export const isPlayable = (k: UnitKey): boolean => TRAINED.has(k) && !UNITS[k].planned?.length;
+
+function entry(k: UnitKey): RosterEntry {
+  const def = UNITS[k];
+  const playable = isPlayable(k);
+  const needs = playable ? undefined : [...(def.tech ? [`Forschung: ${TECHS[def.tech].name}`] : []), ...(def.planned ?? [])];
+  return { key: k, name: def.name, data: k, ...(playable ? { unit: k } : {}), ...(def.sprite ? { sprite: def.sprite } : {}), ...(def.desc ? { role: def.desc } : {}), ...(needs ? { needs } : {}) };
+}
+
+/** Soldaten in Datenreihenfolge, je Gruppe die spielbaren zuerst. */
+export const ROSTER: RosterGroup[] = UNIT_GROUPS.map((g) => {
+  const keys = (Object.keys(UNITS) as UnitKey[]).filter((k) => UNITS[k].role !== "arbeiter"
+    && (UNITS[k].group ?? (UNITS[k].role === "fernkampf" ? "schuetzen" : "fussvolk")) === g.key);
+  const sorted = [...keys.filter(isPlayable), ...keys.filter((k) => !isPlayable(k))];
+  return { title: g.title, building: g.building, entries: sorted.map(entry) };
+}).filter((g) => g.entries.length > 0);
 
 /** Anfangsbuchstaben für das Wappenschild, solange eine Einheit noch keine Figur hat. */
 export const initials = (name: string): string =>
   name.split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 export const ROLE_NAME: Record<string, string> = { arbeiter: "Arbeiter", nahkampf: "Nahkampf", fernkampf: "Fernkampf" };
-export const DAMAGE_NAME: Record<string, string> = { stich: "Stich", hieb: "Hieb", pfeil: "Pfeil" };
+export const DAMAGE_NAME: Record<string, string> = { stich: "Stich", hieb: "Hieb", pfeil: "Pfeil", wucht: "Wucht", bolzen: "Bolzen", kugel: "Kugel" };

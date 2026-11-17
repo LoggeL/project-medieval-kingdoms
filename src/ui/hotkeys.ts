@@ -10,7 +10,7 @@
  * Gesucht wird in Dokumentreihenfolge unter den sichtbaren Knöpfen; das Auswahlpanel steht vor der Fußleiste, darum
  * reißt Entf bei gewähltem Gebäude dieses ab (Panel) und schaltet sonst das Abriss-Werkzeug (Fußleiste).
  * Keine Taste wirkt, solange ein Eingabefeld den Fokus hat, eine Tafel (aria-modal) offen ist, Lade- oder Titelbildschirm
- * noch stehen (.mk-start) oder Strg/Alt/Cmd gedrückt sind. Die Reiter-Funktionstasten F2–F6 bekommt der Browser im
+ * noch stehen (.mk-start) oder Strg/Alt/Cmd gedrückt sind. Die Reiter-Funktionstasten F2–F7 bekommt der Browser im
  * laufenden Spiel trotzdem nie (swallowInGame): F5 würde sonst die Seite neu laden und die Partie wäre weg.
  */
 import { TAB_KEYS, keyLabel, type LayoutMap } from "../data/hotkeys";
@@ -36,7 +36,7 @@ export function modalOpen(): boolean {
   return false;
 }
 
-/** Funktionstasten der Reiter (F2–F6). Im Browser laden, suchen bzw. öffnen sie sonst etwas (F5 lädt die Seite neu). */
+/** Funktionstasten der Reiter (F2–F7). Im Browser laden, suchen bzw. öffnen sie sonst etwas (F5 lädt die Seite neu). */
 const TAB_FKEYS = new Set(Object.values(TAB_KEYS).filter((c): c is string => !!c));
 
 /**

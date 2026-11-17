@@ -1409,6 +1409,366 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "waffenschmiede",
+   "name": "Waffenschmiede",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "waffenschmiede_innen",
+   "name": "Waffenschmiede (innen)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "stapel_erz",
+   "name": "Stapel Erz",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_armbrust",
+   "name": "Stapel Armbrüste",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_pike",
+   "name": "Stapel Piken",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "stapel_ruestung",
+   "name": "Stapel Rüstungen",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "erzmine",
+   "name": "Erzmine",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "schmelzhuette",
+   "name": "Schmelzhütte",
+   "frames": 4,
+   "variants": [
+    "kalt",
+    "Glut schwach",
+    "Glut",
+    "Glut stark"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "schmelzhuette_innen",
+   "name": "Schmelzhütte (innen)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "bognerei",
+   "name": "Bognerei",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "bognerei_innen",
+   "name": "Bognerei (innen)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "ruestungsschmiede",
+   "name": "Rüstungsschmiede",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "ruestungsschmiede_innen",
+   "name": "Rüstungsschmiede (innen)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "baustelle_erzmine",
+   "name": "Baustelle Erzmine",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_schmelzhuette",
+   "name": "Baustelle Schmelzhütte",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_waffenschmiede",
+   "name": "Baustelle Waffenschmiede",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_bognerei",
+   "name": "Baustelle Bognerei",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_ruestungsschmiede",
+   "name": "Baustelle Rüstungsschmiede",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_schmelzhuette",
+   "name": "Gerüst Schmelzhütte",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_waffenschmiede",
+   "name": "Gerüst Waffenschmiede",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_bognerei",
+   "name": "Gerüst Bognerei",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "geruest_ruestungsschmiede",
+   "name": "Gerüst Rüstungsschmiede",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": true,
+   "shadow_fill": false
+  },
+  {
+   "key": "fels_erz",
+   "name": "Erzbrocken",
+   "frames": 4,
+   "variants": [
+    "unberührt",
+    "angebrochen",
+    "halb abgebaut",
+    "fast abgebaut"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
   }
  ],
  "team_swap": {

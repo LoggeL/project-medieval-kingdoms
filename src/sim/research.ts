@@ -13,7 +13,7 @@
  * Die lesenden Prüfungen (techStatus, techMissing, upgradeMissing …) arbeiten nur auf SimState, damit die Oberfläche
  * dieselben Regeln anzeigt, die die Simulation anwendet.
  */
-import { BUILDINGS, GOODS, TECHS, TECH_KEYS, UNITS, levelDef, maxLevel, type AnimKey, type BuildingKey, type BuildingLevel, type Cost, type Good, type TechKey, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, RECIPES, RECIPE_KEYS, TECHS, TECH_KEYS, UNITS, levelDef, maxLevel, type AnimKey, type BuildingKey, type BuildingLevel, type Cost, type Good, type TechKey, type UnitKey } from "../data";
 import { inFootprint } from "./geom";
 import type { Building, CommandResult, Delivery, SimState, Unit } from "./types";
 import { available, storeDirect } from "./storage";
@@ -51,7 +51,7 @@ export function techMissing(s: SimState, k: TechKey): string[] {
   return out;
 }
 
-/** Was eine Technik freischaltet (Namen), aus den Daten der Gebäude, Einheiten und Ausbaustufen gelesen. */
+/** Was eine Technik freischaltet (Namen), aus den Daten der Gebäude, Einheiten, Rezepte und Ausbaustufen gelesen. */
 export function unlocksOf(k: TechKey): string[] {
   const out: string[] = [];
   for (const key of Object.keys(BUILDINGS) as BuildingKey[]) {
@@ -59,7 +59,9 @@ export function unlocksOf(k: TechKey): string[] {
     if (def.tech === k) out.push(def.name);
     def.levels?.forEach((lv, i) => { if (lv.upgrade?.tech === k) out.push(`${BUILDINGS[key].name}: Ausbau zur Stufe ${i + 1} (${lv.name})`); });
   }
-  for (const key of Object.keys(UNITS) as UnitKey[]) if (UNITS[key].tech === k) out.push(UNITS[key].name);
+  // nur Einheiten, die schon ausgebildet werden (gesperrte Konzepteinheiten brauchen noch mehr, UnitDef.planned)
+  for (const key of Object.keys(UNITS) as UnitKey[]) if (UNITS[key].tech === k && !UNITS[key].planned?.length) out.push(UNITS[key].name);
+  for (const key of RECIPE_KEYS) if (RECIPES[key].tech === k) out.push(`${RECIPES[key].name} (${BUILDINGS[RECIPES[key].building].name})`);
   return out;
 }
 

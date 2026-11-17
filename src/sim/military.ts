@@ -7,7 +7,7 @@
  * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
  * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, GOODS, TECHS, TUNING, UNITS, levelDef, type Good, type UnitKey } from "../data";
+import { BUILDINGS, GOODS, TECHS, TUNING, UNITS, levelDef, trainCost, type Good, type UnitKey } from "../data";
 import { walkLayerAt } from "./build";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
@@ -363,7 +363,9 @@ export function cmdRecruit(w: World, id: number, unit: UnitKey): CommandResult {
   if (lock) return { ok: false, reason: `Erst erforschen: ${TECHS[lock].name}` };
   const train = UNITS[unit].train!;
   if (w.s.gold < train.gold) return { ok: false, reason: "Nicht genug Gold", voice: "zu_teuer" };
-  if (available(w, train.equipment) < 1) return { ok: false, reason: `Keine ${goodLabel(train.equipment)} im Lager`, voice: "keine_waffe" };
+  for (const [g, n] of Object.entries(trainCost(UNITS[unit])) as [Good | "gold", number][]) {
+    if (g !== "gold" && available(w, g) < n) return { ok: false, reason: `Keine ${goodLabel(g)} im Lager`, voice: "keine_waffe" };
+  }
   const queued = w.s.buildings.reduce((n, x) => n + x.queue.length, 0);
   const peasants = w.s.units.filter((u) => !u.dead && u.team === 0 && u.key === "tageloehner" && u.ai.job?.k !== "recruit").length;
   if (peasants <= queued) return { ok: false, reason: "Kein freier Tagelöhner" };

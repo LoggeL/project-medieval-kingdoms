@@ -38,6 +38,8 @@ export interface Rock {
   x: number; y: number;               // Tile
   amount: number; max: number;        // Blöcke, die noch im Fels stecken
   reservedBy: number;
+  /** Erzvorkommen statt Stein (Erzmine, Tag „erz“); fehlt = Stein für den Steinbruch. */
+  kind?: "erz";
 }
 
 export interface StorageSlot { good: Good | null; amount: number; reserved: number; incoming: number }

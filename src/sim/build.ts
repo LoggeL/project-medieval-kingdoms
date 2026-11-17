@@ -4,10 +4,10 @@
  * Stück aus dem Lager (economy.ts) und legen sie auf der Baustelle ab. Ein Bauarbeiter (jobs.ts) verbaut sie Stück für
  * Stück: Der Fortschritt wächst nur durch Arbeit und kommt nie über den Anteil des verbauten Materials hinaus.
  */
-import { BUILDINGS, GOODS, TECHS, TERRAIN, levelDef, type BuildingKey, type Cost, type Good } from "../data";
+import { BUILDINGS, GOODS, RESOURCE_TAGS, TECHS, TERRAIN, levelDef, type BuildingKey, type Cost, type Good } from "../data";
 import type { VoiceKey } from "../data/audio";
 import { NEIGHBOURS, approach, center, footprintTiles, gateOrientation, stairEnds, wallPiece } from "./geom";
-import { abortJobsAt } from "./jobs";
+import { abortJobsAt, rockTag } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
@@ -143,8 +143,8 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
     const [cx, cy] = center(key, x, y, o);
     const n = tag === "tree"
       ? w.s.trees.filter((t) => t.state === "stehend" && Math.hypot(t.x + 0.5 - cx, t.y + 0.5 - cy) <= radius).length
-      : w.s.rocks.filter((r) => r.amount > 0 && Math.hypot(r.x + 0.5 - cx, r.y + 0.5 - cy) <= radius).length;
-    if (n < count) reason = tag === "tree" ? "Zu wenige Bäume in der Nähe" : "Kein Felsbrocken in der Nähe";
+      : w.s.rocks.filter((r) => r.amount > 0 && rockTag(r) === tag && Math.hypot(r.x + 0.5 - cx, r.y + 0.5 - cy) <= radius).length;
+    if (n < count) reason = RESOURCE_TAGS[tag].none;
   }
   if (!reason && def.stairs) {
     const e = stairEnds(x, y, o);

@@ -91,7 +91,7 @@ describe("Tastenschilder", () => {
     expect(keyLabel("Delete")).toBe("Entf");
     expect(keyLabel("Escape")).toBe("Esc");
     expect(bindingLabel(BUTTON_KEYS.abriss)).toBe("Entf");
-    expect(TRAIN_KEYS.map((c) => keyLabel(c)).join(" ")).toBe("U I O");
+    expect(TRAIN_KEYS.map((c) => keyLabel(c)).join(" ")).toBe("U I O J K L");
   });
 
   it("folgen dem gemeldeten Layout (englisch: Z statt Y)", () => {
@@ -103,7 +103,9 @@ describe("Tastenschilder", () => {
 
   it("die Steuerungsliste nennt die neuen Tasten", () => {
     const keys = STEUERUNG.map(([k]) => k).join(" | ");
-    expect(keys).toContain(`${keyLabel(TAB_KEYS.wirtschaft!)} – ${keyLabel(TAB_KEYS.militaer!)}`);
+    // erster bis letzter Bau-Reiter (seit ADR 0014 F7 Handwerk)
+    const tabs = Object.values(TAB_KEYS).filter((k): k is string => !!k);
+    expect(keys).toContain(`${keyLabel(tabs[0])} – ${keyLabel(tabs[tabs.length - 1])}`);
     expect(keys).toContain(CARD_KEYS.map((c) => keyLabel(c)).join(" "));
     expect(keys).toContain(TRAIN_KEYS.map((c) => keyLabel(c)).join(" / "));
     expect(keys).toContain(bindingLabel(BUTTON_KEYS.abriss));

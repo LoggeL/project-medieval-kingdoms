@@ -24,8 +24,9 @@ describe("Karte", () => {
       expect(s.trees.some((t) => t.kind === "tanne") && s.trees.some((t) => t.kind === "baum")).toBe(true);
       expect(s.rocks.length).toBeGreaterThanOrEqual(8);
       for (const r of s.rocks) {
-        // Felsfeld am Start 8–16 wie vorher, die neuen Vorkommen (ADR 0012) reicher
-        expect(r.amount).toBeGreaterThanOrEqual(STEIN.field[0]); expect(r.amount).toBeLessThanOrEqual(STEIN.amount[1]);
+        // Felsfeld am Start 8–16 wie vorher, die neuen Vorkommen (ADR 0012) reicher; Erzbrocken (ADR 0014) 18–28 Erz
+        const [lo, hi] = r.kind === "erz" ? [18, 28] : [STEIN.field[0], STEIN.amount[1]];
+        expect(r.amount).toBeGreaterThanOrEqual(lo); expect(r.amount).toBeLessThanOrEqual(hi);
         expect(s.tiles[r.y * s.w + r.x].terrain).toBe("fels");
       }
       const count = (t: string) => s.tiles.filter((x) => x.terrain === t).length;

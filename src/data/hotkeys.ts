@@ -8,8 +8,8 @@
  *   (nach Lage auf einer festen Tastenreihe), Werkzeuge, Ausbilden in der Kaserne, Abreißen, Forschung, Ausbau des
  *   Bergfrieds.
  *
- * Schema: Reiter auf F2–F6 (F6 Nahrung), Baukarten auf der unteren Buchstabenreihe (deutsch Y X C V B N M, englisch Z X C V B N M),
- * Ausbilden auf U I O, Abriss auf Entf (am Mac auch die Löschtaste ⌫), Forschungsbaum auf F (Knopf „Forschung“ in der
+ * Schema: Reiter auf F2–F7 (F6 Nahrung, F7 Handwerk), Baukarten auf der unteren Buchstabenreihe (deutsch Y X C V B N M, englisch Z X C V B N M),
+ * Ausbilden auf U I O J K L, Abriss auf Entf (am Mac auch die Löschtaste ⌫), Forschungsbaum auf F (Knopf „Forschung“ in der
  * Fußleiste und im Bergfried-Panel; der Forschungsbaum wertet F selbst aus, damit F ihn auch wieder schließt), Ausbau
  * des gewählten Bergfrieds auf G. Stationieren (T), Halten (H) und Auswahl (Esc) behalten ihre Tasten und zeigen sie
  * jetzt auch auf dem Knopf. tests/data/hotkeys.test.ts prüft, dass keine Taste
@@ -51,13 +51,14 @@ export const TAB_KEYS: Record<Cat, string | null> = {
   befestigung: "F4",
   militaer: "F5",
   nahrung: "F6",
+  handwerk: "F7",
 };
 
 /** Baukarten im offenen Reiter, in ihrer Reihenfolge (danach im Reiter Militär die ausbildbaren Einheiten). */
 export const CARD_KEYS = ["KeyZ", "KeyX", "KeyC", "KeyV", "KeyB", "KeyN", "KeyM"] as const;
 
-/** Ausbilden im Auswahlpanel einer Kaserne, in der Reihenfolge von BuildingDef.trains. */
-export const TRAIN_KEYS = ["KeyU", "KeyI", "KeyO"] as const;
+/** Ausbilden im Auswahlpanel einer Kaserne, in der Reihenfolge von BuildingDef.trains (obere, dann mittlere Reihe). */
+export const TRAIN_KEYS = ["KeyU", "KeyI", "KeyO", "KeyJ", "KeyK", "KeyL"] as const;
 
 /** Werkzeuge und Befehle der Knöpfe. Auswahl, Stationieren und Halten sind dieselben Tasten wie in APP_KEYS. */
 export const BUTTON_KEYS = {

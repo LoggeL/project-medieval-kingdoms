@@ -5,7 +5,7 @@
  * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Material anliefern (Baustellen und
  * Forschung im Wechsel) und Hofstapel ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
-import { BUILDINGS, GOODS, TUNING, UNITS, levelDef, storeOf, type Good, type StoreKey, type TechKey } from "../data";
+import { BUILDINGS, GOODS, TUNING, UNITS, equipmentOf, levelDef, storeOf, type Good, type StoreKey, type TechKey } from "../data";
 import { canWork } from "./build";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
@@ -54,19 +54,30 @@ export function dispatcher(w: World): void {
       b.workers.push(u.id);
     }
   }
-  // 2. Rekruten: Waffe aus dem Lager holen
+  // 2. Rekruten: Waffe (und weitere Ausrüstung wie die Rüstung) aus dem Lager holen; alle Stücke werden gleich reserviert
   for (const b of own) {
     if (!free.length) return;
     if (b.built < 1 || !b.queue.length || b.ai.recruit || b.training) continue;
     const unit = b.queue[0];
-    const eq = UNITS[unit].train!.equipment;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
-    const ref = reserveTake(w, eq, cx, cy);
-    if (!ref) { w.msg(`Keine ${goodName(eq)} im Lager für die Ausbildung.`, "warnung", `waffe-${eq}`, 30, "keine_waffe"); continue; }
-    const u = take(cx, cy, goalSlot(w, ref.b, ref.k), goalEntrance(w, b));
-    if (!u) { unreserveTake(ref.b.slots[ref.k]); continue; }
-    u.ai.job = { k: "recruit", b: b.id, from: ref.b.id, slot: ref.k, good: eq, unit, ph: 0 }; u.order = { t: "job" };
-    b.ai.recruit = u.id; b.ai.recruitPicked = false;
+    const refs: { b: SBuilding; k: number; good: Good }[] = [];
+    let lack: Good | null = null;
+    for (const g of equipmentOf(UNITS[unit])) {
+      const ref = reserveTake(w, g, cx, cy);
+      if (!ref) { lack = g; break; }
+      refs.push({ b: ref.b, k: ref.k, good: g });
+    }
+    const undo = () => { for (const r of refs) unreserveTake(r.b.slots[r.k]); };
+    if (lack) { undo(); w.msg(`Keine ${goodName(lack)} im Lager für die Ausbildung.`, "warnung", `waffe-${lack}`, 30, "keine_waffe"); continue; }
+    const first = refs[0];
+    const u = take(cx, cy, first ? goalSlot(w, first.b, first.k) : goalEntrance(w, b), goalEntrance(w, b));
+    if (!u) { undo(); continue; }
+    u.ai.job = {
+      k: "recruit", b: b.id, from: first?.b.id ?? 0, slot: first?.k ?? 0, good: first?.good, unit, ph: first ? 0 : 1,
+      ...(refs.length > 1 ? { more: refs.slice(1).map((r) => ({ from: r.b.id, slot: r.k, good: r.good })) } : {}),
+    };
+    u.order = { t: "job" };
+    b.ai.recruit = u.id; b.ai.recruitPicked = !first; b.ai.recruitGot = 0;
   }
   // 3. Baustellen bauen, sobald Material dort liegt (verbaut wird Stück für Stück, jobs.ts runBuild)
   for (const b of own) {
@@ -104,8 +115,10 @@ export function dispatcher(w: World): void {
     const orders = inputOrders(b);
     if (orders.length) proc.push(orders.map((g) => ({ site: b, good: g, pk: true as const })));
   }
-  // Reihum mit wechselndem Anfang: Sind weniger Tagelöhner frei als Gebäude Waren abzugeben haben, käme sonst immer
-  // dasselbe erste Gebäude zum Zug und das letzte nie (ADR 0013: Hof, Mühle, Bäckerei geben gleichzeitig ab).
+  // Reihum mit wechselndem Anfang (je Durchgang): Sind weniger Tagelöhner frei als Gebäude Waren abzugeben haben, käme
+  // sonst immer dasselbe erste Gebäude zum Zug und das letzte nie (ADR 0013: Hof, Mühle, Bäckerei geben gleichzeitig ab).
+  // Ebenso bei den Eingangspuffern: Teilen sich mehrere Werkstätten eine knappe Ware (Eisen für Waffen-, Rüstungsschmiede
+  // und Bognerei), bekäme sonst die zuerst gebaute jedes einzelne Stück (ADR 0014).
   const turn = Math.floor(w.s.tick / DISPATCH_EVERY);
   const supplies = interleave([study, build.flat(), interleave(rotate(proc, turn))]);
   const hauls = interleave(rotate(own.filter((b) => b.built >= 1).map((b) => {

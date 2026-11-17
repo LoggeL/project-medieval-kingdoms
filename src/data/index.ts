@@ -10,8 +10,11 @@ import type { TechKey } from "./research";
 import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
 import { GELAENDE, type GelaendeKey } from "./gelaende";
 import { LANDWIRTSCHAFT, type FieldDef, type LandwirtschaftKey } from "./landwirtschaft";
+import { ARMOR_MATRIX, MILITAER, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
+import { RUESTUNG_BUILDINGS, RUESTUNG_WORKERS, type RuestungBuilding, type RuestungWorker } from "./ruestung";
 
 export * from "./research";
+export { ARMOR_MATRIX, ARMOR_NAME, UNIT_GROUPS, type ArmorClass, type MilitaerKey, type UnitGroup } from "./militaer";
 
 export const TICKS_PER_SECOND = 20;
 
@@ -49,8 +52,19 @@ export * from "./nahrung";
 export type Cost = Partial<Record<Good | "gold", number>>;
 
 // ---------------------------------------------------------------- Arbeitszyklen (siehe docs/concept/09-technik.md §6)
+/**
+ * Rohstoffvorkommen, die Arbeiter im Umkreis suchen: Bäume (tree) und Felsbrocken am Fels, die nach Art (Rock.kind)
+ * getrennt sind: Stein (rock, Steinbruch) und Erz (erz, Erzmine). Texte für Platzierung und leere Umgebung, Sprite.
+ */
+export type ResourceTag = "tree" | "rock" | "erz";
+export const RESOURCE_TAGS: Record<ResourceTag, { none: string; empty: string; sprite?: string }> = {
+  tree: { none: "Zu wenige Bäume in der Nähe", empty: "keine Bäume mehr in Reichweite" },
+  rock: { none: "Kein Felsbrocken in der Nähe", empty: "kein Fels mehr in Reichweite", sprite: "fels" },
+  erz: { none: "Kein Erzvorkommen in der Nähe", empty: "kein Erz mehr in Reichweite", sprite: "fels_erz" },
+};
+
 export type CycleStep =
-  | { do: "reserveNearest"; tag: "tree" | "rock"; radius: number }
+  | { do: "reserveNearest"; tag: ResourceTag; radius: number }
   | { do: "walkTo"; target: "reserved" | "home" }
   /** Arbeit am Ziel: anim sagt der Darstellung, was gezeigt wird; effect ändert die Welt. */
   | { do: "work"; anim: AnimKey; seconds: number; effect?: "fellTree" | "cutTree" | "mineRock"; produce?: Partial<Record<Good, number>>; carry?: boolean }
@@ -68,7 +82,7 @@ export type CycleStep =
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey | LandwirtschaftKey;
+  | VerarbeitungKey | LandwirtschaftKey | RuestungBuilding;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -117,7 +131,7 @@ export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
   desc: string;
-  category: "zentrum" | "wirtschaft" | "nahrung" | "wohnen" | "militaer" | "befestigung";
+  category: "zentrum" | "wirtschaft" | "nahrung" | "handwerk" | "wohnen" | "militaer" | "befestigung";
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
@@ -136,7 +150,7 @@ export interface BuildingDef {
    */
   door?: [number, number];
   /** Platzierungsregeln. */
-  placement?: { nearTag?: { tag: "tree" | "rock"; count: number; radius: number }; adjacentTerrain?: TerrainKey };
+  placement?: { nearTag?: { tag: ResourceTag; count: number; radius: number }; adjacentTerrain?: TerrainKey };
   workers?: { unit: UnitKey; count: number; cycle: CycleStep[] };
   /** Hofstapel (Ausgang) mit Kapazität; Träger holen von hier ab. */
   output?: { good: Good; capacity: number };
@@ -156,9 +170,10 @@ export interface BuildingDef {
   fields?: FieldDef;
   /**
    * Arbeitsanimation des Gebäudes (nur Darstellung): Die Varianten des Sprites laufen mit fps, solange ein Arbeitsgang
-   * läuft (z. B. die Mühlenflügel), sonst bleibt das zuletzt gezeigte Bild stehen.
+   * läuft (z. B. die Mühlenflügel), sonst bleibt das zuletzt gezeigte Bild stehen. Mit idle zeigt das ruhende Gebäude
+   * diese Variante und die Arbeit läuft durch die übrigen (Schmelzhütte: 0 = kalter Ofen, 1–3 = Glut).
    */
-  workAnim?: { fps: number };
+  workAnim?: { fps: number; idle?: number };
   /**
    * Geschlossenes Gebäude mit Innenansicht (nur Darstellung): Schnittbild ohne Dach im Gebäudeblatt, eingeblendet beim
    * Überfahren und in der Auswahl. spots = Stellen für Figuren im Inneren (Tiles ab Grundrissmitte, Modellachsen),
@@ -264,15 +279,17 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     output: { good: "stein", capacity: 6 }, hp: 250,
   },
   kaserne: {
-    name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt die Waffe aus dem Lager und tritt hier ein.",
+    name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt Waffe und Rüstung aus dem Lager und tritt hier ein.",
     category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne", door: [0, -2],
     construction: { ground: "baustelle_kaserne", scaffold: "geruest_kaserne", foundation: 0.12, piles: [[-0.55, -0.8], [0.55, -0.8]] },
-    trains: ["speer", "schwert", "bogen"], interior: { sprite: "kaserne_innen", spots: [[0.24, 0.51]] }, hp: 500,
+    trains: ["speer", "schwert", "bogen", "waffenknecht", "pikenier", "armbrustschuetze"], interior: { sprite: "kaserne_innen", spots: [[0.24, 0.51]] }, hp: 500,
   },
   // Verarbeitung und Kornkammer (src/data/verarbeitung.ts)
   ...VERARBEITUNG,
   // Getreidehof und Obstgarten (src/data/landwirtschaft.ts)
   ...LANDWIRTSCHAFT,
+  // Militärwirtschaft: Erzmine, Schmelzhütte, Waffen- und Rüstungsschmiede, Bognerei (src/data/ruestung.ts)
+  ...RUESTUNG_BUILDINGS,
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
     category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", door: [0, -1.5],
@@ -305,18 +322,30 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 };
 
 // ---------------------------------------------------------------- Einheiten
-export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "bauer" | "obstbauer" | "speer" | "schwert" | "bogen";
+export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "bauer" | "obstbauer" | "speer" | "schwert" | "bogen" | RuestungWorker | MilitaerKey;
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
-export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "pfluegen" | "saeen" | "ernten" | "pfluecken" | "angriff" | "schiessen" | "sterben" | "tot";
+export type AnimKey =
+  | "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "schmelzen" | "schmieden" | "schnitzen"
+  | "pfluegen" | "saeen" | "ernten" | "pfluecken"
+  | "angriff" | "schiessen" | "sterben" | "tot";
 
-export type DamageType = "stich" | "hieb" | "pfeil";
+/** Schadensarten des Konzepts (05): Hieb, Stich, Wucht, Pfeil, Bolzen, Kugel. */
+export type DamageType = "stich" | "hieb" | "pfeil" | "wucht" | "bolzen" | "kugel";
 
 export interface UnitDef {
   name: string;
   /** Figur im Figurenblatt (assets/figures/<stil>/sheet.json). */
   sprite: string;
   role: "arbeiter" | "nahkampf" | "fernkampf";
+  /** Rolle in einem Satz (Einheitenraster). */
+  desc?: string;
+  /** Gruppe im Einheitenraster (UNIT_GROUPS); fehlt = nach Rolle. */
+  group?: UnitGroup;
+  /** Beritten: Konter-Boni gegen Reiter (bonus.reiter) gelten, Pferde nötig. */
+  mounted?: boolean;
+  /** Rüstungsklasse (ARMOR_MATRIX); fehlt = Faktor 1 (Arbeiter). */
+  armorClass?: ArmorClass;
   hp: number;
   /** Felder pro Sekunde. */
   speed: number;
@@ -327,10 +356,17 @@ export interface UnitDef {
   range?: number;
   /** Sekunden zwischen zwei Angriffen. */
   cooldown?: number;
-  /** Bonus gegen Einheitenrollen, z. B. Speer gegen Nahkampf-Ansturm. */
-  bonus?: Partial<Record<"nahkampf" | "fernkampf", number>>;
-  /** Kosten der Ausbildung (Gold) und Ausrüstung aus dem Lager. */
-  train?: { gold: number; equipment: Good; seconds: number };
+  /**
+   * Bonus gegen Einheitenrollen, z. B. Speer gegen Nahkampf-Ansturm; reiter gilt gegen berittene Ziele (mounted) und
+   * ersetzt dort den Rollenbonus (Pikenier gegen Ritter).
+   */
+  bonus?: Partial<Record<"nahkampf" | "fernkampf" | "reiter", number>>;
+  /**
+   * Kosten der Ausbildung: Gold sofort, ein Tagelöhner (Bevölkerung), Ausrüstung aus dem Lager. equipment trägt der
+   * Rekrut sichtbar zur Kaserne, extra (z. B. die Rüstung des Pikeniers) holt er im selben Gang mit; Söldner bringen
+   * ihre Ausrüstung mit (ohne equipment).
+   */
+  train?: { gold: number; equipment?: Good; extra?: Good[]; seconds: number };
   /** Darf auf Mauerposten stehen. */
   canStation?: boolean;
   /** Gesperrt, bis diese Forschung abgeschlossen ist. */
@@ -342,6 +378,11 @@ export interface UnitDef {
   animSprite?: Partial<Record<AnimKey, string>>;
   /** Nur Darstellung: eigene Figur beim Tragen einer Ware statt GOODS[ware].carrier (Bauer mit Garbe, Obstbauer mit Korb). */
   carrySprite?: Partial<Record<Good, string>>;
+  /**
+   * Voraussetzungen, die es im Spiel noch nicht gibt (Gebäude, Waren, Forschung als Spielertext): Die Einheit steht
+   * ausgegraut im Einheitenraster und wird von keinem Gebäude ausgebildet.
+   */
+  planned?: string[];
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -353,18 +394,48 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   bauer: { name: "Bauer", sprite: "bauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, animSprite: { pfluegen: "bauer_hacke", saeen: "bauer_saat" }, carrySprite: { getreide: "bauer_garbe" } },
   obstbauer: { name: "Obstbauer", sprite: "obstbauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, carrySprite: { apfel: "obstbauer" } },
   speer: {
-    name: "Speerträger", sprite: "speer", role: "nahkampf", hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
-    range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
+    name: "Speerträger", sprite: "speer", role: "nahkampf", group: "fussvolk", desc: "Front gegen Reiter, mit Schild und Gambeson.",
+    hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
+    range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2, reiter: 2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
   },
   schwert: {
-    name: "Schwertkämpfer", sprite: "schwert", role: "nahkampf", hp: 110, speed: 1.3, armor: 4, damage: 13, damageType: "hieb",
+    name: "Schwertkämpfer", sprite: "schwert", role: "nahkampf", group: "fussvolk", desc: "Vielseitiger Nahkämpfer in Kette, stark gegen Leichte.",
+    hp: 110, speed: 1.3, armor: 4, damage: 13, damageType: "hieb",
     range: 1.1, cooldown: 1.1, train: { gold: 20, equipment: "schwert", seconds: 10 }, canStation: true,
   },
   bogen: {
-    name: "Bogenschütze", sprite: "bogen", role: "fernkampf", hp: 55, speed: 1.6, armor: 1, damage: 7, damageType: "pfeil",
+    name: "Bogenschütze", sprite: "bogen", role: "fernkampf", group: "schuetzen", desc: "Schnell feuernd, schwach gegen Kette und Platte.",
+    hp: 55, speed: 1.6, armor: 1, damage: 7, damageType: "pfeil",
     range: 7, cooldown: 1.8, train: { gold: 15, equipment: "bogen", seconds: 9 }, canStation: true,
   },
+  // Arbeiter der Militärwirtschaft (src/data/ruestung.ts) und die Einheiten des Konzepts (src/data/militaer.ts)
+  ...RUESTUNG_WORKERS,
+  ...MILITAER,
 };
+
+/** Ausrüstung einer Einheit aus dem Lager: zuerst die getragene Waffe, dann die mitgenommenen Stücke. */
+export function equipmentOf(def: UnitDef): Good[] {
+  const t = def.train;
+  return t ? [...(t.equipment ? [t.equipment] : []), ...(t.extra ?? [])] : [];
+}
+
+/** Kosten der Ausbildung als Kostenangabe (Gold und je Ausrüstungsstück eine Ware), für Anzeige und Prüfung. */
+export function trainCost(def: UnitDef): Cost {
+  const out: Cost = { gold: def.train?.gold ?? 0 };
+  for (const g of equipmentOf(def)) out[g] = (out[g] ?? 0) + 1;
+  return out;
+}
+
+/**
+ * Faktor eines Treffers von a gegen t vor Abzug der Rüstung (Konzept 05): Konter-Bonus (gegen Reiter bonus.reiter,
+ * sonst nach Rolle) × Schadensart gegen Rüstungsklasse. Arbeiter haben weder Rollenbonus noch Rüstungsklasse.
+ */
+export function hitFactor(a: UnitDef, t: UnitDef): number {
+  let f = 1;
+  if (t.role !== "arbeiter") f *= t.mounted && a.bonus?.reiter !== undefined ? a.bonus.reiter : a.bonus?.[t.role] ?? 1;
+  if (t.armorClass) f *= ARMOR_MATRIX[a.damageType ?? "hieb"][t.armorClass];
+  return f;
+}
 
 /**
  * Fernkämpfer auf Wehrgang/Turm: Reichweite + pro Höhenstufe, mehr Wucht beim Schuss nach unten (vor Abzug der Rüstung),
@@ -433,6 +504,9 @@ export const DAMAGE_TYPES: Record<DamageType, { armor: number; building: number 
   stich: { armor: 0.7, building: 0.35 },
   hieb: { armor: 1, building: 1 },
   pfeil: { armor: 1, building: 0.1 },
+  wucht: { armor: 0.6, building: 0.6 },
+  bolzen: { armor: 0.4, building: 0.15 },
+  kugel: { armor: 0.2, building: 0.3 },
 };
 
 /** Stellschrauben der Simulation (Sekunden, Tiles, Gold). */
