@@ -45,6 +45,7 @@ Die UI schickt **Befehle** an die Simulation (`PlaceBuilding`, `MoveUnits`, `Sta
 - **Mauern** speichern ihre Nachbarschaft in Welt-Richtungen, das Autotile-Sprite wird erst beim Zeichnen gewählt.
 - **Drehwechsel:** kurzes Überblenden (ca. 150 ms), danach werden Sortierung und sichtbarer Bereich neu aufgebaut. Der Kamerafokus bleibt auf demselben Welt-Tile.
 - **Zoom:** ganzzahlige Faktoren 1×–3× für pixelscharfe Darstellung. Die 0,5×-Übersicht nutzt vorgerechnete, verkleinerte Atlanten. Die Kamera bewegt sich weich, rastet aber beim Stillstand auf ganze Bildschirmpixel ein.
+  *Umgesetzt (ADR 0008):* acht Stufen 0,25×–4×; 1,5× wird pixelgenau bei 2× gerendert und weich verkleinert, Stufen unter 1× linear gefiltert statt mit vorgerechneten Atlanten.
 
 ## 5. Simulation
 

@@ -3,12 +3,16 @@
  * dazu Auswahl- und Abriss-Werkzeug. Der Reiter Militär zeigt außerdem das Einheitenraster (unitgrid.ts).
  * Rechts neben den Reitern öffnet „Forschung“ (F) den Forschungsbaum. Gebäude, die eine Forschung brauchen
  * (BuildingDef.tech), stehen gesperrt mit dem Namen der Forschung in der Leiste.
+ * Tasten (src/data/hotkeys.ts): Reiter F2–F5, Baukarten des offenen Reiters nach ihrer Lage auf Y X C V B N M (danach im
+ * Reiter Militär die ausbildbaren Einheiten), Forschung F, Auswahl Esc, Abriss Entf.
  */
 import type { Tool } from "../app/contract";
 import { BUILDINGS, TECHS, type BuildingDef, type BuildingKey } from "../data";
+import { BUTTON_KEYS, CARD_KEYS, TAB_KEYS } from "../data/hotkeys";
 import { lockedBy } from "../sim/research";
 import type { SimState } from "../sim/types";
 import { h, setAttr, setClass, setText } from "./dom";
+import { setKey } from "./hotkeys";
 import { researchText, techIcon } from "./research";
 import { canAfford, costRow, type UiCtx } from "./shared";
 import { createUnitGrid } from "./unitgrid";
@@ -64,14 +68,17 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
       type: "button", title, "aria-label": title,
       onclick: () => bridge.setTool(t === "abriss" && bridge.tool().t !== "abriss" ? { t: "abriss" } : { t: "auswahl" }),
     }, h("span.mk-tool-glyph", { "aria-hidden": "true" }), h("span.mk-tool-label", { text: label }));
-  const selBtn = toolBtn("Auswahl", "Auswählen (Esc)", "auswahl", "mk-tool-sel");
+  const selBtn = toolBtn("Auswahl", "Auswählen", "auswahl", "mk-tool-sel");
   const delBtn = toolBtn("Abriss", "Abreißen: Gebäude anklicken", "abriss", "mk-tool-del");
+  setKey(selBtn, BUTTON_KEYS.auswahl, { app: true });
+  setKey(delBtn, BUTTON_KEYS.abriss);
 
   // ------------------------------------------------------------ Reiter
   const tabBtns = TABS.map((t) => h("button.mk-tab", {
     type: "button", role: "tab", "data-cat": t.cat, text: t.label,
     onclick: () => { tab = t.cat; el.classList.remove("mk-collapsed"); try { localStorage.setItem("mk-ui-tab", tab); } catch { /* egal */ } layout(); },
   }));
+  tabBtns.forEach((b, i) => { const k = TAB_KEYS[TABS[i].cat]; setKey(b, k ? [k] : null); });
   const strip = h("div.mk-cards", { role: "tabpanel" });
   // Weiterblättern: Mausrad (senkrecht → waagrecht) und Pfeilknöpfe an den Rändern, sobald es mehr gibt als Platz.
   const scrollBy = (dir: number) => strip.scrollBy({ left: dir * Math.max(120, strip.clientWidth * 0.7), behavior: "smooth" });
@@ -96,8 +103,11 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
   window.addEventListener("resize", updateArrows);
   const grid = createUnitGrid(ctx);
   const researchBtn = h("button.mk-tab.mk-tab-research", {
-    type: "button", title: "Forschungsbaum öffnen (F)", onclick: () => ctx.research?.toggle(),
-  }, techIcon("steinbau", 24), h("span", { text: "Forschung" }), h("kbd", { text: "F" }));
+    type: "button", title: "Forschungsbaum öffnen", onclick: () => ctx.research?.toggle(),
+  }, techIcon("steinbau", 24), h("span", { text: "Forschung" }));
+  // F wertet der Forschungsbaum selbst aus (src/ui/research.ts, schließt ihn auch wieder), der Knopf leuchtet nur auf
+  setKey(researchBtn, BUTTON_KEYS.forschung, { app: true });
+  let lastResearch = "";
   const collapse = h("button.mk-collapse", {
     type: "button", title: "Fußleiste ein- oder ausklappen", "aria-label": "Fußleiste ein- oder ausklappen",
     onclick: () => { el.classList.toggle("mk-collapsed"); requestAnimationFrame(updateArrows); },
@@ -110,8 +120,13 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
   function layout(): void {
     tabBtns.forEach((b) => { const on = b.dataset.cat === tab; setClass(b, "mk-on", on); setAttr(b, "aria-selected", String(on)); });
     strip.textContent = "";
-    for (const c of cards) if (c.def.category === tab) strip.append(c.el);
-    if (tab === "militaer") strip.append(grid.el);
+    // Tasten nach der Lage im offenen Reiter; Karten anderer Reiter verlieren ihre Taste
+    const keyed: HTMLElement[] = [];
+    for (const c of cards) {
+      if (c.def.category === tab) { strip.append(c.el); keyed.push(c.el); } else setKey(c.el, null);
+    }
+    if (tab === "militaer") { strip.append(grid.el); keyed.push(...grid.keyed); } else for (const u of grid.keyed) setKey(u, null);
+    keyed.forEach((k, i) => setKey(k, i < CARD_KEYS.length ? [CARD_KEYS[i]] : null));
     strip.scrollLeft = 0;
     requestAnimationFrame(updateArrows);
   }
@@ -126,10 +141,18 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
         const need = lockedBy(s, c.def);
         setText(c.lock, need ? `Forschung: ${TECHS[need].name}` : "");
         setClass(c.el, "mk-locked", !!need);
+        // gesperrte Karte: die Taste meldet dasselbe wie der Klick (src/ui/hotkeys.ts liest data-locked)
+        if (need) c.el.dataset.locked = `${c.def.name}: erst erforschen (${TECHS[need].name}).`; else delete c.el.dataset.locked;
         setClass(c.el, "mk-cant", !!need || !canAfford(s, c.def.cost));
       }
       setClass(researchBtn, "mk-busy", !!s.research.cur);
-      researchBtn.title = `Forschungsbaum öffnen (F)\n${researchText(s)}`;
+      const rt = researchText(s);
+      if (rt !== lastResearch) {
+        lastResearch = rt;
+        // Tooltip mit Forschungsstand; setKey hängt die Taste an (Grundtext in data-base-title)
+        researchBtn.dataset.baseTitle = `Forschungsbaum öffnen\n${rt}`;
+        setKey(researchBtn, BUTTON_KEYS.forschung, { app: true });
+      }
       if (tab === "militaer") grid.update(s);
     },
     updateTool() {

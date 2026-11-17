@@ -6,7 +6,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #17140f; }
  * pixelscharf (nächster Nachbar), wie Pixelart es braucht, und auf hochauflösenden Bildschirmen viel weniger Füllarbeit.
  */
 .mk-canvas { display: block; width: 100%; height: 100%; touch-action: none; image-rendering: pixelated; }
-/* Übersicht (0,5×): weich verkleinert, auch beim Hochskalieren */
+/* Übersicht (unter 1×) und Zwischenstufe 1,5× (pixelgenau bei 2× gerendert, dann verkleinert): weich skaliert */
 .mk-canvas.mk-weich { image-rendering: auto; }
 
 /* Grund einer roten Bauvorschau direkt am Mauszeiger, über allen Leisten (#ui liegt bei z-index 10). */
@@ -20,7 +20,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #17140f; }
 }
 .mk-zeiger[hidden] { display: none; }
 
-/* Debug-Anzeige (F3): oben mittig unter der Kopfleiste, über der Oberfläche. */
+/* Debug-Anzeige (F9): oben mittig unter der Kopfleiste, über der Oberfläche. */
 .mk-debug {
   position: fixed; left: 50%; top: 58px; transform: translateX(-50%); z-index: 1001; pointer-events: none; white-space: pre;
   padding: 6px 8px; font: 12px/1.35 ui-monospace, Menlo, monospace; color: #d8f0c0;

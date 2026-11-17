@@ -4,6 +4,7 @@
 import type { Game } from "../sim/types";
 import type { GameRenderer } from "../render";
 import { makeIcon } from "../render/icons";
+import { ZOOMS, ZOOM_DEFAULT } from "../data/view";
 import type { MusicKey, VoiceKey } from "../data/audio";
 import type { AudioSettings } from "./audio";
 import type { IconKind, Selection, Tool, UiBridge } from "./contract";
@@ -59,7 +60,7 @@ export function createBridge(ctx: BridgeContext, audio: AudioSettings): UiBridge
     setTool: (t) => store.setTool(t),
     view() {
       const r = ctx.renderer();
-      return r ? { r: r.camera.r, zoom: r.camera.zoom } : { r: 0, zoom: 2 };
+      return r ? { r: r.camera.r, zoom: r.camera.targetZoom } : { r: 0, zoom: ZOOMS[ZOOM_DEFAULT] };
     },
     rotate(dir) {
       const r = ctx.renderer();

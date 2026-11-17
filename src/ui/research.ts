@@ -5,9 +5,11 @@
  * Die Regeln (Voraussetzungen, Zustand) liest die Oberfläche aus src/sim/research.ts, dieselben wie die Simulation.
  */
 import { GOODS, TECHS, TECH_KEYS, type TechKey } from "../data";
+import { BUTTON_KEYS } from "../data/hotkeys";
 import { goodsOf, techMissing, techStatus, unlocksOf, type TechStatus } from "../sim/research";
 import type { SimState } from "../sim/types";
 import { h, setBar, setClass, setText } from "./dom";
+import { flashKey, modalOpen, typing } from "./hotkeys";
 import { canAfford, costRow, type UiCtx } from "./shared";
 
 const BRANCHES = ["Bergfried", "Wirtschaft", "Militär"] as const;
@@ -119,12 +121,15 @@ export function createResearch(ctx: UiCtx): ResearchView {
   }
 
   window.addEventListener("keydown", (e) => {
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-    if (e.code === "KeyF" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // nur im Spiel (die Oberfläche ist eingehängt und nicht vom Titel verdeckt)
+    if (typing(e)) return;
+    // Taste aus src/data/hotkeys.ts (BUTTON_KEYS.forschung); öffnet und schließt den Baum
+    if ((BUTTON_KEYS.forschung as readonly string[]).includes(e.code) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // nur im Spiel (die Oberfläche ist eingehängt und nicht vom Titel verdeckt), nicht über einer anderen Tafel (Hilfe)
       if (!el.isConnected || document.querySelector("#mk-titel:not(.mk-weg), #mk-laden:not(.mk-weg)")) return;
+      if (el.hidden && modalOpen()) return;
+      if (e.repeat) { e.preventDefault(); return; }
       e.preventDefault();
+      if (el.hidden) flashKey(e.code);
       toggle();
     } else if (e.key === "Escape" && !el.hidden) { e.preventDefault(); e.stopPropagation(); toggle(false); }
   }, true);

@@ -11,7 +11,8 @@
  *   {"click": [x, y], "button": "left"|"right", "shift": true}
  *   {"drag": [x0, y0, x1, y1], "button": "left"}
  *   {"move": [x, y]}
- *   {"key": "q"}                      – Taste drücken (einzelnes Zeichen oder Name wie "Escape", "F1", "ArrowLeft")
+ *   {"key": "q"}                      – Taste drücken (einzelnes Zeichen oder Name wie "Escape", "F1", "Delete", "ArrowLeft");
+ *                                       {"key": "y", "code": "KeyZ"} gibt die physische Taste vor (QWERTZ)
  *   {"wheel": [x, y, deltaY]}
  * Konsolenfehler und Ausnahmen der Seite werden mitprotokolliert (Datei log.txt im Ausgabeordner).
  *
@@ -141,8 +142,11 @@ async function main() {
       await sleep(80);
     } else if (s.key) {
       const k = s.key, single = k.length === 1;
-      const code = single ? (/[a-z]/i.test(k) ? "Key" + k.toUpperCase() : k === " " ? "Space" : "") : k;
-      const vk = single ? k.toUpperCase().charCodeAt(0) : ({ Escape: 27, Enter: 13, F1: 112, F3: 114, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32 })[k] ?? 0;
+      // "code" setzt die physische Taste ausdrücklich (z. B. {"key": "y", "code": "KeyZ"} für Y auf QWERTZ)
+      const code = s.code ?? (single ? (/[a-z]/i.test(k) ? "Key" + k.toUpperCase() : k === " " ? "Space" : "") : k);
+      const fkey = /^F(\d{1,2})$/.exec(k);
+      const vk = single ? k.toUpperCase().charCodeAt(0) : fkey ? 111 + Number(fkey[1])
+        : ({ Escape: 27, Enter: 13, Delete: 46, Backspace: 8, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32 })[k] ?? 0;
       await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code, windowsVirtualKeyCode: vk, text: single ? k : undefined });
       await sleep(s.hold ?? 50);
       await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code, windowsVirtualKeyCode: vk });

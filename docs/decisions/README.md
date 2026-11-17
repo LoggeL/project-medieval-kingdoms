@@ -11,5 +11,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0005](0005-lagerhaus-und-innenansicht.md) | Geschlossenes Lagerhaus mit Zugang am Tor, Innenansicht beim Überfahren | Angenommen |
 | [0006](0006-bergfried-und-forschung.md) | Bergfried als Sitz, Ausbaustufen, Forschung als Daten | Angenommen |
 | [0007](0007-adressen-der-auslieferung.md) | Adressen der Auslieferung: Spiel unter /, Konzept unter /konzept/ | Angenommen |
+| [0008](0008-zoom-und-tasten.md) | Zoomstufen, Pixeltreue und Tastenkürzel | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

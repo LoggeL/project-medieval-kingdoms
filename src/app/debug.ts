@@ -1,5 +1,5 @@
 /**
- * Debug-Anzeige (Taste F3): Bildrate, JS-Zeit je Bild, Tick-Dauer, Sprites, Objekte, sortierte Paare.
+ * Debug-Anzeige (Taste F9): Bildrate, JS-Zeit je Bild, Tick-Dauer, Sprites, Objekte, sortierte Paare.
  * Hängt in document.body über der Oberfläche (oben mittig), damit sie nicht hinter Leisten oder Übersichtskarte liegt.
  */
 export interface DebugStats {

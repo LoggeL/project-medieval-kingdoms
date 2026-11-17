@@ -25,7 +25,7 @@ export interface UiBridge {
   select(sel: Selection): void;
   tool(): Tool;
   setTool(t: Tool): void;
-  /** Kameradrehung r (0..3) und Zoomstufe. */
+  /** Kameradrehung r (0..3) und angesteuerte Zoomstufe (Faktor aus ZOOMS in src/data/view.ts). */
   view(): { r: number; zoom: number };
   rotate(dir: 1 | -1): void;
   zoom(dir: 1 | -1): void;

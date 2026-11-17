@@ -8,6 +8,7 @@ import type { MountUi } from "../app/contract";
 import { createBuildBar } from "./buildbar";
 import { h } from "./dom";
 import { createHelp } from "./help";
+import { installHotkeys } from "./hotkeys";
 import { Icons } from "./icons";
 import { createChronicle, createToaster } from "./messages";
 import { createMinimap } from "./minimap";
@@ -50,6 +51,7 @@ export const mountUi: MountUi = (root, bridge) => {
   const bottom = h("footer.mk-bottom.mk-stone", null, h("div.mk-mini-frame", null, mini.el), build.el);
 
   root.append(top.el, chron.el, side.el, bottom, help.el, research.el, defeat.el, toastLayer);
+  installHotkeys(root, toast);
   if (window.innerWidth < 1024) build.el.classList.add("mk-collapsed");
 
   // Knöpfe geben nach einem Mausklick den Fokus ab, damit Leertaste und Enter sie nicht erneut auslösen

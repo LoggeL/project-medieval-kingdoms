@@ -13,6 +13,7 @@ const TIPS = [
   "Mauern sind begehbar: Treppe anbauen, Soldaten stationieren. Schützen auf der Mauer schießen weiter und nehmen weniger Schaden.",
   "Übersichtskarte: Klicken oder Ziehen setzt die Kamera dorthin, der helle Rahmen zeigt den Sichtbereich.",
   "Der Kompass oben zeigt mit seiner Nadel, wohin Norden gerade im Bild zeigt.",
+  "Jeder Knopf unten und im Auswahlpanel zeigt seine Taste auf einem kleinen Schild. Die Gebäudetasten Y bis M gelten für den offenen Reiter.",
   "Klang: Der Lautsprecher-Knopf oben rechts öffnet die Regler für Musik und Sprecher (0–100 %) und schaltet den Ton stumm.",
 ];
 

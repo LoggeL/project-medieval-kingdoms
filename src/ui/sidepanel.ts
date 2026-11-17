@@ -3,12 +3,16 @@
  * Gebäude: Zustand (Baustelle oder fertig), Arbeiter, Hofstapel, Lagerplätze, Ausbildung, Abreißen.
  * Bergfried: Stufe, Steuern, Ausbau (Kosten, fehlende Forschung, Fortschritt), laufende Forschung und der Forschungsbaum.
  * Einheiten: einzeln (Werte, Auftrag) oder als Gruppe (Anzahl je Typ), Befehle Stationieren und Halten.
+ * Tasten (src/data/hotkeys.ts): Ausbilden U I O, Abreißen Entf (zweimal), Stationieren T, Halten H, im Bergfried
+ * Ausbauen G und Forschungsbaum F („Forschung abbrechen“ bleibt ohne Taste, damit kein Fortschritt aus Versehen verfällt).
  * Der Aufbau wird nur neu erzeugt, wenn sich die Auswahl oder ihre Form ändert; sonst werden Werte aktualisiert.
  */
 import { BUILDINGS, GOODS, TECHS, UNITS, levelDef, type Good, type UnitKey } from "../data";
 import { incomeOf, levelOf, lockedBy, nextLevel, upgradeMissing } from "../sim/research";
 import type { Building, SimState, Unit, UnitActivity } from "../sim/types";
 import { h, num, setBar, setClass, setText } from "./dom";
+import { BUTTON_KEYS, TRAIN_KEYS } from "../data/hotkeys";
+import { setKey } from "./hotkeys";
 import { DAMAGE_NAME, ROLE_NAME } from "./roster";
 import { cancelTech, researchText, techIcon } from "./research";
 import { costRow, hpBar, type UiCtx } from "./shared";
@@ -164,12 +168,14 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
 
     if (b0.team === 0 && !def.seat) {
       let armed = false;
-      const btn = h("button.mk-btn.mk-btn-wide.mk-btn-danger", { type: "button", text: "Abreißen", onclick: () => {
-        if (!armed) { armed = true; setText(btn, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(btn, "Abreißen"); }, 2500); return; }
+      const lbl = h("span", { text: "Abreißen" });
+      const btn = h("button.mk-btn.mk-btn-wide.mk-btn-danger", { type: "button", title: "Gebäude abreißen (zweimal drücken)", onclick: () => {
+        if (!armed) { armed = true; setText(lbl, "Wirklich abreißen?"); setTimeout(() => { armed = false; setText(lbl, "Abreißen"); }, 2500); return; }
         const r = bridge.dispatch({ t: "abreissen", id });
         if (!r.ok) ctx.toast(r.reason ?? "Abriss nicht möglich.", "warnung");
         else { if (r.reason) ctx.toast(r.reason, "info"); bridge.select({ units: [], building: null }); }
-      } });
+      } }, lbl);
+      setKey(btn, BUTTON_KEYS.abriss);
       body.append(h("div.mk-actions", null, btn));
     }
   }
@@ -215,6 +221,7 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         if (!r.ok) ctx.toast(r.reason ?? "Ausbau nicht möglich.", "warnung");
         else if (r.reason) ctx.toast(r.reason, "info");
       } });
+      setKey(go, BUTTON_KEYS.ausbauen);
       const gain: string[] = [`${nx.hp} Leben`];
       if (nx.housing) gain.push(`${nx.housing} Wohnraum`);
       if (nx.income) gain.push(`${nx.income} Gold Steuern je Minute`);
@@ -231,7 +238,13 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
         const sig = m.join("|");
         if (sig !== lastMiss) { lastMiss = sig; miss.textContent = ""; for (const x of m) miss.append(h("li", { text: x })); }
         go.disabled = m.length > 0;
-        go.title = m.length ? m.join(", ") : `Ausbau: ${nx.name}. Gold sofort, das Material tragen Tagelöhner herbei.`;
+        if (go.dataset.sig !== sig) {
+          go.dataset.sig = sig;
+          // Tooltip über setKey (hängt die Taste an); gesperrt meldet die Taste, was fehlt (data-locked)
+          go.dataset.baseTitle = m.length ? m.join(", ") : `Ausbau: ${nx.name}. Gold sofort, das Material tragen Tagelöhner herbei.`;
+          if (m.length) go.dataset.locked = `Ausbau nicht möglich: ${m.join(", ")}.`; else delete go.dataset.locked;
+          setKey(go, BUTTON_KEYS.ausbauen);
+        }
       });
     } else {
       body.append(section("Ausbau", h("p.mk-sub", { text: "Der Bergfried hat seine höchste Stufe erreicht." })));
@@ -243,8 +256,10 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
     const fill = h("span.mk-bar-fill");
     const cur = h("div.mk-training", null, curIcon, h("div.mk-training-col", null, curText, h("span.mk-bar.mk-bar-train", null, fill)));
     const stop = h("button.mk-btn.mk-btn-wide", { type: "button", text: "Forschung abbrechen", onclick: () => cancelTech(ctx) });
-    const open = h("button.mk-btn.mk-btn-wide", { type: "button", onclick: () => ctx.research?.toggle(true) },
-      h("span", { text: "Forschungsbaum öffnen" }), h("kbd", { text: "F", style: "margin-left:8px" }));
+    const open = h("button.mk-btn.mk-btn-wide", { type: "button", title: "Forschungsbaum öffnen", onclick: () => ctx.research?.toggle(true) },
+      h("span", { text: "Forschungsbaum öffnen" }));
+    // F wertet der Forschungsbaum selbst aus (src/ui/research.ts), der Knopf leuchtet nur auf
+    setKey(open, BUTTON_KEYS.forschung, { app: true });
     const done = h("p.mk-sub");
     body.append(section("Forschung", cur, done, open, stop));
     let lastKey = "";
@@ -263,11 +278,12 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
 
   function trainingView(id: number, trains: UnitKey[]): void {
     const get = (s: SimState) => s.buildings.find((q) => q.id === id);
-    const buttons = trains.map((u) => {
+    const buttons = trains.map((u, i) => {
       const t = UNITS[u].train!;
       const cost = costRow(ctx, { gold: t.gold, [t.equipment]: 1 }, 14);
       const el = h("button.mk-recruit", { type: "button", title: `${UNITS[u].name} ausbilden (${t.seconds} s)`, onclick: () => recruit(ctx, id, u) },
         ctx.icons.make("einheit", u, 36, 36), h("span.mk-recruit-name", { text: UNITS[u].name }), cost.el);
+      setKey(el, i < TRAIN_KEYS.length ? [TRAIN_KEYS[i]] : null);
       return { u, el, cost };
     });
     const curIcon = h("span.mk-cur-icon");
@@ -409,12 +425,15 @@ export function createSidePanel(ctx: UiCtx): SidePanel {
       else if (r.reason) ctx.toast(r.reason, "info");
     };
     const canStation = soldiers.some((u) => UNITS[u.key].canStation);
+    const station = h("button.mk-btn.mk-cmd", { type: "button", title: "Auf freie Posten an Mauern und Türmen verteilen", disabled: !canStation, onclick: () => send("stationieren") },
+      h("span.mk-cmd-glyph.mk-g-station", { "aria-hidden": "true" }), h("span", { text: "Stationieren" }));
+    const hold = h("button.mk-btn.mk-cmd", { type: "button", title: "Stehen bleiben und nur in Reichweite kämpfen", onclick: () => send("halten") },
+      h("span.mk-cmd-glyph.mk-g-hold", { "aria-hidden": "true" }), h("span", { text: "Halten" }));
+    // T und H wertet die Eingabe aus (src/app/input.ts), die Knöpfe leuchten beim Drücken nur auf
+    setKey(station, BUTTON_KEYS.stationieren, { app: true });
+    setKey(hold, BUTTON_KEYS.halten, { app: true });
     body.append(section("Befehle",
-      h("div.mk-cmds", null,
-        h("button.mk-btn.mk-cmd", { type: "button", title: "Auf freie Posten an Mauern und Türmen verteilen (T)", disabled: !canStation, onclick: () => send("stationieren") },
-          h("span.mk-cmd-glyph.mk-g-station", { "aria-hidden": "true" }), h("span", { text: "Stationieren" }), h("kbd", { text: "T" })),
-        h("button.mk-btn.mk-cmd", { type: "button", title: "Stehen bleiben und nur in Reichweite kämpfen (H)", onclick: () => send("halten") },
-          h("span.mk-cmd-glyph.mk-g-hold", { "aria-hidden": "true" }), h("span", { text: "Halten" }), h("kbd", { text: "H" }))),
+      h("div.mk-cmds", null, station, hold),
       h("p.mk-sub", { text: "Angreifen: Rechtsklick auf einen Gegner. Bewegen: Rechtsklick auf den Boden oder einen Wehrgang." })));
   }
 
