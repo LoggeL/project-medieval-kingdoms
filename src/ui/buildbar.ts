@@ -58,7 +58,8 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     if (need) { ctx.toast(`${def.name}: erst erforschen (${TECHS[need].name}).`, "warnung"); ctx.research?.toggle(true); return; }
     if (!canAfford(bridge.state(), def.cost)) ctx.toast(`Nicht genug Material für ${def.name}.`, "warnung");
     let next: Tool;
-    if (def.drag) next = cur.t === "mauer" ? { t: "auswahl" } : { t: "mauer" };
+    if (def.road) next = cur.t === "weg" && cur.key === key ? { t: "auswahl" } : { t: "weg", key };
+    else if (def.drag) next = cur.t === "mauer" ? { t: "auswahl" } : { t: "mauer" };
     else if (cur.t === "bauen" && cur.key === key) next = { t: "auswahl" };
     else next = { t: "bauen", key, o: cur.t === "bauen" ? cur.o : 0 };
     bridge.setTool(next);
@@ -159,7 +160,7 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
     },
     updateTool() {
       const t = bridge.tool();
-      for (const c of cards) setClass(c.el, "mk-on", (t.t === "bauen" && t.key === c.key) || (t.t === "mauer" && !!c.def.drag));
+      for (const c of cards) setClass(c.el, "mk-on", (t.t === "bauen" && t.key === c.key) || (t.t === "mauer" && !!c.def.drag && !c.def.road) || (t.t === "weg" && t.key === c.key));
       setClass(selBtn, "mk-on", t.t === "auswahl");
       setClass(delBtn, "mk-on", t.t === "abriss");
     },

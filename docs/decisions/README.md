@@ -15,5 +15,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0009](0009-baustellen.md) | Baustellen: Fortschritt aus Material und Arbeit, sichtbare Bauphasen | Angenommen |
 | [0010](0010-gebaeude-als-hindernis.md) | Gebäude als feste Hindernisse, Zugang über Türkacheln | Angenommen |
 | [0011](0011-verarbeitung-und-lagertypen.md) | Verarbeitung nach Rezept, Lagertypen und Kornkammer | Angenommen |
+| [0015](0015-wege-und-wegfindung.md) | Wege und Brücken als Bauten, inkrementelles Laufraster, Pfad-Cache mit gezielter Invalidierung | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

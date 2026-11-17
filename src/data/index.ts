@@ -172,10 +172,11 @@ export interface BuildingDef {
   /**
    * Weg bzw. Brücke (src/data/transport.ts, ADR 0015): Der Grundriss bleibt begehbar und ist kein Hindernis; fertig gilt
    * dort `cost` als Wegkosten im Laufraster (statt der Geländekosten, kleiner = schneller und von der Wegfindung
-   * bevorzugt). bridge: nur auf Wasser zu bauen, begehbar erst, wenn fertig. Das Sprite ist ein Satz Autotiling-Teile
-   * `<sprite>_<teil>` (wie die Mauer, geom.wallPiece), die Brücke ein gerades Stück in Zugrichtung.
+   * bevorzugt). bridge: nur auf Wasser zu bauen, begehbar erst, wenn fertig. pieces: Wege werden aus Autotiling-Teilen
+   * `<pieces>_<teil>` gezeichnet (Teile wie die Mauer, geom.wallPiece); `sprite` ist dann nur das Bild für Baukarte und
+   * Symbol. Die Brücke ist ein gerades Stück in Zugrichtung (`sprite` mit der Ausrichtung des Baus).
    */
-  road?: { cost: number; bridge?: boolean };
+  road?: { cost: number; bridge?: boolean; pieces?: string };
   /** Höhe der Plattform (Laufebene 2) in Höhenstufen, Standard 5. */
   deck?: number;
   /** Steuern: Gold je Spielminute. */

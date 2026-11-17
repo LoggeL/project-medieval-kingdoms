@@ -1251,6 +1251,232 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "kiesweg_gerade",
+   "name": "Kiesweg gerade",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "kiesweg_ende",
+   "name": "Kiesweg Ende",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "kiesweg_ecke",
+   "name": "Kiesweg Ecke",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "kiesweg_t",
+   "name": "Kiesweg Abzweig",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "kiesweg_kreuz",
+   "name": "Kiesweg Kreuzung",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "kiesweg_einzel",
+   "name": "Kiesweg einzeln",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_gerade",
+   "name": "Pflaster gerade",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_ende",
+   "name": "Pflaster Ende",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_ecke",
+   "name": "Pflaster Ecke",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_t",
+   "name": "Pflaster Abzweig",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_kreuz",
+   "name": "Pflaster Kreuzung",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "pflaster_einzel",
+   "name": "Pflaster einzeln",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "bruecke",
+   "name": "Holzbrücke",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baustelle_weg",
+   "name": "Baustelle Weg",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Fundament"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "baustelle_bruecke",
+   "name": "Baustelle Brücke",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "Joch"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
   }
  ],
  "team_swap": {

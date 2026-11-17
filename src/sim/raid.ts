@@ -170,7 +170,7 @@ function chooseTarget(w: World, u: SUnit): void {
   let best = 0, bd = Infinity;
   for (const pass of [0, 1, 2]) {
     for (const x of w.s.buildings) {
-      if (x.team === u.team || rank(x.key) !== pass) continue;
+      if (x.team === u.team || rank(x.key) !== pass || BUILDINGS[x.key].road) continue; // Wege und Brücken sind kein Ziel
       const [cx, cy] = center(x.key, x.x, x.y, x.o);
       const d = Math.hypot(cx - u.x, cy - u.y);
       if (d < bd) { bd = d; best = x.id; }

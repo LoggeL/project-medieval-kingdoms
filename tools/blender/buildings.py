@@ -2738,6 +2738,169 @@ BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruc
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
 BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
+
+
+# ---------------------------------------------------------------- roads and bridge (ADR 0015)
+# Road pieces join like wall pieces (WALL_CONN: e +x, w -x, n +y, s -y at orientation 0, the game picks piece and
+# orientation with wallPiece). The tile is an 8 x 8 grid of cells (pitch T/8); the road covers the 6 x 6 middle cells
+# plus an arm of 6 cells to each connected edge, so neighbours meet without a seam in every rotation (the grid is
+# symmetric under quarter turns). Cells on the side of the road get a kerb (paving) or a trodden edge (gravel).
+ROAD_N = 8
+
+
+def road_cells(conn):
+    cells = set()
+    for i in range(1, 7):
+        for j in range(1, 7):
+            cells.add((i, j))
+    for i in range(1, 7):
+        if "e" in conn:
+            cells.add((7, i))
+        if "w" in conn:
+            cells.add((0, i))
+        if "n" in conn:
+            cells.add((i, 7))
+        if "s" in conn:
+            cells.add((i, 0))
+    return cells
+
+
+def road_edge(cells, i, j):
+    """Sides of cell (i, j) that face a cell of the same tile outside the road (kerb sides)."""
+    out = ""
+    for s, (di, dj) in (("e", (1, 0)), ("w", (-1, 0)), ("n", (0, 1)), ("s", (0, -1))):
+        a, b = i + di, j + dj
+        if 0 <= a < ROAD_N and 0 <= b < ROAD_N and (a, b) not in cells:
+            out += s
+    return out
+
+
+def cell_rect(i, j):
+    p = T / ROAD_N
+    x0, y0 = -T / 2 + i * p, -T / 2 + j * p
+    return x0, x0 + p, y0, y0 + p
+
+
+def b_kiesweg(conn):
+    def build(mb, var):
+        r = mb.rnd
+        cells = road_cells(set(conn))
+        p = T / ROAD_N
+        for (i, j) in sorted(cells):
+            x0, x1, y0, y1 = cell_rect(i, j)
+            edge = road_edge(cells, i, j)
+            # trodden earth under the gravel, the gravel itself a little inside on the open sides
+            mb.bx("dirt", x0, x1, y0, y1, 0, 0.02)
+            gx0 = x0 + (r.uniform(0.04, 0.16) if "w" in edge else 0)
+            gx1 = x1 - (r.uniform(0.04, 0.16) if "e" in edge else 0)
+            gy0 = y0 + (r.uniform(0.04, 0.16) if "s" in edge else 0)
+            gy1 = y1 - (r.uniform(0.04, 0.16) if "n" in edge else 0)
+            mb.bx("gravel", gx0, gx1, gy0, gy1, 0.02, 0.045)
+            for k in range(2):
+                if r.random() < 0.55:
+                    mb.blob("rock" if r.random() < 0.6 else "stone2",
+                            (r.uniform(gx0 + 0.05, gx1 - 0.05), r.uniform(gy0 + 0.05, gy1 - 0.05), 0.05),
+                            (0.05, 0.045, 0.03), seg=5, rings=3, jitter=0.2)
+        # wheel ruts along every arm (from the centre to the edge)
+        for d in conn:
+            for off in (-1.6 * p, 1.6 * p):
+                if d in "ew":
+                    a, b = (0.0, T / 2) if d == "e" else (-T / 2, 0.0)
+                    mb.bx("dirt", a, b, off - 0.06, off + 0.06, 0.045, 0.05)
+                else:
+                    a, b = (0.0, T / 2) if d == "n" else (-T / 2, 0.0)
+                    mb.bx("dirt", off - 0.06, off + 0.06, a, b, 0.045, 0.05)
+    return build
+
+
+def b_pflaster(conn):
+    def build(mb, var):
+        r = mb.rnd
+        cells = road_cells(set(conn))
+        for (i, j) in sorted(cells):
+            x0, x1, y0, y1 = cell_rect(i, j)
+            edge = road_edge(cells, i, j)
+            mb.bx("mortar", x0, x1, y0, y1, 0, 0.03)
+            g = 0.035  # joint
+            jx, jy = r.uniform(-0.015, 0.015), r.uniform(-0.015, 0.015)
+            if edge:
+                # kerb: a larger, darker stone standing a little higher
+                mb.box("stone2", ((x0 + x1) / 2 + jx, (y0 + y1) / 2 + jy, 0.055), (x1 - x0 - g, y1 - y0 - g, 0.11),
+                       rot=(0, 0, r.uniform(-3, 3)))
+            else:
+                m = r.choice(["stone", "stone", "stone_top", "stone2"])
+                h = r.uniform(0.06, 0.085)
+                mb.box(m, ((x0 + x1) / 2 + jx, (y0 + y1) / 2 + jy, h / 2), (x1 - x0 - g * 1.4, y1 - y0 - g * 1.4, h),
+                       rot=(0, 0, r.uniform(-5, 5)))
+    return build
+
+
+ROAD_PIECES = {"gerade": "ew", "ende": "e", "ecke": "en", "t": "ewn", "kreuz": "ewns", "einzel": ""}
+BRIDGE_DECK = 0.16  # top of the planks above the water (units walk at ground height, the deck stays low)
+
+
+def b_bruecke(mb, var):
+    """Timber bridge bay along model x: two piles per bay, a cap beam (yoke), stringers, planks across, hand rails.
+    Bays join at the tile edges without a seam (rails and stringers run to the edge)."""
+    r = mb.rnd
+    L = T / 2
+    W = 1.0  # half width of the deck
+    z = BRIDGE_DECK
+    # piles in the water and the yoke on top
+    for y in (-W + 0.12, W - 0.12):
+        mb.cyl("log", (0, y, (z - 0.12 - 0.5) / 2), 0.13, z - 0.12 + 0.5, n=8)
+    mb.bx("timber", -0.14, 0.14, -W - 0.05, W + 0.05, z - 0.2, z - 0.09)
+    # stringers along the bay
+    for y in (-W + 0.2, 0, W - 0.2):
+        mb.bx("timber", -L, L, y - 0.08, y + 0.08, z - 0.09, z - 0.04)
+    # planks across, slightly uneven
+    n = 9
+    for k in range(n):
+        x0 = -L + k * T / n
+        mb.bx("wood_hi" if k % 3 else "wood", x0 + 0.015, x0 + T / n - 0.015, -W + r.uniform(-0.04, 0.02), W + r.uniform(-0.02, 0.04),
+              z - 0.04, z)
+    # hand rails: posts at the yoke and a rail over the whole bay on both sides
+    for y in (-W + 0.04, W - 0.04):
+        mb.bx("timber", -0.06, 0.06, y - 0.06, y + 0.06, z, z + 0.85)
+        mb.bx("wood", -L, L, y - 0.05, y + 0.05, z + 0.75, z + 0.85)
+        mb.bx("wood", -L, L, y - 0.035, y + 0.035, z + 0.38, z + 0.44)
+        mb.box("wood", (-0.32, y, z + 0.42), (0.75, 0.06, 0.06), rot=(0, 40, 0))
+
+
+def b_baustelle_weg(mb, var):
+    """Road site: pegs and string around the road bed (0), then the dug bed with a heap of gravel (1)."""
+    r = mb.rnd
+    h = 3 * T / ROAD_N
+    if var == 0:
+        corners = [(-h, -h), (h, -h), (h, h), (-h, h)]
+        for k in range(4):
+            peg(mb, corners[k][0], corners[k][1], 0.42)
+            string_line(mb, corners[k], corners[(k + 1) % 4], z=0.28)
+    else:
+        mb.bx("dirt", -h, h, -h, h, 0, 0.025)
+        for k in range(10):
+            mb.blob("gravel", (r.uniform(-0.45, 0.1), r.uniform(-0.3, 0.3), 0.04), (0.18, 0.16, 0.1), seg=6, rings=3, jitter=0.25)
+        for (x, y) in ((-h, -h), (h, h)):
+            peg(mb, x, y, 0.42)
+
+
+def b_baustelle_bruecke(mb, var):
+    """Bridge site: two marker poles in the water (0), then the driven piles with their yoke (1)."""
+    W = 1.0
+    if var == 0:
+        for y in (-W + 0.12, W - 0.12):
+            mb.cyl("wood", (0, y, 0.15), 0.05, 0.7, n=6)
+        string_line(mb, (0, -W + 0.12), (0, W - 0.12), z=0.42)
+    else:
+        z = BRIDGE_DECK
+        for y in (-W + 0.12, W - 0.12):
+            mb.cyl("log", (0, y, (z - 0.12 - 0.5) / 2), 0.13, z - 0.12 + 0.5, n=8)
+        mb.bx("timber", -0.14, 0.14, -W - 0.05, W + 0.05, z - 0.2, z - 0.09)
+
+
+BUILD.update({"kiesweg_" + k: b_kiesweg(c) for k, c in ROAD_PIECES.items()})
+BUILD.update({"pflaster_" + k: b_pflaster(c) for k, c in ROAD_PIECES.items()})
+BUILD.update({"bruecke": b_bruecke, "baustelle_weg": b_baustelle_weg, "baustelle_bruecke": b_baustelle_bruecke})
 BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
 
 

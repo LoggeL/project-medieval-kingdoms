@@ -58,17 +58,23 @@ function doorAt(w: World, x: number, y: number): SBuilding | undefined {
   return undefined;
 }
 
+/** Weg oder Brücke (BuildingDef.road): kein Hindernis, darf vor Türen liegen. */
+export const isRoad = (key: BuildingKey): boolean => !!BUILDINGS[key].road;
+
 function tileReason(w: World, x: number, y: number, key: BuildingKey): string | null {
   if (!w.inMap(x, y)) return "Außerhalb der Karte";
   const t = w.s.tiles[w.idx(x, y)];
-  if (!TERRAIN[t.terrain].buildable) return `${TERRAIN[t.terrain].name} ist kein Bauland`;
+  const road = BUILDINGS[key].road;
+  if (road?.bridge) { if (t.terrain !== "wasser") return "Eine Brücke gehört über das Wasser"; }
+  else if (!TERRAIN[t.terrain].buildable) return `${TERRAIN[t.terrain].name} ist kein Bauland`;
   if (t.building) {
     const b = w.buildings.get(t.building);
+    if (road && b && isRoad(b.key)) return "Hier liegt schon ein Weg";
     if (!(key === "tor" && b && b.key === "mauer" && b.team === 0)) return "Hier steht schon etwas";
   }
   if (key === "tor") { const r = gateReason(w, x, y); if (r) return r; }
-  // Nichts vor eine Tür setzen: Figuren betreten Gebäude nur dort, nicht durch die Wand
-  const d = doorAt(w, x, y);
+  // Nichts vor eine Tür setzen: Figuren betreten Gebäude nur dort, nicht durch die Wand (ein Weg darf zur Tür führen)
+  const d = road ? undefined : doorAt(w, x, y);
   if (d) return `Versperrt den Eingang: ${BUILDINGS[d.key].name}`;
   if (w.s.rocks.some((r) => r.x === x && r.y === y && r.amount > 0)) return "Felsbrocken im Weg";
   if (w.s.trees.some((tr) => tr.x === x && tr.y === y && tr.state !== "stumpf")) return "Bäume im Weg";
@@ -123,7 +129,8 @@ export function canPlace(w: World, key: BuildingKey, x: number, y: number, o: nu
   if (!reason && hasDoor(key)) {
     // Tür bzw. Vorplatz einer Einfahrt im Grundriss (Daten `door`) muss frei und begehbar sein
     const [ex, ey] = approach(key, x, y, o);
-    if (!w.inMap(ex, ey) || !TERRAIN[w.s.tiles[w.idx(ex, ey)].terrain].walkable || w.s.tiles[w.idx(ex, ey)].building
+    const onDoor = w.inMap(ex, ey) ? w.buildingAt(ex, ey) : undefined;
+    if (!w.inMap(ex, ey) || !TERRAIN[w.s.tiles[w.idx(ex, ey)].terrain].walkable || (onDoor && !isRoad(onDoor.key))
       || w.s.rocks.some((r) => r.x === ex && r.y === ey && r.amount > 0)) reason = "Der Eingang ist versperrt";
   }
   if (!reason && def.placement?.adjacentTerrain) {
@@ -194,6 +201,63 @@ export function wallPath(w: World, x0: number, y0: number, x1: number, y1: numbe
     for (const t of tiles) if (cut.has(`${t.x},${t.y}`)) t.ok = false;
     build = build.slice(0, n);
     return { ok: true, reason: `Nur ${n} von ${want} Mauerstücken bezahlbar`, tiles, build };
+  }
+  return { ok: true, tiles, build };
+}
+
+/** Längste Brücke (Felder über dem Wasser). */
+export const MAX_BRIDGE = 8;
+
+/**
+ * Weg oder Brücke ziehen (BuildingDef.road, ADR 0015). Vorschau (Game.roadPath) und Bau (Befehl "weg") nutzen genau
+ * dieses Ergebnis, nach denselben Regeln wie die Mauer: Ein Hindernis lehnt die ganze Linie ab, reicht das Material nur
+ * für einen Teil, werden nur die bezahlbaren Stücke vom Start aus gebaut. Schon liegende Wege und Brücken werden
+ * übersprungen. Wege laufen gerade oder L-förmig. Eine Brücke läuft gerade in Zugrichtung über das Wasser (o = 0 entlang
+ * Welt-x, 1 entlang Welt-y); Landfelder an ihren Enden werden übersprungen, beide Enden müssen an begehbarem Ufer liegen.
+ */
+export function roadPath(w: World, key: BuildingKey, x0: number, y0: number, x1: number, y1: number): PlacementCheck & { build: [number, number, number][]; costFail?: boolean } {
+  const road = BUILDINGS[key]?.road;
+  if (!road) return { ok: false, reason: "Kein Weg", tiles: [], build: [] };
+  const lock = lockedBy(w.s, BUILDINGS[key]);
+  if (lock) return { ok: false, reason: `Erst erforschen: ${TECHS[lock].name}`, tiles: [], build: [] };
+  let line: [number, number, number][];
+  let reason: string | null = null;
+  if (road.bridge) {
+    const alongX = Math.abs(x1 - x0) >= Math.abs(y1 - y0);
+    const n = alongX ? Math.abs(x1 - x0) : Math.abs(y1 - y0), sx = alongX ? Math.sign(x1 - x0) : 0, sy = alongX ? 0 : Math.sign(y1 - y0);
+    line = [];
+    for (let i = 0; i <= n; i++) line.push([x0 + sx * i, y0 + sy * i, alongX ? 0 : 1]);
+    // Wasserstrecke: vom ersten bis zum letzten Wasser- bzw. Brückenfeld; davor und danach nur Land (übersprungen)
+    const water = (x: number, y: number) => w.inMap(x, y) && (w.s.tiles[w.idx(x, y)].terrain === "wasser");
+    const first = line.findIndex(([x, y]) => water(x, y)), last = line.length - 1 - [...line].reverse().findIndex(([x, y]) => water(x, y));
+    if (first < 0) reason = "Eine Brücke gehört über das Wasser";
+    else {
+      line = line.slice(first, last + 1);
+      const shore = (x: number, y: number) => w.inMap(x, y) && !water(x, y) && w.nav.open(w.nav.node(0, x, y), 0);
+      const [ax, ay] = line[0], [bx, by] = line[line.length - 1];
+      if (!shore(ax - sx, ay - sy) || !shore(bx + sx, by + sy)) reason = "Die Brücke muss an beiden Ufern ansetzen: über den ganzen Fluss ziehen";
+      else if (line.length > MAX_BRIDGE) reason = `Zu lang für eine Brücke (höchstens ${MAX_BRIDGE} Felder)`;
+    }
+  } else line = wallLine(x0, y0, x1, y1).map(([x, y]) => [x, y, 0]);
+  let build: [number, number, number][] = [];
+  const tiles = line.map(([x, y, o]) => {
+    const b = w.buildingAt(x, y);
+    if (b && b.team === 0 && isRoad(b.key)) return { x, y, ok: true }; // schon Weg oder Brücke: übersprungen
+    const r = tileReason(w, x, y, key);
+    if (r) { reason ??= r; return { x, y, ok: false }; }
+    build.push([x, y, o]);
+    return { x, y, ok: true };
+  });
+  if (reason) return { ok: false, reason, tiles, build: [] };
+  if (!build.length) return { ok: false, reason: "Hier liegt schon ein Weg", tiles, build };
+  const want = build.length;
+  const n = affordable(w, key, want);
+  if (n <= 0) return { ok: false, reason: costReason(w, key) ?? "Nicht genug Material", tiles, build: [], costFail: true };
+  if (n < want) {
+    const cut = new Set(build.slice(n).map(([x, y]) => `${x},${y}`));
+    for (const t of tiles) if (cut.has(`${t.x},${t.y}`)) t.ok = false;
+    build = build.slice(0, n);
+    return { ok: true, reason: `Nur ${n} von ${want} Stücken bezahlbar`, tiles, build };
   }
   return { ok: true, tiles, build };
 }
@@ -289,7 +353,8 @@ export function completeBuilding(w: World, b: SBuilding): void {
   updateWallMasks(w);
   w.nav.refresh();
   evictUnits(w);
-  if (FORT.has(b.key) || def.stairs) w.msg(`${def.name} fertiggestellt.`, "info", `fertig-${b.key}`, 10, "mauer_fertig");
+  if (def.road) w.msg(`${def.name} fertig.`, "info", `fertig-${b.key}`, 30); // Feld für Feld, daher nur selten melden
+  else if (FORT.has(b.key) || def.stairs) w.msg(`${def.name} fertiggestellt.`, "info", `fertig-${b.key}`, 10, "mauer_fertig");
   else w.msg(`${def.name} ist fertig.`, "info", undefined, 20, "bau_fertig");
 }
 
@@ -347,12 +412,21 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
     if (FORT.has(b.key)) w.msg(`${def.name} wurde zerstört! Die Mauer ist offen.`, "kampf", `zerstoert-${b.key}`, 5, "mauer_faellt");
     else w.msg(`${def.name} wurde zerstört!`, "kampf", `zerstoert-${b.key}`, 5, "zerstoert");
   }
-  else if (why === "abriss") w.msg(`${def.name} abgerissen.`);
+  else if (why === "abriss") w.msg(`${def.name} abgerissen.`, "info", def.road ? `abriss-${b.key}` : undefined, 5);
 }
 
-/** Nachbarschaftsmasken aller Befestigungen neu berechnen (Bits wie geom.NEIGHBOURS). */
+/**
+ * Nachbarschaftsmasken aller Befestigungen neu berechnen (Bits wie geom.NEIGHBOURS). Wege und Brücken bekommen die
+ * Maske ihrer Nachbarn, die ebenfalls Weg oder Brücke sind (Autotiling der Darstellung, geom.wallPiece).
+ */
 export function updateWallMasks(w: World): void {
   for (const b of w.s.buildings) {
+    if (isRoad(b.key)) {
+      let mask = 0;
+      NEIGHBOURS.forEach(([dx, dy], bit) => { const n = w.buildingAt(b.x + dx, b.y + dy); if (n && n.team === b.team && isRoad(n.key)) mask |= 1 << bit; });
+      b.wallMask = mask;
+      continue;
+    }
     if (!FORT.has(b.key)) { b.wallMask = 0; continue; }
     let mask = 0;
     for (const [tx, ty] of footprintTiles(b.key, b.x, b.y, b.o)) NEIGHBOURS.forEach(([dx, dy], bit) => {

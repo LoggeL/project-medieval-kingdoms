@@ -235,6 +235,8 @@ export type Command =
   | { t: "bauen"; key: BuildingKey; x: number; y: number; o: number }
   /** Mauer von (x0, y0) bis (x1, y1) ziehen: gerade oder L-förmig, Tile für Tile. */
   | { t: "mauer"; x0: number; y0: number; x1: number; y1: number }
+  /** Weg oder Brücke (BuildingDef.road) von (x0, y0) bis (x1, y1) ziehen; Wege gerade oder L-förmig, Brücken gerade. */
+  | { t: "weg"; key: BuildingKey; x0: number; y0: number; x1: number; y1: number }
   | { t: "abreissen"; id: number }
   | { t: "rekrutieren"; building: number; unit: UnitKey }
   /** Ziel-Tile; ist er Teil eines Wehrgangs, gehen die Einheiten hinauf (wenn erreichbar). */
@@ -274,6 +276,8 @@ export interface Game {
   canPlace(key: BuildingKey, x: number, y: number, o: number): PlacementCheck;
   /** Mauer-Vorschau. */
   wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck;
+  /** Weg- bzw. Brücken-Vorschau (dieselben Regeln wie "weg"). */
+  roadPath(key: BuildingKey, x0: number, y0: number, x1: number, y1: number): PlacementCheck;
   /** Laufebene am Tile, falls dort ein Wehrgang ist (für Zielwahl der Maus), sonst 0. */
   walkLayerAt(x: number, y: number): number;
   /** Spielstand als JSON (Speichern) und Laden. */
