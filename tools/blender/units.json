@@ -62,7 +62,14 @@
   "skirt": 0.25,
   "helmet": "cap",
   "capc": "team",
-  "showcase": false
+  "showcase": false,
+  "action": {
+   "anim": "bauen",
+   "motion": "bauen"
+  },
+  "action_gear": [
+   "hammer"
+  ]
  },
  "speer": {
   "name": "Speerträger",
@@ -297,8 +304,8 @@
  "traeger_stein": {
   "name": "Tagelöhner mit Steinblock",
   "torso": "worker",
-  "tunic": "hose2",
-  "legs": "hose",
+  "tunic": "cloth",
+  "legs": "hose2",
   "skirt": 0.25,
   "helmet": "cap",
   "capc": "team",
@@ -342,6 +349,86 @@
     -55,
     0,
     12
+   ]
+  }
+ },
+ "traeger_speer": {
+  "name": "Tagelöhner mit Speeren",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "spear_bundle"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -112,
+    0,
+    -5
+   ]
+  }
+ },
+ "traeger_schwert": {
+  "name": "Tagelöhner mit Schwertern",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "sword_bundle"
+  ],
+  "hold": [
+   "armR",
+   "armL"
+  ],
+  "swing": 0.0,
+  "pose": {
+   "armR": [
+    -50,
+    0,
+    -14
+   ],
+   "armL": [
+    -50,
+    0,
+    14
+   ]
+  }
+ },
+ "traeger_bogen": {
+  "name": "Tagelöhner mit Bögen",
+  "torso": "worker",
+  "tunic": "cloth",
+  "legs": "hose2",
+  "skirt": 0.25,
+  "helmet": "cap",
+  "capc": "team",
+  "gear": [
+   "bow_bundle"
+  ],
+  "hold": [
+   "armR"
+  ],
+  "pose": {
+   "armR": [
+    -12,
+    0,
+    0
+   ]
+  },
+  "grip": {
+   "armR": [
+    0,
+    0,
+    0
    ]
   }
  }

@@ -124,7 +124,7 @@ def terrain_sheet():
                 patch.alpha_composite(tile, ((i - j) * tw // 2 + 3 * tw - tw // 2 + tw // 2, (i + j) * th // 2 + th // 2))
         rows.append(patch)
     W = max(im.width, sum(r.width for r in rows[:3]))
-    out = Image.new("RGBA", (max(im.width, rows[0].width * 3), im.height + 8 + rows[0].height * 2), GREEN)
+    out = Image.new("RGBA", (max(im.width, rows[0].width * 3), im.height + 8 + rows[0].height * ((len(rows) + 2) // 3)), GREEN)
     out.alpha_composite(im, (0, 0))
     for i, r in enumerate(rows):
         out.alpha_composite(r, ((i % 3) * r.width, im.height + 8 + (i // 3) * r.height))

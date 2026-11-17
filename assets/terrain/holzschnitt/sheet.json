@@ -37,8 +37,8 @@
   },
   "wasser": {
    "row": 5,
-   "variants": 1,
-   "frames": 4
+   "variants": 4,
+   "frames": 8
   },
   "erz": {
    "row": 6,
@@ -59,5 +59,20 @@
  "layout": "row = terrain type, column = variant * frames + frame",
  "mask": "pixel (x, y) belongs to the tile if |x + 0.5 - 32| / 32 + |y + 0.5 - 16| / 16 < 1; tiles at offsets (32, 16) fit without gaps or overlaps",
  "fps": 4,
- "colours": 156
+ "colours": 157,
+ "blend": {
+  "image": "blend.png",
+  "tile": [
+   64,
+   32
+  ],
+  "edges": [
+   "ne",
+   "se",
+   "sw",
+   "nw"
+  ],
+  "variants": 4
+ },
+ "blend_note": "row = edge of the screen diamond (ne = between top and right corner), column = variant; white, alpha 0 or 255. Draw the tile of a neighbour with higher priority (wasser < erde < fels < waldboden < gras < wiese) over the tile, cut by the mask of the shared edge"
 }

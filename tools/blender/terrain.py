@@ -11,12 +11,17 @@ Two steps, one file:
 Seamless tiling: ground tone and micro relief come from noise that is periodic over one tile. Near the tile edges
 every variant of a type uses the same (shared) noise, inside each variant has its own, so variants can be laid next
 to each other in any order. Structured details (tufts, flowers, leaves, stones) stay inside the diamond, nothing
-crosses an edge. Water waves are periodic in space and over the four frames.
+crosses an edge. Water waves travel: every wave component is periodic over the tile and moves a whole number of
+periods over the eight frames, so the loop is seamless in space and time. The four water variants share the waves
+near the tile edges and differ inside (as the ground), so a lake does not show the tile grid.
 
 Added later (rows after the first six, earlier rows unchanged): erz (rock with rusty ore veins), sumpf (boggy ground
 with murky puddles and reeds), acker (ploughed field with young crop). The acker furrows have a direction:
 variants 0 and 1 run along world x, variants 2 and 3 along world y. Terrain tiles are not turned with the camera,
 so a renderer swaps the pair (v xor 2) for the views r = 1 and r = 3.
+
+Transitions: the pixelize step also writes blend.png (edge masks ne, se, sw, nw x 4 variants, white with hard alpha,
+see blend_masks()) and the "blend" entry of sheet.json; tools/blender/preview_blend.py composes a check picture.
 """
 import json
 import math
@@ -32,8 +37,10 @@ T = 64 / (math.sqrt(2) * PPM)                   # tile edge in metres
 SS = 4
 TW, TH = 64, 32
 ANCHOR = (32, 16)
+WATER_FRAMES = 8                                # wave loop, one frame per 1/8 of every wave period
+WIND = (0.83, 0.55)                             # direction (model x, y) the wavelets travel in
 # key, variants, frames (row order in the sheet)
-TYPES = [("gras", 4, 1), ("wiese", 4, 1), ("waldboden", 4, 1), ("erde", 4, 1), ("fels", 4, 1), ("wasser", 1, 4),
+TYPES = [("gras", 4, 1), ("wiese", 4, 1), ("waldboden", 4, 1), ("erde", 4, 1), ("fels", 4, 1), ("wasser", 4, WATER_FRAMES),
          ("erz", 4, 1), ("sumpf", 4, 1), ("acker", 4, 1)]
 # ground tones (low, mid, high noise value) with their thresholds, relief amplitude (m), relief noise frequency limit
 GROUND = {
@@ -89,6 +96,81 @@ class Field:
         u, v = x / T + 0.5, y / T + 0.5
         w = edge_weight(u, v)
         return w * self.shared(u, v) + (1 - w) * self.own(u, v)
+
+
+# ================================================================ transition masks (plain Python, no Blender)
+BLEND_EDGES = ["ne", "se", "sw", "nw"]          # edges of the screen diamond: ne = between the top and the right corner
+BLEND_VARIANTS = 4
+BLEND_END = 3                                   # coverage depth (px, vertical) at both ends of every edge: runs connect
+BLEND_MIN, BLEND_MAX = 2, 7                     # always opaque right at the edge, never deeper than 7 of 16 px, so a strip
+                                                # one tile wide (a path) keeps its middle
+
+
+def blend_masks(nvar=BLEND_VARIANTS, seed=4711):
+    """White masks with hard alpha (0 or 255), one 64 x 32 cell per edge (rows, BLEND_EDGES order) and variant
+    (columns). A mask covers its edge of the diamond to an irregular depth: opaque at the edge, ragged towards the
+    inside with tongues and a few loose pixels, in 2-px column steps like hand-set pixel art. Both ends of every edge
+    have the same depth in every variant, so masks of neighbouring tiles along a boundary run on without a step.
+    Used by the renderer: the tile of a neighbour with higher priority, cut by the mask of the shared edge, over the tile."""
+    import numpy as np
+    from PIL import Image
+    corners = {"ne": ((32, 0), (64, 16), 1), "se": ((64, 16), (32, 32), -1),
+               "sw": ((32, 32), (0, 16), -1), "nw": ((0, 16), (32, 0), 1)}   # A, B, inward direction in screen y
+    yy, xx = np.mgrid[0:TH, 0:TW]
+    px, py = xx + 0.5, yy + 0.5
+    inside = (np.abs(px - 32) / 32 + np.abs(py - 16) / 16) < 1
+    out = np.zeros((TH * len(BLEND_EDGES), TW * nvar, 4), np.uint8)
+    for ei, e in enumerate(BLEND_EDGES):
+        (ax, ay), (bx, by), inward = corners[e]
+        line_y = ay + (px - ax) * (by - ay) / (bx - ax)
+        dv = (py - line_y) * inward                    # vertical distance from the edge line, > 0 inside
+        t = (px - ax) / (bx - ax)                      # 0 at A, 1 at B
+        for v in range(nvar):
+            r = random.Random(seed + 101 * ei + 7 * v)
+            # depth profile: control points every 1/6 of the edge, pinned ends, linear in between
+            n = 7
+            ctrl = [BLEND_END] + [r.uniform(BLEND_MIN + 0.5, BLEND_MAX - 2.0) for _ in range(n - 2)] + [BLEND_END]
+            # one or two tongues reaching further in
+            tongues = [(r.uniform(0.2, 0.8), r.uniform(0.05, 0.09), r.uniform(1.5, 2.5)) for _ in range(r.randint(1, 2))]
+            # ragged 2-px column steps (+-1 px), none at the ends
+            cols = {c: r.choice([-1, 0, 0, 1]) for c in range(-1, 33)}
+
+            def depth(tt, col):
+                tt = min(max(tt, 0.0), 1.0)
+                k = min(int(tt * (n - 1)), n - 2)
+                f = tt * (n - 1) - k
+                d = ctrl[k] * (1 - f) + ctrl[k + 1] * f
+                for c0, w, h in tongues:
+                    d += h * max(0.0, 1 - abs(tt - c0) / w)
+                end = min(tt, 1 - tt)
+                if end > 0.08:
+                    d += cols[col]
+                return min(max(d, BLEND_MIN), BLEND_MAX)
+            m = np.zeros((TH, TW), bool)
+            for y in range(TH):
+                for x in range(TW):
+                    tt = t[y, x]
+                    if not inside[y, x] or tt < 0 or tt > 1 or dv[y, x] <= 0:
+                        continue
+                    if dv[y, x] <= depth(tt, int(tt * 32) // 2 * 2):
+                        m[y, x] = True
+            # a few loose pixels and pairs just beyond the boundary
+            for _ in range(r.randint(3, 5)):
+                tt = r.uniform(0.15, 0.85)
+                x = int(round(ax + tt * (bx - ax)))
+                ly = ay + (x + 0.5 - ax) * (by - ay) / (bx - ax)
+                d = depth(tt, int(tt * 32) // 2 * 2) + r.choice([1.0, 2.0])
+                y = int(math.floor(ly + inward * d))
+                for dx in ([0] if r.random() < 0.5 else [0, 1]):
+                    if 0 <= y < TH and 0 <= x + dx < TW and inside[y, x + dx]:
+                        m[y, x + dx] = True
+            # no single-pixel holes inside the covered band
+            pad = np.pad(m, 1)
+            holes = ~m & pad[:-2, 1:-1] & pad[2:, 1:-1] & pad[1:-1, :-2] & pad[1:-1, 2:]
+            m |= holes & inside
+            cell = out[ei * TH:(ei + 1) * TH, v * TW:(v + 1) * TW]
+            cell[m] = (255, 255, 255, 255)
+    return Image.fromarray(out, "RGBA")
 
 
 # ================================================================ Blender part
@@ -298,39 +380,56 @@ def blender_main():
                 rr = rnd.uniform(0.04, 0.07)
                 mb.blob("acker_dk", (x, y, zf(x, y) + rr * 0.4), (rr, rr * 0.8, rr * 0.6), rnd, seg=5, rings=3)
 
-    def water(mb, frame):
-        """Wave surface, periodic over the tile and over the four frames: a slow swell picks the base tone,
-        short wavelets give the light, glints only where both are high."""
-        r = random.Random(77)
+    class Waves:
+        """Sum of travelling plane waves, periodic over the tile (integer wave numbers) and over WATER_FRAMES frames
+        (each component advances `speed` whole periods per loop). Wavelets travel roughly along WIND."""
 
-        def comps(n, fmin, fmax):
-            out = []
-            while len(out) < n:
-                k = int(math.ceil(fmax))
+        def __init__(self, seed, n, fmin, fmax, along=None):
+            r = random.Random(seed)
+            self.c = []
+            k = int(math.ceil(fmax))
+            while len(self.c) < n:
                 a, b = r.randint(-k, k), r.randint(-k, k)
-                if fmin <= math.hypot(a, b) <= fmax:
-                    out.append((a, b, r.uniform(0, 2 * math.pi), r.choice([1, -1]), 1.0 / math.hypot(a, b)))
-            return out
-        swell, ripple = comps(4, 1, 2.3), comps(12, 4, 8)
+                f = math.hypot(a, b)
+                if not fmin <= f <= fmax:
+                    continue
+                d = (a * WIND[0] + b * WIND[1]) / f
+                if along is not None and abs(d) < along:
+                    continue                      # crests across the wind only (long, parallel wave fronts)
+                speed = 1 if f < 3 else (1 if f < 6 else 2)
+                # phase velocity points along -sign(c) * (a, b): pick the sign that moves with the wind
+                c = -speed if d > 0 else speed
+                self.c.append((a, b, r.uniform(0, 2 * math.pi), c, 1.0 / f))
+            self.norm = math.sqrt(sum(c_[4] ** 2 for c_ in self.c) / 2)
 
-        def wave(cs, x, y):
+        def __call__(self, u, v, frame):
+            return sum(amp * math.sin(2 * math.pi * (a * u + b * v) + ph + c * 2 * math.pi * frame / WATER_FRAMES)
+                       for a, b, ph, c, amp in self.c) / self.norm
+
+    def water(mb, var, frame):
+        """Calm swell picks the base tone, long wavelets across the wind give moving light crests, foam only where a
+        crest rides on a high swell. Edges use shared waves (any variants fit together), the inside its own."""
+        sh_s, sh_r = Waves(77, 4, 2, 3.2), Waves(78, 5, 4, 7.5, along=0.92)
+        ow_s, ow_r = Waves(1077 + 31 * var, 4, 2, 3.2), Waves(1078 + 31 * var, 5, 4, 7.5, along=0.92)
+
+        def field(a_, b_, x, y):
             u, v = x / T + 0.5, y / T + 0.5
-            return sum(amp * math.sin(2 * math.pi * (a * u + b * v) + ph + c * 2 * math.pi * frame / 4)
-                       for a, b, ph, c, amp in cs) / math.sqrt(sum(c_[4] ** 2 for c_ in cs) / 2)
+            w = edge_weight(u, v)
+            return w * a_(u, v, frame) + (1 - w) * b_(u, v, frame)
         n = 96
         g = 2 * T / n
-        S = [[wave(swell, -T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
-        R = [[wave(ripple, -T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
-        A, B = 0.035, 0.018
+        S = [[field(sh_s, ow_s, -T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
+        R = [[field(sh_r, ow_r, -T + i * g, -T + j * g) for i in range(n + 1)] for j in range(n + 1)]
+        A, B = 0.02, 0.008
         for j in range(n):
             for i in range(n):
                 x0, y0 = -T + i * g, -T + j * g
                 sc_ = (S[j][i] + S[j][i + 1] + S[j + 1][i] + S[j + 1][i + 1]) / 4
                 rc = (R[j][i] + R[j][i + 1] + R[j + 1][i] + R[j + 1][i + 1]) / 4
-                m = "wasser2" if sc_ > 0.35 else ("wasser_dk" if sc_ < -0.9 else "wasser1")
-                if rc > 1.5 and sc_ > 0.0:
+                m = "wasser2" if sc_ > 0.6 else ("wasser_dk" if sc_ < -0.85 else "wasser1")
+                if rc > 1.55 and sc_ > -0.4:
                     m = "wasser_hi"
-                if rc > 2.0 and sc_ > 0.8:
+                if rc > 2.0 and sc_ > 1.0:
                     m = "schaum"
                 z = [A * S[jj][ii] + B * R[jj][ii] for jj, ii in ((j, i), (j, i + 1), (j + 1, i + 1), (j + 1, i))]
                 mb.add(m, [(x0, y0, z[0]), (x0 + g, y0, z[1]), (x0 + g, y0 + g, z[2]), (x0, y0 + g, z[3])], [(0, 1, 2, 3)])
@@ -378,7 +477,7 @@ def blender_main():
                         bpy.data.objects.remove(o, do_unlink=True)
                 mb = MB()
                 if key == "wasser":
-                    water(mb, f)
+                    water(mb, v, f)
                 else:
                     zf = ground(mb, key, v)
                     details(mb, key, v, zf)
@@ -549,12 +648,27 @@ def pixel_main():
                 used |= set(map(tuple, fr[fr[..., 3] == 255][:, :3]))
                 sheet.paste(Image.fromarray(fr, "RGBA"), ((v * t["frames"] + f) * TW, row * TH))
         keys[t["key"]] = {"row": row, "variants": t["variants"], "frames": t["frames"]}
+    # water must move: every frame of a variant differs from the others
+    wt = keys.get("wasser")
+    if wt and wt["frames"] > 1:
+        arr = np.asarray(sheet)
+        for v in range(wt["variants"]):
+            fr = [arr[wt["row"] * TH:(wt["row"] + 1) * TH, (v * wt["frames"] + f) * TW:(v * wt["frames"] + f + 1) * TW] for f in range(wt["frames"])]
+            for i in range(len(fr)):
+                for j in range(i + 1, len(fr)):
+                    if np.array_equal(fr[i], fr[j]):
+                        sys.exit("water variant %d: frames %d and %d are identical" % (v, i, j))
     os.makedirs(a.out, exist_ok=True)
     sheet.save(os.path.join(a.out, "terrain.png"), optimize=True)
+    blend_masks().save(os.path.join(a.out, "blend.png"), optimize=True)
     json.dump({"style": style.get("label"), "tile": [TW, TH], "anchor": list(ANCHOR), "image": "terrain.png", "keys": keys,
                "layout": "row = terrain type, column = variant * frames + frame",
                "mask": "pixel (x, y) belongs to the tile if |x + 0.5 - 32| / 32 + |y + 0.5 - 16| / 16 < 1; tiles at offsets (32, 16) fit without gaps or overlaps",
-               "fps": 4, "colours": len(used)},
+               "fps": 4, "colours": len(used),
+               "blend": {"image": "blend.png", "tile": [TW, TH], "edges": BLEND_EDGES, "variants": BLEND_VARIANTS},
+               "blend_note": "row = edge of the screen diamond (ne = between top and right corner), column = variant; white, "
+                             "alpha 0 or 255. Draw the tile of a neighbour with higher priority (wasser < erde < fels < "
+                             "waldboden < gras < wiese) over the tile, cut by the mask of the shared edge"},
               open(os.path.join(a.out, "sheet.json"), "w"), ensure_ascii=False, indent=1)
     print("terrain", style.get("label"), "tiles:", sum(t["variants"] * t["frames"] for t in meta["types"]), "colours:", len(used))
 

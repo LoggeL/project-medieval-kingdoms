@@ -11,7 +11,7 @@ Direction index d (screen): 0 S, 1 SE, 2 E, 3 NE, 4 N, 5 NW, 6 W, 7 SW.
 Light is the Workbench studio light, which is camera-relative (concept: light relative to camera).
 """
 import bpy
-from mathutils import Euler
+from mathutils import Euler, Vector
 import json
 import math
 import os
@@ -153,6 +153,10 @@ UNITS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 
 
 PXM = 1.8 / STYLE["height_px"]  # one target pixel in metres
+# Side views (screen E/W) show the figure in profile, where only the body depth counts. These settings keep the
+# profile readable: deeper chest and hips, arms a little forward and out at rest, larger hands, a nose.
+# Style key "profile" overrides single values; {"depth": 1, "arm_fwd": 0, "arm_out": 0, "hand": 1, "nose": false} is the old look.
+PROFILE = dict({"depth": 1.55, "arm_fwd": 18, "arm_out": 5, "upper_arm": 1.2, "hand": 1.2, "nose": True}, **STYLE.get("profile", {}))
 
 
 def th(x):
@@ -170,7 +174,7 @@ def build(unit):
     sw = P["shoulder"] * H
     hw = P["hip"] * H
     limb = P["limb"] * H
-    depth = P["depth"] * H
+    depth = P["depth"] * H * PROFILE["depth"]
     headw = P["head_w"] * H
     arm_len = P.get("arm", 0.9) * torso
     team = unit.get("team", "team")
@@ -234,10 +238,15 @@ def build(unit):
         c = acol or (SB if side == "L" else SA)
         if tk == "slashed":
             ball("puff" + side, (limb * 0.9, limb * 0.9, arm_len * 0.3), (0, 0, -arm_len * 0.22), c, pv)
-        box("upper" + side, (limb * 0.9, limb * 0.9, arm_len * 0.55), (0, 0, -arm_len * 0.27), c, pv)
-        box("fore" + side, (limb * 0.85, limb * 0.85, arm_len * 0.45), (0, 0, -arm_len * 0.72), c, pv)
-        box("hand" + side, (limb * 1.1, limb * 1.1, limb * 1.0), (0, 0, -arm_len * 0.98), unit.get("hands", "skin"), pv)
-        hand = empty("handpt" + side, (0, 0, -arm_len * 0.98), pv)
+        ua = PROFILE["upper_arm"]
+        box("upper" + side, (limb * 0.9 * ua, limb * 0.9 * ua, arm_len * 0.55), (0, 0, -arm_len * 0.27), c, pv)
+        # elbow: forearm, hand and held gear (rest = straight arm, bent only in action poses such as the bow draw)
+        el = empty("elbow" + side, (0, 0, -arm_len * 0.5), pv)
+        pivots["elbow" + side] = el
+        box("fore" + side, (limb * 0.85, limb * 0.85, arm_len * 0.45), (0, 0, -arm_len * 0.22), c, el)
+        hs = PROFILE["hand"]
+        box("hand" + side, (limb * 1.1 * hs, limb * 1.1 * hs, limb * 1.0 * hs), (0, 0, -arm_len * 0.48), unit.get("hands", "skin"), el)
+        hand = empty("handpt" + side, (0, 0, -arm_len * 0.48), el)
         pivots["hand" + side] = hand
 
     # neck + head
@@ -246,15 +255,26 @@ def build(unit):
         box("neck", (limb * 0.8, limb * 0.8, neck + head * 0.2), (0, 0, torso + neck / 2), "skin", upper)
     headp = empty("head", (0, 0, hz), upper)
     ball("skull", (headw * 0.5, headw * 0.52, head * 0.5), (0, 0, 0), "skin", headp)
+    if PROFILE["nose"] and unit.get("helmet") not in ("sallet", "nasal"):
+        # one pixel of nose, so the face side reads in profile (hidden under a helmet's nasal or visor)
+        box("nose", (max(headw * 0.16, PXM), headw * 0.24, max(head * 0.16, PXM)), (0, -headw * 0.53, -head * 0.06), "skin", headp)
     if STYLE.get("eyes"):
         for sx in (1, -1):
             box("eye", (PXM, headw * 0.08, PXM), (sx * max(headw * 0.17, PXM), -headw * 0.49, head * 0.0), "eye", headp)
     helmet(unit.get("helmet", "hair"), headp, head, headw, team, unit)
 
-    # gear
-    for g in unit.get("gear", []):
+    # gear (action_gear: only shown in the action frames, e.g. the day labourer's hammer)
+    action_only = []
+    for g in unit.get("gear", []) + unit.get("action_gear", []):
+        before = {o.name for o in bpy.data.objects}
         gear(g, pivots, upper, body, H, torso, limb, depth, sw, team, unit)
+        if g in unit.get("action_gear", []):
+            action_only += [o.name for o in bpy.data.objects if o.name not in before and o.type == "MESH"]
     pivots["upper"] = upper
+    # rest stance: free arms a little forward and out (wider profile), held arms keep their pose
+    for side, sx in (("L", 1), ("R", -1)):
+        if "arm" + side not in unit.get("pose", {}):
+            pivots["arm" + side].rotation_euler = (math.radians(-PROFILE["arm_fwd"]), math.radians(-sx * PROFILE["arm_out"]), 0)
 
     # pose offsets (stance)
     for k, v in unit.get("pose", {}).items():
@@ -264,7 +284,7 @@ def build(unit):
             g = unit.get("grip", {}).get(k, [0, 0, 0])
             inv = Euler([math.radians(a) for a in v], "XYZ").to_matrix().inverted()
             pivots["hand" + k[3:]].rotation_euler = (inv @ Euler([math.radians(b) for b in g], "XYZ").to_matrix()).to_euler("XYZ")
-    return root, hip, pivots, legs
+    return root, hip, pivots, legs, action_only
 
 
 def helmet(kind, hp, head, hw, team, unit):
@@ -351,7 +371,11 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         for i, (z, rx) in enumerate([(H * 0.2, -18), (0, 0), (-H * 0.2, 18)]):
             box("limb%d" % i, (th(limb * 0.2), th(limb * 0.24), H * 0.26), (0, 0 if i == 1 else math.sin(math.radians(18)) * H * 0.13, z * 1.15),
                 "bow", b, rot=(math.radians(rx), 0, 0))
-        box("string", (th(0) * 0.7, th(0) * 0.7, H * 0.74), (0, limb * 0.55, 0), "string", b)
+        box("bowstring", (th(0) * 0.7, th(0) * 0.7, H * 0.74), (0, limb * 0.55, 0), "string", b)
+        # string ends and grip, for the drawn string and the arrow of the shooting frames
+        empty("bowtipT", (0, limb * 0.55, H * 0.37), b)
+        empty("bowtipB", (0, limb * 0.55, -H * 0.37), b)
+        empty("bowmid", (0, 0, 0), b)
     elif g == "crossbow":
         c = empty("xbow", (0, 0, 0), hip)
         c.location = (0, -depth * 1.1, torso * 0.55)
@@ -370,9 +394,10 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         cyl("tube", limb * 0.55, torso * 0.65, (0, 0, 0), "leather", q, verts=6)
         box("fletch", (limb * 1.1, limb * 1.1, torso * 0.14), (0, 0, torso * 0.38), "cloth", q)
     elif g == "log":
-        # log along the walking direction on the right shoulder, front end up, held by the right hand
+        # log along the walking direction on the right shoulder, front end up and turned a little outwards (so it
+        # does not shrink to a dot when the carrier walks towards the camera), held by the right hand
         lg = empty("logpv", (-sw * 0.36, -H * 0.02, torso * 0.98 + limb * 0.55), hip)
-        lg.rotation_euler = (math.radians(58), 0, 0)
+        lg.rotation_euler = (math.radians(58), 0, math.radians(-22.5))
         cyl("log", limb * 0.85, H * 0.62, (0, 0, 0), "log", lg, verts=8)
         cyl("logend", limb * 0.78, limb * 0.12, (0, 0, H * 0.31), "wood_hi", lg, verts=8)
     elif g == "pick":
@@ -387,6 +412,39 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         sb = empty("blockpv", (-sw * 0.42, depth * 0.1, torso * 0.98 + limb * 1.6), hip)
         sb.rotation_euler = (0, math.radians(8), math.radians(10))
         box("block", (H * 0.26, H * 0.21, H * 0.19), (0, 0, 0), "stone", sb)
+    elif g == "hammer":
+        # carpenter's hammer for building: short haft, steel head across the haft (shown in the action frames only)
+        cyl("haft", th(limb * 0.42) / 2, H * 0.3, (0, 0, H * 0.1), "wood", hr)
+        box("head", (th(limb * 0.7), limb * 2.0, th(limb * 0.75)), (0, -limb * 0.2, H * 0.25), "steel", hr)
+    elif g == "spear_bundle":
+        # two spears on the right shoulder like the log, points forward, up and a little outwards, held by the raised hand
+        sp = empty("spearpv", (-sw * 0.4, -H * 0.02, torso * 0.98 + limb * 0.6), hip)
+        sp.rotation_euler = (math.radians(55), 0, math.radians(-22.5))
+        for k, (dx, dz) in enumerate(((-limb * 0.3, 0.0), (limb * 0.3, -H * 0.05))):
+            cyl("bshaft%d" % k, th(limb * 0.42) / 2, H * 1.15, (dx, 0, H * 0.12 + dz), "wood", sp)
+            cone("btip%d" % k, limb * 0.5, 0, H * 0.12, (dx, 0, H * 0.75 + dz), "steel_hi", sp)
+        box("bcord", (limb * 1.6, limb * 0.9, th(limb * 0.3)), (0, 0, -H * 0.12), "belt", sp)
+    elif g == "sword_bundle":
+        # three swords carried diagonally across the chest with both arms, points up past the right shoulder, tied
+        sb = empty("swordpv", (0, -depth * 0.5 - H * 0.08, torso * 0.35), hip)
+        sb.rotation_euler = (math.radians(8), math.radians(-35), 0)
+        for k, dx in enumerate((-limb * 0.9, 0.0, limb * 0.9)):
+            s_ = empty("sw%d" % k, (dx, 0, (k % 2) * H * 0.03), sb)
+            s_.rotation_euler = (0, math.radians(-10 * (k - 1)), 0)
+            box("sgrip%d" % k, (th(limb * 0.3), th(limb * 0.3), H * 0.08), (0, 0, -H * 0.05), "leather", s_)
+            box("spommel%d" % k, (th(limb * 0.45), th(limb * 0.45), th(limb * 0.4)), (0, 0, -H * 0.1), "gold", s_)
+            box("sguard%d" % k, (limb * 1.3, th(limb * 0.3), th(limb * 0.3)), (0, 0, 0), "steel", s_)
+            box("sblade%d" % k, (th(limb * 0.42), th(limb * 0.14), H * 0.4), (0, 0, H * 0.21), "steel_hi", s_)
+        box("sstrap", (limb * 3.0, limb * 0.6, th(limb * 0.35)), (0, 0, H * 0.06), "belt", sb)
+    elif g == "bow_bundle":
+        # three strung bows held upright by their grips in the right hand, slightly fanned
+        for k in range(3):
+            b = empty("bb%d" % k, (0, (k - 1) * limb * 0.5, 0), hr)
+            b.rotation_euler = (math.radians(6 * (k - 1)), math.radians(9 * (k - 1)), 0)
+            for i, (z, rx) in enumerate([(H * 0.2, -18), (0, 0), (-H * 0.2, 18)]):
+                box("bblimb%d%d" % (k, i), (th(limb * 0.2), th(limb * 0.24), H * 0.26),
+                    (0, 0 if i == 1 else math.sin(math.radians(18)) * H * 0.13, z * 1.15), "bow", b, rot=(math.radians(rx), 0, 0))
+            box("bbstring%d" % k, (th(0) * 0.7, th(0) * 0.7, H * 0.74), (0, limb * 0.55, 0), "string", b)
     elif g == "crate":
         # crate carried in front of the chest with both arms
         cr = empty("cratepv", (0, -depth * 0.5 - H * 0.13, torso * 0.45), hip)
@@ -451,12 +509,21 @@ ACTIONS = {
         {"armR": (-100, 0, 0), "gripR": 80, "lean": 14, "legs": (-22, 12)},
         {"armR": (-45, 0, 0), "gripR": 135, "lean": 20, "legs": (-24, 14)},
     ],
-    # bow: nock, raise, full draw, release
+    # bow: nock, raise with the arrow on the string, full draw (elbow high, hand at the cheek, string pulled to the
+    # hand), release (string straight again, hand flies back). "string": drawn = string from both tips to the right hand,
+    # "arrow": nocked = from the string forward, drawn = from the right hand through the bow
     "schiessen": [
         {"armL": (-45, 0, 10), "armR": (-40, 0, -10), "gripL": 0, "lean": 0},
-        {"armL": (-75, 0, 4), "armR": (-80, 0, -20), "gripL": 0, "lean": 0},
-        {"armL": (-90, 0, 0), "armR": (70, 0, 30), "gripL": 0, "lean": -3},
-        {"armL": (-90, 0, 0), "armR": (100, 0, 40), "gripL": 0, "lean": -5},
+        {"armL": (-75, 0, 4), "armR": (-70, 0, -18), "gripL": 0, "lean": 0, "arrow": "nocked"},
+        {"armL": (-90, 0, 0), "armR": (95, 0, 15), "elbowR": (0, -150, 0), "gripL": 0, "lean": -3, "string": "drawn", "arrow": "drawn"},
+        {"armL": (-90, 0, 0), "armR": (100, 0, 35), "elbowR": (0, -60, 0), "gripL": 0, "lean": -5},
+    ],
+    # building: one-handed hammer blows low in front (beam, peg, plank), the left hand steadies the work piece
+    "bauen": [
+        {"armR": (-165, 0, 6), "armL": (-50, 0, -12), "gripR": -70, "lean": 14, "legs": (-16, 10)},
+        {"armR": (-130, 0, 4), "armL": (-50, 0, -12), "gripR": -10, "lean": 18, "legs": (-16, 10)},
+        {"armR": (-85, 0, 2), "armL": (-48, 0, -12), "gripR": 55, "lean": 24, "legs": (-18, 12)},
+        {"armR": (-52, 0, 2), "armL": (-46, 0, -12), "gripR": 95, "lean": 28, "legs": (-18, 12)},
     ],
 }
 # collapse: hit, knees buckle, topple backwards, lying on the back (corpse centred on the foot point)
@@ -474,8 +541,8 @@ def rot(v):
 
 
 def set_grip(pv, side, arm_deg, grip_x):
-    """Hand rotation so the held gear points at grip_x (x rotation) in the upper-body frame, whatever the arm does."""
-    inv = rot(arm_deg).to_matrix().inverted()
+    """Hand rotation so the held gear points at grip_x (x rotation) in the upper-body frame, whatever arm and elbow do."""
+    inv = (rot(arm_deg).to_matrix() @ pv["elbow" + side].rotation_euler.to_matrix()).inverted()
     pv["hand" + side].rotation_euler = (inv @ rot((grip_x, 0, 0)).to_matrix()).to_euler("XYZ")
 
 
@@ -520,6 +587,8 @@ def pose_action(unit, pv, base, i):
         arm = k.get("arm" + side)
         if arm is not None:
             pv["arm" + side].rotation_euler = rot(arm)
+        if "elbow" + side in k:
+            pv["elbow" + side].rotation_euler = rot(k["elbow" + side])
         if "grip" + side in k:
             set_grip(pv, side, arm if arm is not None else [math.degrees(a) for a in base["arm" + side]], k["grip" + side])
     lg = k.get("legs", (0, 0))
@@ -527,6 +596,49 @@ def pose_action(unit, pv, base, i):
     pv["legR"].rotation_euler = (math.radians(lg[1]), 0, 0)
     for side, a in (("L", lg[0]), ("R", lg[1])):
         pv["ankle" + side].rotation_euler = (-math.radians(a), 0, 0)
+
+
+def seg(name, a, b, t, color):
+    """Thin box from world point a to world point b (drawn bow string, arrow)."""
+    d = b - a
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    o = bpy.context.active_object
+    o.name = name
+    o.color = C(color)
+    o.location = (a + b) / 2
+    o.rotation_euler = Vector((0, 0, 1)).rotation_difference(d.normalized()).to_euler()
+    o.scale = (t, t, d.length)
+    return o
+
+
+def bow_extras(unit, pv, i):
+    """Shooting frames: drawn string from both bow tips to the right hand, the arrow. Returns the new objects."""
+    k = ACTIONS[unit["action"]["motion"]][i]
+    ob = bpy.data.objects
+    if "bowstring" not in ob or not (k.get("string") or k.get("arrow")):
+        return []
+    bpy.context.view_layer.update()
+
+    def w(n):
+        return ob[n].matrix_world.translation.copy()
+    tT, tB, mid, hand = w("bowtipT"), w("bowtipB"), w("bowmid"), pv["handR"].matrix_world.translation.copy()
+    t = th(0) * 0.7
+    out = []
+    if k.get("string") == "drawn":
+        ob["bowstring"].hide_render = True
+        out += [seg("dstringT", tT, hand, t, "string"), seg("dstringB", tB, hand, t, "string")]
+    if k.get("arrow"):
+        if k["arrow"] == "drawn":
+            nock = hand
+            fwd = (mid - nock).normalized()
+            tip = mid + fwd * 0.16
+        else:
+            nock = (tT + tB) / 2
+            fwd = (ob["bowmid"].matrix_world.to_3x3() @ Vector((0, -1, 0))).normalized()
+            tip = nock + fwd * 0.6
+        out.append(seg("arrow", nock, tip, th(0) * 0.8, "wood"))
+        out.append(seg("arrowtip", tip - fwd * 0.05, tip + fwd * 0.05, th(0) * 1.1, "steel_hi"))
+    return out
 
 
 def pose_dying(root, pv, i, dirz):
@@ -585,7 +697,7 @@ def main():
         for o in list(bpy.data.objects):
             bpy.data.objects.remove(o, do_unlink=True)
         camera(cell, ppm)
-        root, hip, pv, legs = build(unit)
+        root, hip, pv, legs, action_only = build(unit)
         base = {k: tuple(v.rotation_euler) for k, v in pv.items()}
         hold = set(unit.get("hold", []))
         la = math.radians(STYLE.get("leg_swing", 26))
@@ -597,6 +709,12 @@ def main():
             dirz = math.radians(45 + d * 45)
             for f in cols:
                 pose_reset(root, hip, pv, base, legs, dirz)
+                is_action = ACTION_COL <= f < ACTION_COL + ACTION_N
+                for n in action_only:
+                    bpy.data.objects[n].hide_render = not is_action
+                if "bowstring" in bpy.data.objects:
+                    bpy.data.objects["bowstring"].hide_render = False
+                extras = []
                 if f <= frames:
                     if f == 0:
                         s, c = 0.0, 0.0
@@ -623,6 +741,7 @@ def main():
                         pv[side].rotation_euler = (base[side][0] + sgn * s * amp, base[side][1], base[side][2])
                 elif f < ACTION_COL + ACTION_N:
                     pose_action(unit, pv, base, f - ACTION_COL)
+                    extras = bow_extras(unit, pv, f - ACTION_COL)
                 else:
                     pose_dying(root, pv, f - DIE_COL, dirz)
                 base_path = os.path.join(OUT, key, "d%d_f%d" % (d, f))
@@ -648,6 +767,8 @@ def main():
                 for o in bpy.data.objects:
                     if o.type == "MESH":
                         o.color = cols_[o.name]
+                for o in extras:
+                    bpy.data.objects.remove(o, do_unlink=True)
         meta["units"].append(unit_meta(key))
         print("rendered", key, flush=True)
     rj = os.path.join(OUT, "render.json")
