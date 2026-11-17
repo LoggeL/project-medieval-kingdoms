@@ -69,6 +69,11 @@ export interface UnitAI {
   retreat?: boolean;
   /** Rückzug unmöglich, kämpft bis zuletzt. */
   cornered?: boolean;
+  /**
+   * Gang durchs Lagerhaus: Gebäude, Fach, zurückgelegte Strecke auf storeWalk (Tiles), Wartezeit am Fach (Ticks),
+   * done = Ware getauscht, die Figur geht wieder hinaus. Fehlt in alten Spielständen.
+   */
+  visit?: { b: number; k: number; s: number; wait: number; done: boolean };
   /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
   sortie?: boolean;
 }

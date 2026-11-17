@@ -80,10 +80,25 @@ export interface BuildingDef {
   /** Platzierungsregeln. */
   placement?: { nearTag?: { tag: "tree" | "rock"; count: number; radius: number }; adjacentTerrain?: TerrainKey };
   workers?: { unit: UnitKey; count: number; cycle: CycleStep[] };
+  /**
+   * Zugang: Kachel vor der Tür in Tiles ab Grundrissmitte (Modellachsen, dreht mit der Ausrichtung).
+   * Fehlt er, liegt der Zugang mittig vor der Vorderkante (Modell −y). Träger liefern und holen nur hier.
+   */
+  access?: [number, number];
   /** Hofstapel (Ausgang) mit Kapazität; Träger holen von hier ab. */
   output?: { good: Good; capacity: number };
-  /** Lagerplatz: Slots mit eigenem Stapel. */
-  storage?: { slots: number; perSlot: number };
+  /**
+   * Lager: Fächer mit eigenem Stapel. shelves = Mitte jedes Fachs in Tiles ab Grundrissmitte (Modellachsen), in der
+   * Reihenfolge, in der leere Fächer belegt werden; dieselben Werte stehen in tools/blender/buildings/buildings.json
+   * (lagerhaus_innen). Träger gehen durch die Tür den Mittelgang entlang bis vor ihr Fach.
+   */
+  storage?: { slots: number; perSlot: number; shelves: [number, number][] };
+  /**
+   * Geschlossenes Gebäude mit Innenansicht (nur Darstellung): Schnittbild ohne Dach im Gebäudeblatt, eingeblendet beim
+   * Überfahren und in der Auswahl. spots = Stellen für Figuren im Inneren (Tiles ab Grundrissmitte, Modellachsen),
+   * z. B. der Rekrut in der Ausbildung.
+   */
+  interior?: { sprite: string; spots?: [number, number][] };
   /** Wohnraum (erhöht die Bevölkerungsgrenze). */
   housing?: number;
   /** Ausbildung von Einheiten. */
@@ -103,9 +118,13 @@ export interface BuildingDef {
 
 export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   lager: {
-    name: "Lagerplatz", desc: "Acht Stellplätze für Holz, Stein, Eisen und Waffen. Jede Ware liegt sichtbar auf ihrem Stapel.",
-    category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lager_boden",
-    storage: { slots: 8, perSlot: 20 }, hp: 300,
+    name: "Lagerhaus", desc: "Geschlossenes Lagerhaus mit acht Fächern für Holz, Stein, Eisen und Waffen. Träger kommen nur durch das Tor. Maus darüber zeigt die Fächer.",
+    category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lagerhaus", access: [0, -2],
+    storage: {
+      slots: 8, perSlot: 20,
+      shelves: [[-0.95, -0.78], [0.95, -0.78], [-0.95, -0.18], [0.95, -0.18], [-0.95, 0.42], [0.95, 0.42], [-0.95, 1.02], [0.95, 1.02]],
+    },
+    interior: { sprite: "lagerhaus_innen" }, hp: 300,
   },
   holzfaeller: {
     name: "Holzfällerhütte", desc: "Ein Holzfäller fällt Bäume in der Nähe, zerlegt sie und legt die Stämme auf seinen Hof.",
@@ -121,7 +140,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
         { do: "deposit", into: "output" },
       ],
     },
-    output: { good: "holz", capacity: 4 }, hp: 200,
+    output: { good: "holz", capacity: 4 }, interior: { sprite: "holzfaeller_innen" }, hp: 200,
   },
   steinbruch: {
     name: "Steinbruch", desc: "Zwei Steinmetze brechen Blöcke aus dem Fels. Muss an Fels grenzen.",
@@ -141,11 +160,12 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   kaserne: {
     name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt die Waffe aus dem Lager und tritt hier ein.",
     category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne",
-    trains: ["speer", "schwert", "bogen"], hp: 500,
+    trains: ["speer", "schwert", "bogen"], interior: { sprite: "kaserne_innen", spots: [[0.24, 0.51]] }, hp: 500,
   },
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
-    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", housing: 4, hp: 150,
+    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", housing: 4,
+    interior: { sprite: "haus_innen" }, hp: 150,
   },
   mauer: {
     name: "Steinmauer", desc: "Ziehen, um eine Mauer zu bauen. Der Wehrgang ist begehbar, Schützen stehen hinter den Zinnen.",
@@ -228,7 +248,12 @@ export const START = {
   mapSize: 64,
   gold: 150,
   peasants: 8,
-  /** Startbestand im vorgebauten Lager. */
+  /**
+   * Startaufstellung: fertige Gebäude, linke obere Ecke relativ zum Siedlungsanker der Karte (MapResult.lager,
+   * Eingang zur Straße) und Ausrichtung. Weitere Startgebäude kommen als Einträge hinzu.
+   */
+  buildings: [{ key: "lager", at: [0, 0], o: 0 }] as { key: BuildingKey; at: [number, number]; o: number }[],
+  /** Startbestand in den Lagern der Startaufstellung. */
   stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
   raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
@@ -301,6 +326,8 @@ export const TUNING = {
   postGuardRadius: 7,
   /** Angreifer ziehen sich unter diesem Anteil ihrer Lebenspunkte zurück (und wenn sie allein übrig sind). */
   retreatHp: 0.3,
+  /** Träger halten so lange am Fach im Lagerhaus, um Ware abzulegen oder aufzunehmen (Sekunden). */
+  shelfSeconds: 0.3,
   /** Wer als Letzter seiner Welle übrig ist, zieht erst unter diesem LP-Anteil ab (bei voller Kraft kämpft er weiter). */
   retreatLoneHp: 0.7,
 };

@@ -6,8 +6,8 @@ import { h } from "./dom";
 const KEYS = STEUERUNG;
 
 const TIPS = [
-  "Holzfäller und Steinmetze legen ihre Ware auf den Hof, Tagelöhner tragen sie zum Lagerplatz.",
-  "Der Lagerplatz zeigt jede Ware auf ihrem Stapel. Ist er voll, ruht die Arbeit.",
+  "Holzfäller und Steinmetze legen ihre Ware auf den Hof, Tagelöhner tragen sie durch das Tor ins Lagerhaus.",
+  "Fährst du mit der Maus über ein Gebäude, siehst du hinein: im Lagerhaus jede Ware auf ihrem Fach. Ist es voll, ruht die Arbeit.",
   "Soldaten kosten Gold und eine Waffe aus dem Lager. Ein Tagelöhner holt sie und tritt in die Kaserne ein.",
   "Mauern sind begehbar: Treppe anbauen, Soldaten stationieren. Schützen auf der Mauer schießen weiter und nehmen weniger Schaden.",
   "Übersichtskarte: Klicken oder Ziehen setzt die Kamera dorthin, der helle Rahmen zeigt den Sichtbereich.",

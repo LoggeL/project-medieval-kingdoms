@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { entrance, footprint, modelToWorld, slotTile, stairEnds, turn, viewOf } from "../src/sim/geom";
+import { entrance, footprint, footprintTiles, modelToWorld, shelfWorld, stairEnds, storeWalk, turn, viewOf } from "../src/sim/geom";
 
 describe("geom", () => {
   it("dreht Versätze im Sinn der Gebäudeansichten", () => {
@@ -14,11 +14,28 @@ describe("geom", () => {
   it("legt den Eingang vor die Vorderseite", () => {
     expect(entrance("lager", 10, 10, 0)).toEqual([11, 13]); // Vorderseite Modell −y = Welt +y
   });
-  it("Lager-Slots liegen im Grundriss", () => {
-    for (let k = 0; k < 8; k++) for (let o = 0; o < 4; o++) {
-      const [x, y] = slotTile(10, 10, o, k);
-      expect(x).toBeGreaterThanOrEqual(10); expect(x).toBeLessThan(13);
-      expect(y).toBeGreaterThanOrEqual(10); expect(y).toBeLessThan(13);
+  it("Zugangskachel aus den Daten dreht mit der Ausrichtung", () => {
+    // Lagerhaus 3 × 3 bei (10, 10): Zugang Modell (0, −2) = Welt vor der Vorderkante, je Ausrichtung eine andere Seite
+    expect(entrance("lager", 10, 10, 0)).toEqual([11, 13]);
+    expect(entrance("lager", 10, 10, 1)).toEqual([13, 11]);
+    expect(entrance("lager", 10, 10, 2)).toEqual([11, 9]);
+    expect(entrance("lager", 10, 10, 3)).toEqual([9, 11]);
+  });
+  it("Fächer liegen im Grundriss, der Weg dorthin beginnt vor dem Tor und bleibt danach im Gebäude", () => {
+    for (let o = 0; o < 4; o++) {
+      const fp = new Set(footprintTiles("lager", 10, 10, o).map(([x, y]) => `${x},${y}`));
+      const [ex, ey] = entrance("lager", 10, 10, o);
+      expect(fp.has(`${ex},${ey}`)).toBe(false);
+      for (let k = 0; k < 8; k++) {
+        const [x, y] = shelfWorld("lager", 10, 10, o, k);
+        expect(fp.has(`${Math.floor(x)},${Math.floor(y)}`)).toBe(true);
+        const walk = storeWalk("lager", 10, 10, o, k);
+        expect(walk[0]).toEqual([ex + 0.5, ey + 0.5]);
+        for (const [px, py] of walk.slice(1)) expect(fp.has(`${Math.floor(px)},${Math.floor(py)}`)).toBe(true);
+        // Standpunkt vor dem Fach, nicht darauf
+        const [sx, sy] = walk[walk.length - 1];
+        expect(Math.hypot(sx - x, sy - y)).toBeGreaterThan(0.4);
+      }
     }
   });
   it("Treppe: oben an der Mauer, unten am Boden", () => {

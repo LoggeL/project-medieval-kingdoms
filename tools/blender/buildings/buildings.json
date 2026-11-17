@@ -25,5 +25,11 @@
  "mauer_t": {"name": "Mauer T-Stück", "footprint": [1, 1], "variants": ["Standard"], "seed": 43, "front": true, "posts": [[0, 0, 3]]},
  "mauer_kreuz": {"name": "Mauerkreuzung", "footprint": [1, 1], "variants": ["Standard"], "seed": 44, "front": true, "posts": [[0, 0, 3]]},
  "mauer_einzel": {"name": "Mauerblock", "footprint": [1, 1], "variants": ["Standard"], "seed": 45, "front": true, "posts": [[0, 0, 3]]},
- "tor": {"name": "Tor", "footprint": [1, 1], "variants": ["geschlossen", "offen"], "seed": 46, "front": true, "posts": [[0, 0, 3]]}
+ "tor": {"name": "Tor", "footprint": [1, 1], "variants": ["geschlossen", "offen"], "seed": 46, "front": true, "posts": [[0, 0, 3]]},
+ "lagerhaus": {"name": "Lagerhaus", "footprint": [3, 3], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 50},
+ "lagerhaus_innen": {"name": "Lagerhaus (innen)", "footprint": [3, 3], "variants": ["leer", "ein Viertel", "halb", "drei Viertel", "voll"], "seed": 50, "front": true, "cutaway": true,
+  "shelves": [[-0.95, -0.78], [0.95, -0.78], [-0.95, -0.18], [0.95, -0.18], [-0.95, 0.42], [0.95, 0.42], [-0.95, 1.02], [0.95, 1.02]]},
+ "haus_innen": {"name": "Wohnhaus (innen)", "footprint": [2, 2], "variants": ["leer", "1 Bewohner", "2 Bewohner", "3 Bewohner", "4 Bewohner"], "seed": 11, "front": true, "cutaway": true},
+ "holzfaeller_innen": {"name": "Holzfällerhütte (innen)", "footprint": [2, 2], "variants": ["Hof leer", "Hof halb", "Hof voll"], "seed": 12, "front": true, "cutaway": true},
+ "kaserne_innen": {"name": "Kaserne (innen)", "footprint": [4, 3], "variants": ["Standard"], "seed": 15, "front": true, "cutaway": true, "dummy": [0.55, 0.62]}
 }

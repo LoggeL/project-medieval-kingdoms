@@ -68,6 +68,7 @@ class MB:
         self.seed = seed
         self.rnd = random.Random(seed)
         self.M = Matrix.Identity(4)
+        self.view = 0  # cutaway buildings are built per view (walls towards the camera stay low)
 
     def at(self, loc=(0, 0, 0), rz=0.0):
         mb = self
@@ -457,6 +458,11 @@ def fence(mb, pts, h=0.95, step=1.1, gaps=(), groups=None):
 
 # ---------------------------------------------------------------- buildings
 def b_haus(mb, var):
+    b_haus_body(mb)
+    haus_garden(mb)
+
+
+def b_haus_body(mb):
     W, D = 3.9, 3.2
     masonry(mb, -W / 2 - 0.1, W / 2 + 0.1, -D / 2 - 0.1, D / 2 + 0.1, 0, 0.42, row=0.21, top=True)
     timber_frame(mb, -W / 2, W / 2, -D / 2, D / 2, 0.42, 2.75, spacing=0.98)
@@ -474,8 +480,10 @@ def b_haus(mb, var):
     for x in (0.2, 1.4):
         mb.bx("wood", x - 0.05, x + 0.05, -D / 2 - 0.5, -D / 2 - 0.3, 0, 0.4)
     log_pile(mb, W / 2 + 0.38, 0.6, 0, 3, length=0.7, r=0.1, axis="y")
-    # garden strip
-    ground(mb, "dirt", -2.3, 2.4, -2.45, -D / 2 - 0.05, ragged=0.1)
+
+
+def haus_garden(mb):
+    ground(mb, "dirt", -2.3, 2.4, -2.45, -3.2 / 2 - 0.05, ragged=0.1)
 
 
 def b_holzfaeller(mb, var):
@@ -1094,12 +1102,487 @@ def b_lager_boden(mb, var):
             mb.bx("wood" if q % 2 else "wood_hi", x - 0.95, x + 0.95, y_ + 0.02, y_ + 0.36, 0.03, 0.06)
 
 
+# ---------------------------------------------------------------- storehouse and cutaways (interior views)
+# Cutaway sprites ("cutaway": true in buildings.json) are built once per view d (mb.view): the walls that face the camera
+# in that view stay low (group "f:x:y", drawn again as the _front overlay after goods and figures), the others stand at
+# full height, there is no roof. Ground and everything outside match the exterior sprite (same seed, same draws first),
+# so swapping the sprites only opens the house.
+SIDE_N = {"s": (0, -1), "n": (0, 1), "e": (1, 0), "w": (-1, 0)}
+
+
+def low_side(side, d):
+    """Does wall side (outward normal in model axes) face the camera in view d?"""
+    return is_front("f:%d:%d" % SIDE_N[side], d)
+
+
+def side_group(side):
+    return "f:%d:%d" % SIDE_N[side]
+
+
+def wall_box(side, x0, x1, y0, y1, th):
+    """One side of a rectangular wall ring (outer faces x0..x1, y0..y1, thickness th): (x0, x1, y0, y1)."""
+    if side == "s":
+        return (x0, x1, y0, y0 + th)
+    if side == "n":
+        return (x0, x1, y1 - th, y1)
+    if side == "e":
+        return (x1 - th, x1, y0 + th, y1 - th)
+    return (x0, x0 + th, y0 + th, y1 - th)
+
+
+def split_gap(side, box, gap):
+    """Parts of a wall box left and right of an opening gap = (a, b, top) along the wall."""
+    x0, x1, y0, y1 = box
+    if not gap:
+        return [box]
+    a, b = gap[0], gap[1]
+    if side in "sn":
+        return [p for p in ((x0, a, y0, y1), (b, x1, y0, y1)) if p[1] - p[0] > 0.01]
+    return [p for p in ((x0, x1, y0, a), (x0, x1, b, y1)) if p[3] - p[2] > 0.01]
+
+
+def above_gap(side, box, gap):
+    x0, x1, y0, y1 = box
+    a, b = gap[0], gap[1]
+    return (a, b, y0, y1) if side in "sn" else (x0, x1, a, b)
+
+
+def slab(mb, mat, side, box, z0, z1, gap=None, group=None):
+    """Plain wall slab with an optional opening gap = (a, b, top)."""
+    if z1 <= z0 + 1e-3:
+        return
+    for p in split_gap(side, box, gap):
+        mb.bx(mat, p[0], p[1], p[2], p[3], z0, z1, group=group)
+    if gap and z1 > gap[2]:
+        p = above_gap(side, box, gap)
+        mb.bx(mat, p[0], p[1], p[2], p[3], max(z0, gap[2]), z1, group=group)
+
+
+def stone_slab(mb, side, box, z0, z1, gap=None, group=None, row=0.3):
+    """Wall slab in block masonry (outer face on this side), with an optional opening."""
+    if z1 <= z0 + 1e-3:
+        return
+    for p in split_gap(side, box, gap):
+        masonry(mb, p[0], p[1], p[2], p[3], z0, z1, row=row, top=True, sides=side, group=group)
+    if gap and z1 > gap[2]:
+        p = above_gap(side, box, gap)
+        masonry(mb, p[0], p[1], p[2], p[3], max(z0, gap[2]), z1, row=row, top=True, sides=side, group=group)
+
+
+def cut_house(mb, x0, x1, y0, y1, base, eave, th=0.16, gaps=None, posts=1.1, plinth=True):
+    """Hollow framed house walls for a cutaway: stone base 0..base (unless plinth=False), plastered wall with posts
+    base..eave on the full sides, a timber sill on the low sides. gaps: side -> (a, b, top) door opening."""
+    gaps = gaps or {}
+    d = mb.view
+    for side in "nesw":
+        is_low = low_side(side, d)
+        g = side_group(side) if is_low else None
+        box = wall_box(side, x0, x1, y0, y1, th)
+        gap = gaps.get(side)
+        ground_gap = (gap[0], gap[1], 0.0) if gap else None
+        if plinth:
+            stone_slab(mb, side, box, 0, base, ground_gap, group=g, row=base / 2)
+        if is_low:
+            slab(mb, "timber", side, box, base, base + 0.16, ground_gap, group=g)
+            continue
+        slab(mb, "plaster", side, box, base, eave - 0.12, gap)
+        slab(mb, "timber", side, box, eave - 0.12, eave, gap)  # top plate (no roof above)
+        bx0, bx1, by0, by1 = box
+        if side in "sn":
+            k = max(1, round((x1 - x0) / posts))
+            for i in range(k + 1):
+                xx = x0 + th + (x1 - x0 - 2 * th) * i / k
+                if gap and gap[0] - 0.12 < xx < gap[1] + 0.12:
+                    continue
+                yy = by1 if side == "s" else by0 - 0.05
+                mb.bx("timber", xx - 0.07, xx + 0.07, yy, yy + 0.05, base, eave - 0.12)
+        else:
+            k = max(1, round((y1 - y0) / posts))
+            for i in range(k + 1):
+                yy = y0 + th + (y1 - y0 - 2 * th) * i / k
+                if gap and gap[0] - 0.12 < yy < gap[1] + 0.12:
+                    continue
+                xx = bx1 if side == "w" else bx0 - 0.05
+                mb.bx("timber", xx, xx + 0.05, yy - 0.07, yy + 0.07, base, eave - 0.12)
+        if gap:  # door frame of an opening in a full wall
+            a, b, top = gap
+            if side in "sn":
+                mb.bx("timber", a - 0.08, a, by0 - 0.02, by1 + 0.02, 0, top)
+                mb.bx("timber", b, b + 0.08, by0 - 0.02, by1 + 0.02, 0, top)
+                mb.bx("timber", a - 0.08, b + 0.08, by0 - 0.02, by1 + 0.02, top, top + 0.14)
+            else:
+                mb.bx("timber", bx0 - 0.02, bx1 + 0.02, a - 0.08, a, 0, top)
+                mb.bx("timber", bx0 - 0.02, bx1 + 0.02, b, b + 0.08, 0, top)
+                mb.bx("timber", bx0 - 0.02, bx1 + 0.02, a - 0.08, b + 0.08, top, top + 0.14)
+
+
+def plank_floor(mb, x0, x1, y0, y1, z0, z1, pitch=0.36, along="x"):
+    k = 0
+    if along == "x":
+        y = y0
+        while y < y1 - 0.02:
+            mb.bx("wood_hi" if k % 2 else "wood", x0, x1, y + 0.015, min(y1, y + pitch) - 0.015, z0, z1)
+            y += pitch
+            k += 1
+    else:
+        x = x0
+        while x < x1 - 0.02:
+            mb.bx("wood_hi" if k % 2 else "wood", x + 0.015, min(x1, x + pitch) - 0.015, y0, y1, z0, z1)
+            x += pitch
+            k += 1
+
+
+# storehouse: wall ring (outer faces) and the gate in the front wall (model -y, the access tile lies in front of it)
+LH_X, LH_Y0, LH_Y1, LH_BASE, LH_EAVE = 3.5, -2.95, 3.6, 0.45, 2.9
+LH_GATE = (-1.0, 1.0, 2.35)
+
+
+def lager_apron(mb, var):
+    """Fill level in front of the gate: crates, barrels and sacks on the apron (variants 0..4)."""
+    y = -3.42
+    if var >= 1:
+        crate(mb, -2.25, y, 0, s=0.5, rz=6)
+    if var >= 2:
+        barrel(mb, 2.2, y, 0, r=0.27, h=0.7)
+    if var >= 3:
+        crate(mb, -1.65, y - 0.02, 0, s=0.46, rz=-9)
+        barrel(mb, 1.62, y + 0.02, 0, r=0.25, h=0.66)
+    if var >= 4:
+        crate(mb, -2.2, y + 0.03, 0.5, s=0.42, rz=14)
+        for (sx, sy, sz) in ((2.75, y - 0.05, 0.16), (2.72, y + 0.2, 0.16), (2.75, y + 0.06, 0.42)):
+            mb.blob("sack", (sx, sy, sz), (0.24, 0.2, 0.17), seg=7, rings=4, jitter=0.06)
+
+
+def b_lagerhaus(mb, var):
+    """Closed storehouse 3 x 3: stone base, timber frame, tiled roof (ridge along x), double gate in the front wall."""
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    x, y0, y1 = LH_X, LH_Y0, LH_Y1
+    masonry(mb, -x - 0.05, x + 0.05, y0 - 0.05, y1 + 0.05, 0, LH_BASE, row=0.225, top=True)
+    timber_frame(mb, -x, x, y0, y1, LH_BASE, LH_EAVE, spacing=1.17)
+    cy = (y0 + y1) / 2
+    with mb.at((0, cy, 0)):
+        gable_roof(mb, 2 * x, (y1 - y0) / 2 + 0.42, LH_EAVE, 2.4, "roof_tile", ov=0.3, row=0.32, thick=0.08, gable="plaster", ridge="roof_tile")
+    # gate: two plank leaves with braces and iron bands, timber frame, stone ramp
+    a, b, top = LH_GATE
+    mb.bx("timber", a - 0.16, a, y0 - 0.1, y0 + 0.02, 0, top + 0.05)
+    mb.bx("timber", b, b + 0.16, y0 - 0.1, y0 + 0.02, 0, top + 0.05)
+    mb.bx("timber", a - 0.22, b + 0.22, y0 - 0.12, y0 + 0.02, top, top + 0.2)
+    for (l0, l1) in ((a, -0.02), (0.02, b)):
+        mb.bx("door", l0, l1, y0 - 0.09, y0 - 0.04, 0.02, top)
+        for q in range(1, 4):  # plank seams
+            xx = l0 + (l1 - l0) * q / 4
+            mb.bx("wood", xx - 0.012, xx + 0.012, y0 - 0.1, y0 - 0.08, 0.02, top)
+        for zz in (0.45, top - 0.45):
+            mb.bx("iron", l0 + 0.04, l1 - 0.04, y0 - 0.12, y0 - 0.09, zz - 0.04, zz + 0.04)
+        ang = math.degrees(math.atan2(top - 0.9, l1 - l0))
+        mb.box("wood_hi", ((l0 + l1) / 2, y0 - 0.11, top / 2), (math.hypot(l1 - l0, top - 0.9) * 0.98, 0.03, 0.09),
+               rot=(0, -ang if l0 < 0 else ang, 0))
+    mb.bx("iron", -0.05, 0.05, y0 - 0.14, y0 - 0.1, 1.0, 1.3)  # latch
+    mb.bx("stone_top", a - 0.3, b + 0.3, y0 - 0.5, y0 - 0.05, 0, 0.1)
+    # hoist beam above the gate and a sign board with a crate
+    mb.bx("timber", -0.09, 0.09, y0 - 0.95, y0, top + 0.3, top + 0.45)
+    mb.box("rope", (0, y0 - 0.85, top - 0.15), (0.03, 0.03, 0.85))
+    mb.bx("timber", 1.45, 1.53, y0 - 0.45, y0, 2.15, 2.21)
+    mb.bx("wood_hi", 1.25, 1.75, y0 - 0.42, y0 - 0.38, 1.6, 2.05)
+    mb.bx("crate", 1.38, 1.62, y0 - 0.44, y0 - 0.42, 1.7, 1.94)
+    for yy in (y0 + 1.6, y1 - 1.6):
+        window(mb, "e", (x, yy, 1.45), w=0.45, h=0.5)
+    lager_apron(mb, var)
+
+
+def b_lagerhaus_innen(mb, var):
+    """Storehouse cutaway: plank floor with eight bays (shelves from buildings.json, the same as
+    BUILDINGS.lager.storage.shelves in src/data), racks against the full walls, gate opening, hand cart.
+    Goods (stapel_*) and carriers are drawn by the game on top, then the low front walls (_front)."""
+    S = 3 * T / 2
+    ground(mb, "dirt", -S + 0.05, S - 0.05, -S + 0.05, S - 0.05, ragged=0.05)
+    x, y0, y1 = LH_X, LH_Y0, LH_Y1
+    mb.rnd = random.Random(1000 * mb.seed + 77)
+    th = 0.16
+    cut_house(mb, -x, x, y0, y1, LH_BASE, LH_EAVE, th=th, gaps={"s": LH_GATE}, posts=1.17)
+    plank_floor(mb, -x + th, x - th, y0 + th, y1 - th, 0.0, STACK_Z - 0.01, pitch=0.42, along="y")
+    mb.bx("stone_top", LH_GATE[0], LH_GATE[1], y0 - 0.5, y0 + th, 0, 0.06)
+    d = mb.view
+    for (sx, sy) in DEFS["lagerhaus_innen"]["shelves"]:
+        cx, cy = sx * T, sy * T
+        sg = 1 if cx > 0 else -1
+        # bay: darker boards under the goods, a low kerb towards the aisle
+        mb.bx("wood", cx - 0.9, cx + 0.9, cy - 0.66, cy + 0.66, STACK_Z - 0.01, STACK_Z)
+        kx = cx - sg * 0.93
+        mb.bx("timber", kx - 0.03, kx + 0.03, cy - 0.66, cy + 0.66, STACK_Z, STACK_Z + 0.08)
+        # posts between the bays and a shelf board with sacks (only against a wall at full height)
+        if not low_side("e" if sg > 0 else "w", d):
+            wx = sg * (x - th - 0.06)
+            for yy in (cy - 0.72, cy + 0.72):
+                mb.bx("timber", wx - 0.05, wx + 0.05, yy - 0.05, yy + 0.05, 0, 2.6)
+            mb.bx("wood_hi", min(wx, wx - sg * 0.4), max(wx, wx - sg * 0.4), cy - 0.7, cy + 0.7, 2.45, 2.5)
+            for q in range(2):
+                mb.blob("sack", (wx - sg * 0.2, cy - 0.32 + q * 0.6, 2.63), (0.15, 0.17, 0.13), seg=6, rings=4, jitter=0.08)
+    # back wall: ladder and rope coils when it stands at full height
+    if not low_side("n", d):
+        yb = y1 - th
+        for lx in (-0.6, 0.0):
+            mb.box("wood_hi", (lx, yb - 0.3, 1.35), (0.07, 0.06, 2.7), rot=(-12, 0, 0))
+        for k in range(6):
+            zz = 0.3 + k * 0.4
+            mb.bx("wood", -0.6, 0.0, yb - 0.3 - (1.35 - zz) * 0.21 - 0.03, yb - 0.3 - (1.35 - zz) * 0.21 + 0.03, zz, zz + 0.05)
+        mb.cyl("rope", (0.8, yb - 0.05, 1.7), 0.22, 0.08, n=10, rot=(90, 0, 0))
+        mb.cyl("rope", (1.25, yb - 0.05, 1.55), 0.16, 0.08, n=10, rot=(90, 0, 0))
+    with mb.at((-1.0, y0 + 0.75, 0), rz=-12):  # hand cart beside the aisle entrance
+        mb.bx("wood", -0.32, 0.32, -0.22, 0.22, 0.3, 0.4)
+        mb.bx("wood_hi", -0.32, 0.32, -0.22, -0.18, 0.4, 0.55)
+        mb.bx("wood_hi", -0.32, 0.32, 0.18, 0.22, 0.4, 0.55)
+        mb.cyl("wood", (0.0, -0.27, 0.28), 0.27, 0.05, n=10, rot=(90, 0, 0))
+        mb.box("wood", (0.0, 0.55, 0.4), (0.05, 0.7, 0.05), rot=(-10, 0, 0))
+    lager_apron(mb, var)
+
+
+def haus_outside(mb):
+    """The things outside the house, as in b_haus_body: door step, barrel, bench, woodpile."""
+    W, D = 3.9, 3.2
+    mb.bx("stone_top", -1.15, -0.15, -D / 2 - 0.38, -D / 2 - 0.1, 0, 0.21)
+    with mb.at((-W / 2 - 0.15, -D / 2 - 0.55, 0)):
+        barrel(mb, 0, 0, 0)
+    mb.bx("wood", 0.1, 1.5, -D / 2 - 0.55, -D / 2 - 0.25, 0.4, 0.47)
+    for x in (0.2, 1.4):
+        mb.bx("wood", x - 0.05, x + 0.05, -D / 2 - 0.5, -D / 2 - 0.3, 0, 0.4)
+    log_pile(mb, W / 2 + 0.38, 0.6, 0, 3, length=0.7, r=0.1, axis="y")
+
+
+def bed(mb, x0, x1, y0, y1, z, along, sleeper):
+    """Straw bed in a wooden frame; sleeper = a resident under the blanket, head on the pillow (low end)."""
+    mb.bx("wood", x0, x1, y0, y1, z, z + 0.2)
+    mb.bx("sack", x0 + 0.05, x1 - 0.05, y0 + 0.05, y1 - 0.05, z + 0.2, z + 0.3)
+    if along == "y":
+        mb.bx("cloth", x0 + 0.12, x1 - 0.12, y0 + 0.08, y0 + 0.4, z + 0.3, z + 0.4)
+        hx, hy = (x0 + x1) / 2, y0 + 0.25
+        bl = (x0 + 0.07, x1 - 0.07, y0 + 0.45, y1 - 0.08)
+    else:
+        mb.bx("cloth", x0 + 0.08, x0 + 0.4, y0 + 0.12, y1 - 0.12, z + 0.3, z + 0.4)
+        hx, hy = x0 + 0.25, (y0 + y1) / 2
+        bl = (x0 + 0.45, x1 - 0.08, y0 + 0.07, y1 - 0.07)
+    if sleeper:
+        mb.blob("leather", ((bl[0] + bl[1]) / 2, (bl[2] + bl[3]) / 2, z + 0.4),
+                ((bl[1] - bl[0]) / 2, (bl[3] - bl[2]) / 2, 0.14), seg=8, rings=4, jitter=0.04)
+        mb.blob("skin", (hx, hy, z + 0.5), (0.12, 0.12, 0.11), seg=7, rings=5, jitter=0.02)
+        mb.blob("hair", (hx + (0.04 if along == "x" else 0), hy + (0.04 if along == "y" else 0), z + 0.56), (0.11, 0.11, 0.06), seg=7, rings=4, jitter=0.02)
+    elif along == "y":  # folded blanket at the foot
+        mb.bx("leather", x0 + 0.1, x1 - 0.1, y1 - 0.45, y1 - 0.12, z + 0.3, z + 0.38)
+    else:
+        mb.bx("leather", x1 - 0.45, x1 - 0.12, y0 + 0.1, y1 - 0.1, z + 0.3, z + 0.38)
+
+
+def b_haus_innen(mb, var):
+    """Living house cutaway: four beds (two bunks), hearth at the chimney, table with bench, chest. var = beds occupied."""
+    scratch = MB(mb.seed)
+    b_haus_body(scratch)          # same random draws as the exterior first, so the garden strip matches exactly
+    mb.rnd = scratch.rnd
+    haus_garden(mb)
+    mb.rnd = random.Random(1000 * mb.seed + 78)
+    W, D = 3.9, 3.2
+    z = 0.42
+    masonry(mb, -W / 2 - 0.1, W / 2 + 0.1, -D / 2 - 0.1, D / 2 + 0.1, 0, z, row=0.21, top=True)
+    cut_house(mb, -W / 2, W / 2, -D / 2, D / 2, z, 2.75, th=0.14, gaps={"s": (-1.1, -0.2, z + 1.95)}, posts=0.98, plinth=False)
+    plank_floor(mb, -W / 2 + 0.14, W / 2 - 0.14, -D / 2 + 0.14, D / 2 - 0.14, z, z + 0.03, pitch=0.3, along="x")
+    z += 0.03
+    haus_outside(mb)
+    # hearth with the chimney (where the exterior chimney stands)
+    masonry(mb, 0.75, 1.3, 0.25, 0.8, z, 2.75, row=0.27, top=True)
+    mb.bx("stone_top", 0.6, 1.45, 0.05, 0.85, z, z + 0.16)
+    mb.bx("window", 0.85, 1.2, 0.22, 0.26, z + 0.16, z + 0.7)
+    mb.bx("target", 0.85, 1.2, 0.1, 0.3, z + 0.16, z + 0.22)
+    for (fx, fh) in ((0.93, 0.3), (1.03, 0.4), (1.12, 0.26)):
+        mb.box("gold", (fx, 0.18, z + 0.22 + fh / 2), (0.07, 0.05, fh), rot=(0, 8 if fx < 1 else -8, 0))
+    mb.cyl("iron", (1.02, 0.06, z + 0.62), 0.15, 0.22, n=8)  # pot
+    # beds: two bunks, lower beds first
+    beds = [((-1.8, -1.05, -1.4, 0.4), z, "y"), ((-0.95, 0.6, 0.85, 1.5), z, "x"),
+            ((-1.8, -1.05, -1.4, 0.4), z + 1.15, "y"), ((-0.95, 0.6, 0.85, 1.5), z + 1.15, "x")]
+    for (x0, x1, y0, y1), bz, _ in beds[2:]:
+        for (px, py) in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
+            mb.bx("wood", px - 0.04, px + 0.04, py - 0.04, py + 0.04, z, bz + 0.55)
+    for i, ((x0, x1, y0, y1), bz, along) in enumerate(beds):
+        bed(mb, x0, x1, y0, y1, bz, along, i < var)
+    # table with bench, jug and bowl; a chest by the window
+    mb.bx("wood_hi", 0.0, 1.0, -1.2, -0.55, z + 0.7, z + 0.76)
+    for (lx, ly) in ((0.08, -1.12), (0.92, -1.12), (0.08, -0.63), (0.92, -0.63)):
+        mb.bx("wood", lx - 0.04, lx + 0.04, ly - 0.04, ly + 0.04, z, z + 0.7)
+    mb.bx("wood", 0.05, 0.95, -0.4, -0.22, z + 0.42, z + 0.47)
+    for lx in (0.12, 0.88):
+        mb.bx("wood", lx - 0.04, lx + 0.04, -0.35, -0.27, z, z + 0.42)
+    mb.cyl("barrel", (0.3, -0.85, z + 0.86), 0.07, 0.2, n=8)
+    mb.cyl("wood", (0.65, -0.95, z + 0.78), 0.12, 0.04, n=8)
+    with mb.at((1.5, -1.1, z)):
+        mb.bx("crate", -0.3, 0.3, -0.2, 0.2, 0, 0.42)
+        mb.bx("iron", -0.32, 0.32, -0.22, 0.22, 0.38, 0.42)
+
+
+def b_holzfaeller_innen(mb, var):
+    """Woodcutter's hut without roof: workbench with saw and log, axes on the back wall, billets, a straw bed.
+    The yard (chopping block, saw horse, output piles) is the same as outside."""
+    W, D = 2.6, 2.1
+    cx, cy = -1.15, 1.2
+    r = 0.13
+    ground(mb, "dirt", -2.5, 2.5, -2.5, 2.5, ragged=0.3)
+    d = mb.view
+    with mb.at((cx, cy, 0)):
+        plank_floor(mb, -W / 2 + 0.05, W / 2 - 0.05, -D / 2 + 0.05, D / 2 - 0.05, 0.0, 0.05, pitch=0.3, along="x")
+        # log courses as outside; on the camera sides only the two lowest courses
+        k, z = 0, r
+        while z < 2.1:
+            if k % 2 == 0:
+                for yy, side in ((-D / 2, "s"), (D / 2, "n")):
+                    lo = low_side(side, d)
+                    if lo and z > 2.5 * r:
+                        continue
+                    g = side_group(side) if lo else None
+                    if side == "s" and not lo and z < 1.95:  # door opening in a full front wall
+                        for (a, b) in ((-W / 2 - 0.2, -0.9), (0.0, W / 2 + 0.2)):
+                            mb.cyl("log", ((a + b) / 2, yy, z), r, b - a, n=8, rot=(0, 90, 0))
+                        continue
+                    mb.cyl("log", (0, yy, z), r, W + 0.4, n=8, rot=(0, 90, 0), group=g)
+            else:
+                for xx, side in ((-W / 2, "w"), (W / 2, "e")):
+                    lo = low_side(side, d)
+                    if lo and z > 2.5 * r:
+                        continue
+                    mb.cyl("log", (xx, 0, z), r, D + 0.4, n=8, rot=(90, 0, 0), group=side_group(side) if lo else None)
+            k += 1
+            z += r
+        # workbench with a log and a saw
+        mb.bx("wood_hi", -0.2, 0.9, 0.3, 0.8, 0.72, 0.8)
+        for (lx, ly) in ((-0.15, 0.35), (0.85, 0.35), (-0.15, 0.75), (0.85, 0.75)):
+            mb.bx("wood", lx - 0.04, lx + 0.04, ly - 0.04, ly + 0.04, 0.05, 0.72)
+        log(mb, (0.3, 0.6, 0.9), 0.8, r=0.1)
+        mb.box("steel", (0.5, 0.42, 0.84), (0.6, 0.02, 0.1), rot=(0, 0, 8))
+        mb.bx("wood", 0.8, 0.92, 0.38, 0.46, 0.8, 0.9)
+        if not low_side("n", d):  # axes on the back wall
+            for q in range(3):
+                ax = -0.95 + q * 0.32
+                mb.box("wood_hi", (ax, D / 2 - 0.22, 1.3), (0.04, 0.04, 0.75))
+                mb.box("steel", (ax + 0.07, D / 2 - 0.22, 1.6), (0.16, 0.03, 0.13))
+        log_pile(mb, -0.85, -0.4, 0.05, 2, length=0.5, r=0.08, axis="y")
+        mb.bx("wood", 0.35, 1.1, -0.9, 0.05, 0.05, 0.2)
+        mb.bx("sack", 0.4, 1.05, -0.85, 0.0, 0.2, 0.3)
+        mb.bx("leather", 0.43, 1.02, -0.18, -0.02, 0.3, 0.36)
+    # yard as outside
+    with mb.at((1.8, -1.8, 0)):
+        mb.cyl("wood", (0, 0, 0.25), 0.27, 0.5, n=9)
+        mb.cyl("wood_hi", (0, 0, 0.505), 0.25, 0.02, n=9)
+        mb.box("wood_hi", (0.15, 0.05, 0.72), (0.06, 0.06, 0.6), rot=(0, 25, 0))
+        mb.box("steel", (0.05, 0.05, 0.52), (0.22, 0.04, 0.14), rot=(0, 25, 0))
+        for q in range(5):
+            a_ = q * 72 + 20
+            mb.box("wood_hi", (0.55 * math.cos(math.radians(a_)), 0.55 * math.sin(math.radians(a_)), 0.07), (0.32, 0.1, 0.1), rot=(0, 0, a_))
+    with mb.at((0.35, -1.95, 0)):
+        for x in (-0.3, 0.3):
+            mb.box("wood", (x, -0.15, 0.38), (0.08, 0.08, 0.85), rot=(18, 0, 0))
+            mb.box("wood", (x, 0.15, 0.38), (0.08, 0.08, 0.85), rot=(-18, 0, 0))
+        log(mb, (0.0, 0.0, 0.72), 1.4, r=0.13)
+    log_pile(mb, 1.65, 1.55, 0, [0, 2, 4][var], length=1.7, r=0.16, axis="y")
+    log_pile(mb, -1.55, -1.65, 0, [0, 2, 4][var], length=1.7, r=0.16, axis="x")
+
+
+def b_kaserne_innen(mb, var):
+    """Barracks cutaway (ground floor): spear racks and shields on the back wall, bunks on the left wall, armour stand,
+    a sack dummy for the recruit in training (position in buildings.json), table. The yard is the same as outside."""
+    X, Y = 4 * T / 2, 3 * T / 2
+    ground(mb, "gravel", -X + 0.1, X - 0.1, -Y + 0.1, -0.6, ragged=0.1)
+    mb.rnd = random.Random(1000 * mb.seed + 79)
+    W, D = 2 * X - 0.8, 4.0
+    cy = Y - D / 2 - 0.35
+    d = mb.view
+    x0, x1, y0, y1 = -W / 2, W / 2, cy - D / 2, cy + D / 2
+    th = 0.3
+    for side in "nesw":
+        lo = low_side(side, d)
+        box = wall_box(side, x0, x1, y0, y1, th)
+        gap = (-0.65, 0.65, 2.3) if side == "s" else None
+        if lo:
+            stone_slab(mb, side, box, 0, 0.6, (gap[0], gap[1], 0.0) if gap else None, group=side_group(side), row=0.3)
+            continue
+        stone_slab(mb, side, box, 0, 2.7, gap, row=0.34)
+        bx0, bx1, by0, by1 = box  # plastered inner face
+        ib = {"s": (bx0 + th, bx1 - th, by1, by1 + 0.03), "n": (bx0 + th, bx1 - th, by0 - 0.03, by0),
+              "e": (bx0 - 0.03, bx0, by0, by1), "w": (bx1, bx1 + 0.03, by0, by1)}[side]
+        slab(mb, "plaster", side, ib, 0.25, 2.62, gap)
+        if gap:
+            a, b, top = gap
+            mb.bx("stone_top", a - 0.2, a, by0 - 0.04, by1 + 0.04, 0, top + 0.25)
+            mb.bx("stone_top", b, b + 0.2, by0 - 0.04, by1 + 0.04, 0, top + 0.25)
+            mb.bx("stone_top", a - 0.2, b + 0.2, by0 - 0.04, by1 + 0.04, top, top + 0.25)
+    plank_floor(mb, x0 + th, x1 - th, y0 + th, y1 - th, 0.0, 0.05, pitch=0.4, along="x")
+    if not low_side("n", d):  # spear racks and shields on the back wall
+        yb = y1 - th - 0.25
+        for (rx, n_) in ((-2.7, 6), (2.6, 5)):
+            for k in (-1, 1):
+                mb.box("wood", (rx + k * 0.7, yb, 0.75), (0.09, 0.09, 1.5))
+            mb.box("wood", (rx, yb, 1.35), (1.5, 0.07, 0.07))
+            mb.box("wood", (rx, yb, 0.35), (1.5, 0.07, 0.07))
+            for q in range(n_):
+                xx = rx - 0.55 + q * 1.1 / max(1, n_ - 1)
+                mb.box("wood_hi", (xx, yb - 0.08, 1.05), (0.04, 0.04, 2.0), rot=(-10, 0, 0))
+                mb.cyl("steel", (xx, yb - 0.26, 2.07), 0.05, 0.2, n=4, rot=(-10, 0, 0), r2=0)
+        for q in range(4):
+            sx = -1.0 + q * 0.62
+            mb.cyl("team" if q % 2 else "wood", (sx, y1 - th - 0.05, 1.75), 0.24, 0.05, n=10, rot=(90, 0, 0))
+            mb.cyl("iron", (sx, y1 - th - 0.09, 1.75), 0.07, 0.04, n=6, rot=(90, 0, 0))
+    if not low_side("w", d):  # two bunks against the left wall
+        bx0, bx1 = x0 + th + 0.05, x0 + th + 1.85
+        for by_ in (cy - 0.85, cy + 0.75):
+            for bz in (0.05, 1.15):
+                bed(mb, bx0, bx1, by_ - 0.38, by_ + 0.38, bz, "x", False)
+            for (px, py) in ((bx0, by_ - 0.38), (bx1, by_ - 0.38), (bx0, by_ + 0.38), (bx1, by_ + 0.38)):
+                mb.bx("wood", px - 0.04, px + 0.04, py - 0.04, py + 0.04, 0.05, 1.7)
+    with mb.at((-1.3, cy + 1.0, 0)):  # armour stand: mail on a cross, helmet
+        mb.box("wood", (0, 0, 0.75), (0.08, 0.08, 1.5))
+        mb.box("wood", (0, 0, 1.35), (0.6, 0.07, 0.07))
+        mb.bx("iron", -0.24, 0.24, -0.13, 0.13, 0.75, 1.38)
+        mb.blob("steel", (0, 0, 1.55), (0.14, 0.14, 0.12), seg=7, rings=4, jitter=0.02)
+    dx_, dy_ = DEFS["kaserne_innen"]["dummy"]
+    with mb.at((dx_ * T, dy_ * T, 0)):  # sack dummy
+        mb.box("wood", (0, 0, 0.9), (0.12, 0.12, 1.8))
+        mb.box("wood", (0, 0, 1.45), (0.9, 0.1, 0.1))
+        mb.cyl("sack", (0, 0, 1.15), 0.24, 0.65, n=8)
+        mb.blob("sack", (0, 0, 1.68), (0.17, 0.17, 0.17), seg=6, rings=4, jitter=0.05)
+        mb.bx("wood", -0.35, 0.35, -0.35, 0.35, 0.05, 0.1)
+    mb.bx("wood_hi", 2.2, 3.4, cy - 1.15, cy - 0.5, 0.78, 0.84)  # table with a candle
+    for (lx, ly) in ((2.28, cy - 1.07), (3.32, cy - 1.07), (2.28, cy - 0.58), (3.32, cy - 0.58)):
+        mb.bx("wood", lx - 0.04, lx + 0.04, ly - 0.04, ly + 0.04, 0.05, 0.78)
+    mb.cyl("cloth", (2.6, cy - 0.85, 0.92), 0.04, 0.16, n=6)
+    mb.box("gold", (2.6, cy - 0.85, 1.03), (0.03, 0.03, 0.06))
+    # yard as outside
+    banner(mb, -1.35, cy - D / 2 - 0.35, 0, h=3.3)
+    banner(mb, 1.35, cy - D / 2 - 0.35, 0, h=3.3)
+    with mb.at((-3.3, -2.6, 0)):
+        mb.box("wood", (0, 0, 0.9), (0.12, 0.12, 1.8))
+        mb.box("wood", (0, 0, 1.45), (0.9, 0.1, 0.1))
+        mb.cyl("sack", (0, 0, 1.15), 0.24, 0.65, n=8)
+        mb.blob("sack", (0, 0, 1.68), (0.17, 0.17, 0.17), seg=6, rings=4, jitter=0.05)
+    with mb.at((3.6, -2.4, 0), rz=-30):
+        mb.box("wood", (0, 0.15, 0.6), (0.1, 0.1, 1.3), rot=(-15, 0, 0))
+        mb.cyl("sack", (0, 0, 1.0), 0.55, 0.16, n=12, rot=(90, 0, 0))
+        mb.cyl("target", (0, -0.085, 1.0), 0.36, 0.02, n=12, rot=(90, 0, 0))
+        mb.cyl("sack", (0, -0.095, 1.0), 0.2, 0.02, n=12, rot=(90, 0, 0))
+        mb.cyl("target", (0, -0.105, 1.0), 0.08, 0.02, n=8, rot=(90, 0, 0))
+    with mb.at((0.2, -2.9, 0)):
+        for k in (-1, 1):
+            mb.box("wood", (k * 0.85, 0, 0.7), (0.1, 0.1, 1.4))
+        mb.box("wood", (0, 0, 1.3), (1.8, 0.08, 0.08))
+        for q in range(7):
+            xx = -0.7 + q * 0.23
+            mb.box("wood_hi", (xx, 0.1, 1.05), (0.04, 0.04, 2.0), rot=(-10, 0, 0))
+            mb.cyl("steel", (xx, -0.08, 2.07), 0.05, 0.22, n=4, rot=(-10, 0, 0), r2=0)
+
+
 BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruch, "lager": b_lager, "kaserne": b_kaserne,
          "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne,
          "baum_liegt": b_baum_liegt, "baum_stumpf": b_baum_stumpf, "fels": b_fels,
          "stapel_holz": b_stapel_holz, "stapel_stein": b_stapel_stein, "stapel_eisen": b_stapel_eisen,
          "stapel_speer": b_stapel_speer, "stapel_schwert": b_stapel_schwert, "stapel_bogen": b_stapel_bogen,
-         "lager_boden": b_lager_boden, "tor": b_tor}
+         "lager_boden": b_lager_boden, "tor": b_tor,
+         "lagerhaus": b_lagerhaus, "lagerhaus_innen": b_lagerhaus_innen, "haus_innen": b_haus_innen,
+         "holzfaeller_innen": b_holzfaeller_innen, "kaserne_innen": b_kaserne_innen}
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
 
 
@@ -1196,17 +1679,20 @@ def main():
             "anchor": list(ANCHOR), "tile": [64, 32], "step_px": 16, "units": []}
     for key in keys:
         df = DEFS[key]
-        for f, _ in enumerate(df["variants"]):
+        # cutaway sprites are built per view (the walls towards the camera stay low), all others once for all views
+        passes = [(dv, [dv]) for dv in range(4)] if df.get("cutaway") else [(0, range(4))]
+        for f, dv, views in ((f, dv, views) for f, _ in enumerate(df["variants"]) for dv, views in passes):
             for o in list(bpy.data.objects):
                 if o.type != "CAMERA":
                     bpy.data.objects.remove(o, do_unlink=True)
             root = bpy.data.objects.new("root", None)
             sc.collection.objects.link(root)
             mb = MB(df.get("seed", 1) * 100 + f * 0 + 7)
+            mb.view = dv
             BUILD[key](mb, f)
             objs = realize(mb, root)
             cols = {o.name: tuple(o.color) for o in objs}
-            for d in range(4):
+            for d in views:
                 root.rotation_euler = (0, 0, math.radians(90 * d))
                 base = os.path.join(OUT, key, "d%d_f%d" % (d, f))
                 os.makedirs(os.path.dirname(base), exist_ok=True)

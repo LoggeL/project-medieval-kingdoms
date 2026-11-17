@@ -57,7 +57,7 @@ export interface Building {
   hp: number;
   /** Hofstapel (output) oder null. */
   output: { good: Good; amount: number; reserved: number } | null;
-  /** Lagerplätze (nur Lager). */
+  /** Fächer (nur Lager), Reihenfolge wie BuildingDef.storage.shelves. */
   slots: StorageSlot[];
   /** Arbeiter-IDs. */
   workers: number[];
@@ -105,6 +105,11 @@ export interface Unit {
   home: number;
   /** Tot: bleibt kurz liegen (anim "tot"), dann entfernt. */
   dead: boolean;
+  /**
+   * Im Inneren dieses Gebäudes (Träger im Lagerhaus zwischen Tor und Fach): von außen verdeckt, in der Innenansicht
+   * sichtbar, für Angreifer nicht erreichbar. Fehlt = draußen.
+   */
+  inside?: number;
   /** Was die Figur gerade tut (für Auswahl-Panel und Darstellung); von der Simulation gepflegt. */
   activity?: UnitActivity;
 }

@@ -10,7 +10,7 @@ import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, r
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
 import { footprintTiles } from "./geom";
-import { runJob, toPeasant } from "./jobs";
+import { runJob, toPeasant, walkOut } from "./jobs";
 import { emptyMap, generateMap } from "./mapgen";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
@@ -68,7 +68,7 @@ export function createGame(opts: GameOptions = {}): Simulation {
   };
   const w = new World(s, meta);
   if (scenario === "standard") {
-    spawnBuilt(w, "lager", map.lager[0], map.lager[1], 0);
+    for (const sb of START.buildings) spawnBuilt(w, sb.key, map.lager[0] + sb.at[0], map.lager[1] + sb.at[1], sb.o);
     for (const [g, n] of Object.entries(START.stock) as [Good, number][]) storeDirect(w, g, n);
     for (let i = 0; i < START.peasants; i++) {
       const a = (i / START.peasants) * Math.PI * 2;
@@ -155,6 +155,8 @@ function updateTutorial(w: World): void {
 
 function act(w: World, u: SUnit): void {
   if (u.team === 1) { raiderAct(w, u); return; }
+  // nach dem Warentausch im Lagerhaus erst wieder hinaus
+  if (u.inside && (!u.ai.visit || u.ai.visit.done) && walkOut(w, u)) return;
   if (isSoldier(u.key)) { soldierAct(w, u); return; }
   if (u.ai.job) { runJob(w, u); return; }
   if (u.key !== "tageloehner") { toPeasant(w, u); return; }

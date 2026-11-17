@@ -11,6 +11,7 @@ import { setSmoothing, type Sheets } from "./assets";
 import { Camera } from "./camera";
 import { screenToWorld, worldToScreen } from "./iso";
 import { Overlays, WALL_GHOST_ALPHA, type Marker, type Preview } from "./overlays";
+import { interiorTargets, stepInteriors } from "./interior";
 import { ObjectLayer, type Hit } from "./scene";
 import { SmokeLayer } from "./smoke";
 import { TerrainLayer } from "./terrain";
@@ -32,6 +33,13 @@ export interface FrameInput {
 
 const FADE_MS = 150;
 
+let motionQuery: MediaQueryList | null | undefined;
+/** Nutzer wünscht reduzierte Bewegung: Innenansicht ohne Blende. */
+function reducedMotion(): boolean {
+  if (motionQuery === undefined) motionQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+  return !!motionQuery?.matches;
+}
+
 export class GameRenderer {
   readonly camera: Camera;
   readonly world = new Container();
@@ -45,6 +53,9 @@ export class GameRenderer {
   private fadeT = 0;
   private builtR: Rot | -1 = -1;
   private smooth = false;
+  /** Innenansicht je Gebäude (0..1), weich zum Ziel geblendet. */
+  private interiors = new Map<number, number>();
+  private lastTime = -1;
   stats = { items: 0, sprites: 0, pairs: 0, chunks: 0, silhouettes: 0, smoke: 0 };
 
   constructor(private app: Application, readonly sheets: Sheets, state: SimState) {
@@ -106,8 +117,13 @@ export class GameRenderer {
     const view = cam.viewRect(48);
     this.terrain.update(state, view, time);
     const ghosts = this.overlays.ghosts(state, input.preview);
+    // Innenansicht: überfahrenes und ausgewähltes Gebäude öffnen (bei Bauvorschau nur das ausgewählte)
+    const dtMs = this.lastTime < 0 ? 0 : (time - this.lastTime) * 1000;
+    this.lastTime = time;
+    const targets = interiorTargets(state, [input.preview ? null : input.highlight, input.selectedBuilding]);
+    stepInteriors(this.interiors, targets, dtMs, reducedMotion());
     this.objects.update(state, cam.r, alpha, cam.viewRect(160), {
-      selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight, ghosts,
+      selectedUnits: input.selectedUnits, danger: input.danger, highlight: input.highlight, ghosts, interiors: this.interiors,
     });
     // Rauch läuft in Spielzeit (steht in der Pause, doppelt so schnell bei 2×)
     this.smoke.update(this.objects.emitters, (state.tick + alpha) / TICKS_PER_SECOND, cam.r);

@@ -5,7 +5,7 @@
  */
 import { UNITS } from "../data";
 import { BUILDINGS } from "../data";
-import { entrance, footprint, slotTile } from "./geom";
+import { entrance, footprint } from "./geom";
 import type { Goal } from "./nav";
 import { TPS, face, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
@@ -92,7 +92,7 @@ export function blockedNode(u: SUnit): number {
 export function evictUnits(w: World): void {
   const nav = w.nav;
   for (const u of w.s.units) {
-    if (u.dead || u.layer !== 0) continue;
+    if (u.dead || u.layer !== 0 || u.inside) continue;
     const n = unitNode(w, u);
     if (nav.linkOnly[n] || nav.open(n, u.team)) continue;
     const free = nav.nearestOpen(u.team, nav.tileX(n), nav.tileY(n), 0);
@@ -192,10 +192,13 @@ export function goalEntrance(w: World, b: SBuilding): TravelGoal {
   return goalAround(b);
 }
 
-/** An einen Lager-Slot (daneben stehen). */
-export function goalSlot(b: SBuilding, k: number): TravelGoal {
-  const [x, y] = slotTile(b.x, b.y, b.o, k);
-  return tileGoal(x, y, 0, 1);
+/**
+ * Zu einem Fach im Lagerhaus: nur über die Zugangskachel vor dem Tor (kein Ausweichen an andere Seiten).
+ * Hinein und zum Fach geht es danach mit storeVisit (jobs.ts). k bleibt für Aufrufer, die je Fach planen.
+ */
+export function goalSlot(_w: World, b: SBuilding, _k: number): TravelGoal {
+  const [x, y] = entrance(b.key, b.x, b.y, b.o);
+  return tileGoal(x, y);
 }
 
 export function isWorkshop(b: SBuilding): boolean { return !!BUILDINGS[b.key].workers; }

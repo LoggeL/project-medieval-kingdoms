@@ -79,7 +79,8 @@ export function raiderAct(w: World, u: SUnit): void {
     chooseTarget(w, u);
   }
   const t = w.aliveUnit(ai.target);
-  if (t) {
+  if (t?.inside) ai.target = 0; // im Lagerhaus verschwunden: nicht durch die Wand hinterher
+  else if (t) {
     if (inRangeUnit(u, t)) { strikeUnit(w, u, t); return; }
     const d = Math.hypot(t.x - u.x, t.y - u.y);
     if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y) && stepToward(w, u, t.x, t.y, isRanged(u.key) ? 3 : 0.6)) { ai.goal = ""; return; }

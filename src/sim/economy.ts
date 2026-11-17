@@ -16,7 +16,7 @@ import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
 export const DISPATCH_EVERY = TPS / 2;
 
 export function isFreePeasant(u: SUnit, tick = -1): boolean {
-  return !u.dead && u.team === 0 && u.key === "tageloehner" && !u.ai.job && !(tick >= 0 && (u.ai.noJob ?? 0) > tick);
+  return !u.dead && u.team === 0 && u.key === "tageloehner" && !u.ai.job && !u.inside && !(tick >= 0 && (u.ai.noJob ?? 0) > tick);
 }
 
 /** Kann u das Ziel ohne Einreißen erreichen? (Komponenten-Vorprüfung, keine Suche.) Unbekannt (gesperrtes Startfeld) zählt als ja. */
@@ -59,7 +59,7 @@ export function dispatcher(w: World): void {
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const ref = reserveTake(w, eq, cx, cy);
     if (!ref) { w.msg(`Keine ${goodName(eq)} im Lager für die Ausbildung.`, "warnung", `waffe-${eq}`, 30, "keine_waffe"); continue; }
-    const u = take(cx, cy, goalSlot(ref.b, ref.k), goalEntrance(w, b));
+    const u = take(cx, cy, goalSlot(w, ref.b, ref.k), goalEntrance(w, b));
     if (!u) { unreserveTake(ref.b.slots[ref.k]); continue; }
     u.ai.job = { k: "recruit", b: b.id, from: ref.b.id, slot: ref.k, good: eq, unit, ph: 0 }; u.order = { t: "job" };
     b.ai.recruit = u.id; b.ai.recruitPicked = false;
@@ -97,7 +97,7 @@ export function dispatcher(w: World): void {
       const ref = noReach.has(sp.site.id) ? null : reserveTake(w, sp.good, cx, cy);
       if (!ref) { if (!noReach.has(sp.site.id)) noStock.add(sp.good); }
       else {
-        const u = take(cx, cy, goalSlot(ref.b, ref.k), goalAround(sp.site));
+        const u = take(cx, cy, goalSlot(w, ref.b, ref.k), goalAround(sp.site));
         if (!u) {
           unreserveTake(ref.b.slots[ref.k]);
           noReach.add(sp.site.id);
@@ -115,7 +115,7 @@ export function dispatcher(w: World): void {
       const ref = reservePut(w, out.good, ex, ey);
       if (!ref) full = !hasRoom(w, out.good);
       else {
-        const u = take(ex, ey, goalEntrance(w, hb), goalSlot(ref.b, ref.k));
+        const u = take(ex, ey, goalEntrance(w, hb), goalSlot(w, ref.b, ref.k));
         if (!u) { const sl = ref.b.slots[ref.k]; sl.incoming--; tidy(sl); }
         else {
           u.ai.job = { k: "haul", from: hb.id, to: ref.b.id, slot: ref.k, good: out.good, ph: 0 }; u.order = { t: "job" };
@@ -124,7 +124,7 @@ export function dispatcher(w: World): void {
       }
     }
   }
-  if (full) w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30, "lager_voll");
+  if (full) w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
   for (const g of noStock) w.msg(`Für die Baustelle fehlt ${goodName(g)} im Lager.`, "warnung", `fehlt-${g}`, 45, "material_fehlt");
 }
 

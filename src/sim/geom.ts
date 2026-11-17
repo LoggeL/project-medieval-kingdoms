@@ -43,23 +43,65 @@ export function center(key: BuildingKey, x: number, y: number, o: number): [numb
 }
 
 /**
- * Eingang: der Tile vor der Vorderseite (Modell −y, im Sprite die Tür).
- * Liegt außerhalb des Grundrisses, mittig vor der Vorderkante.
+ * Eingang (Zugangskachel): BuildingDef.access (Modellachsen ab Grundrissmitte), sonst der Tile mittig vor der
+ * Vorderkante (Modell −y, im Sprite die Tür). Liegt außerhalb des Grundrisses und dreht mit der Ausrichtung.
  */
 export function entrance(key: BuildingKey, x: number, y: number, o: number): [number, number] {
-  const [, d] = BUILDINGS[key].footprint;
+  const def = BUILDINGS[key];
   const [cx, cy] = center(key, x, y, o);
-  const [ox, oy] = modelToWorld(0, -(d / 2 + 0.5), o);
+  const [ax, ay] = def.access ?? [0, -(def.footprint[1] / 2 + 0.5)];
+  const [ox, oy] = modelToWorld(ax, ay, o);
   return [Math.floor(cx + ox), Math.floor(cy + oy)];
 }
 
-/** Lager-Slot k (0..7) → Welt-Tile. Reihenfolge wie in buildings.py b_lager: (i, j) ∈ 3 × 3 ohne die Einfahrt (0, −1). */
-export const STORAGE_SLOTS: [number, number][] = [[-1, 1], [0, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [0, 0]];
-export function slotTile(x: number, y: number, o: number, k: number): [number, number] {
-  const [cx, cy] = center("lager", x, y, o);
-  const [mx, my] = STORAGE_SLOTS[k];
+/** Modellpunkt (Tiles ab Grundrissmitte) → Weltpunkt. */
+function modelPoint(key: BuildingKey, x: number, y: number, o: number, mx: number, my: number): [number, number] {
+  const [cx, cy] = center(key, x, y, o);
   const [dx, dy] = modelToWorld(mx, my, o);
-  return [Math.floor(cx + dx), Math.floor(cy + dy)];
+  return [cx + dx, cy + dy];
+}
+
+/** Mitte von Fach k eines Lagers in Welt-Koordinaten (Bruchteile von Tiles), aus BuildingDef.storage.shelves. */
+export function shelfWorld(key: BuildingKey, x: number, y: number, o: number, k: number): [number, number] {
+  const [mx, my] = BUILDINGS[key].storage!.shelves[k];
+  return modelPoint(key, x, y, o, mx, my);
+}
+
+/**
+ * Weg eines Trägers im Lagerhaus zu Fach k (Weltpunkte): Mitte der Zugangskachel → durch die Tür → den Mittelgang
+ * (Modell x = 0) entlang bis auf die Höhe des Fachs → davor stehen (zum Gang hin). Rückweg = derselbe Weg rückwärts.
+ */
+export function storeWalk(key: BuildingKey, x: number, y: number, o: number, k: number): [number, number][] {
+  const def = BUILDINGS[key];
+  const [sx, sy] = def.storage!.shelves[k];
+  const doorY = -def.footprint[1] / 2 + 0.25;
+  const side = Math.sign(sx);
+  const inside: [number, number][] = [[0, doorY], [0, sy], side ? [side * (Math.abs(sx) - 0.53), sy] : [0, sy - 0.5]];
+  const [ex, ey] = entrance(key, x, y, o);
+  return [[ex + 0.5, ey + 0.5], ...inside.map(([mx, my]) => modelPoint(key, x, y, o, mx, my))];
+}
+
+/** Länge eines Linienzugs. */
+export function polyLength(pts: [number, number][]): number {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return L;
+}
+
+/** Punkt auf einem Linienzug nach Strecke s (geklemmt), mit Richtung des Abschnitts. */
+export function polyAt(pts: [number, number][], s: number): { x: number; y: number; dx: number; dy: number } {
+  let rest = Math.max(0, s);
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    const d = Math.hypot(x1 - x0, y1 - y0);
+    if (rest <= d || i === pts.length - 1) {
+      const f = d > 1e-9 ? Math.min(1, rest / d) : 1;
+      return { x: x0 + (x1 - x0) * f, y: y0 + (y1 - y0) * f, dx: x1 - x0, dy: y1 - y0 };
+    }
+    rest -= d;
+  }
+  const [x, y] = pts[pts.length - 1];
+  return { x, y, dx: 0, dy: 0 };
 }
 
 /** Posten eines Gebäudes in Welt-Koordinaten (Bruchteile von Tiles) mit Höhenstufe. */

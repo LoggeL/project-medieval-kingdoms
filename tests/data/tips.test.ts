@@ -50,7 +50,8 @@ describe("Tipps (Ladebildschirm)", () => {
     expect(BUILDINGS.holzfaeller.placement?.nearTag?.count).toBe(4);
     expect(BUILDINGS.steinbruch.placement?.adjacentTerrain).toBe("fels");
     const lager = BUILDINGS.lager.storage!;
-    expect(find("Lagerplatz liegt")).toContain(`acht Stellplätze mit je ${lager.perSlot} Stück`);
+    expect(find("Im Lagerhaus liegt")).toContain(`acht Fächer mit je ${lager.perSlot} Stück`);
+    expect(lager.shelves.length).toBe(lager.slots);
     expect(lager.slots).toBe(8);
     expect(find("Wohnhaus")).toContain("vier Bewohnern");
     expect(BUILDINGS.haus.housing).toBe(4);

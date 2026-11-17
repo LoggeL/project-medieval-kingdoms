@@ -116,7 +116,6 @@ export class Nav {
       for (const [x, y] of footprintTiles(b.key, b.x, b.y, b.o)) {
         if (!this.w.inMap(x, y)) continue;
         const i = y * W + x;
-        if (b.key === "lager") { if (w0[i] === OPEN) this.cost[i] = 1; continue; } // Hof bleibt begehbar
         if (w0[i] !== BLOCKED) w0[i] = BUILT;
         if (!done) continue;
         if (def.gate) { w0[i] = GATE; w1[i] = 1; }

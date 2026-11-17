@@ -33,7 +33,6 @@ function buildingIcon(sheets: Sheets, key: string, size: number, frame?: number,
   const bs = sheets.buildings;
   if (!bs) return null;
   let sk = (BUILDINGS as Record<string, { sprite: string } | undefined>)[key]?.sprite ?? key;
-  if (key === "lager" && bs.has("lager")) sk = "lager";
   if (!bs.has(sk) && key === "tor") sk = "mauer";
   const sp = bs.get(sk);
   const c = bs.canvas(sk, team);

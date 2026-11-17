@@ -4,9 +4,9 @@
  * Jede Ware wechselt nur dann den Ort, wenn die Figur am Ziel steht; unterwegs trägt sie sie sichtbar (carry).
  */
 import { BUILDINGS, TUNING, UNITS, type CycleStep, type Good } from "../data";
-import { center, entrance, footprintTiles } from "./geom";
+import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, storeWalk } from "./geom";
 import { completeBuilding } from "./build";
-import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal } from "./move";
+import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, type TravelGoal, type TravelResult } from "./move";
 import { reservePut, tidy } from "./storage";
 import type { Rock, Tree } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
@@ -220,10 +220,11 @@ function runHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void {
     return;
   }
   const dst = w.buildings.get(j.to);
-  if (!dst || !dst.slots[j.slot]) { retargetHaul(w, u, j); return; }
-  const r = travel(w, u, goalSlot(dst, j.slot));
+  if (!dst || !dst.slots[j.slot]) { leaveBuilding(w, u); retargetHaul(w, u, j); return; }
+  const r = storeVisit(w, u, dst, j.slot);
   if (r === "unreachable") { const s = dst.slots[j.slot]; s.incoming--; tidy(s); j.to = 0; retargetHaul(w, u, j); return; }
   if (r !== "arrived") return;
+  // am Fach: einlagern, dann geht der Träger ohne Auftrag wieder hinaus (act → walkOut)
   const s = dst.slots[j.slot];
   s.incoming--; s.amount++;
   if (s.good !== j.good) s.good = j.good;
@@ -236,7 +237,7 @@ function retargetHaul(w: World, u: SUnit, j: Extract<Job, { k: "haul" }>): void 
   if ((w.s.tick + u.id) % TPS !== 0) return;
   const ref = reservePut(w, j.good, u.x, u.y);
   if (ref) { j.to = ref.b.id; j.slot = ref.k; }
-  else w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30, "lager_voll");
+  else w.msg("Das Lager ist voll! Baue ein weiteres Lagerhaus.", "warnung", "lagervoll", 30, "lager_voll");
 }
 
 function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
@@ -244,7 +245,7 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!site || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
-    const r = travel(w, u, goalSlot(st, j.slot));
+    const r = storeVisit(w, u, st, j.slot);
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     const s = st.slots[j.slot];
@@ -286,7 +287,7 @@ function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!b || !st || !st.slots[j.slot]) { releaseJob(w, u); return; }
-    const r = travel(w, u, goalSlot(st, j.slot));
+    const r = storeVisit(w, u, st, j.slot);
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
     const s = st.slots[j.slot];
@@ -309,6 +310,77 @@ function runRecruit(w: World, u: SUnit, j: Extract<Job, { k: "recruit" }>): void
   w.removeUnit(u);
 }
 
+// ---------------------------------------------------------------- Lagerhaus betreten
+/**
+ * Gang zum Fach k im Lagerhaus b: zuerst zur Zugangskachel vor dem Tor, dann durch das Tor den Mittelgang entlang
+ * bis vor das Fach (u.inside = b, die Figur ist von außen verdeckt), dort kurz halten. "arrived" genau einmal, wenn
+ * die Figur am Fach steht: Dann tauscht der Aufrufer die Ware. Hinaus geht es danach mit walkOut (in act()).
+ */
+export function storeVisit(w: World, u: SUnit, b: SBuilding, k: number): TravelResult {
+  let v = u.ai.visit;
+  if (v && (v.b !== b.id || v.k !== k || v.done)) { leaveBuilding(w, u); v = undefined; }
+  if (!v) {
+    const r = travel(w, u, goalSlot(w, b, k));
+    if (r !== "arrived") return r;
+    v = u.ai.visit = { b: b.id, k, s: 0, wait: 0, done: false };
+    u.inside = b.id;
+    stop(u);
+  }
+  const pts = storeWalk(b.key, b.x, b.y, b.o, k);
+  const L = polyLength(pts);
+  if (v.s < L) {
+    v.s = Math.min(L, v.s + UNITS[u.key].speed / TPS);
+    placeOnWalk(u, pts, v.s, false);
+    setAnim(u, "gehen");
+    return "moving";
+  }
+  // am Fach: zum Fach drehen und kurz hantieren
+  const [sx, sy] = shelfOf(b, k);
+  face(u, sx - u.x, sy - u.y);
+  setAnim(u, "stehen");
+  if (v.wait < TUNING.shelfSeconds * TPS) { v.wait++; return "moving"; }
+  v.done = true;
+  return "arrived";
+}
+
+function shelfOf(b: SBuilding, k: number): [number, number] {
+  return shelfWorld(b.key, b.x, b.y, b.o, k);
+}
+
+function placeOnWalk(u: SUnit, pts: [number, number][], s: number, back: boolean): void {
+  const p = polyAt(pts, s);
+  u.x = p.x; u.y = p.y; u.z = 0;
+  face(u, back ? -p.dx : p.dx, back ? -p.dy : p.dy);
+}
+
+/** Nach dem Warentausch wieder hinaus bis vor das Tor. true, solange die Figur noch im Gebäude ist. */
+export function walkOut(w: World, u: SUnit): boolean {
+  const v = u.ai.visit;
+  if (!v) { if (u.inside) leaveBuilding(w, u); return false; }
+  const b = w.buildings.get(v.b);
+  if (!b || !v.done) { leaveBuilding(w, u); return false; }
+  const pts = storeWalk(b.key, b.x, b.y, b.o, v.k);
+  v.s = Math.max(0, v.s - UNITS[u.key].speed / TPS);
+  placeOnWalk(u, pts, v.s, true);
+  setAnim(u, "gehen");
+  if (v.s > 0) return true;
+  delete u.inside; delete u.ai.visit;
+  setAnim(u, "stehen");
+  return false;
+}
+
+/** Sofort vor das Tor (Auftrag abgebrochen, Gebäude weg). */
+export function leaveBuilding(w: World, u: SUnit): void {
+  if (!u.inside && !u.ai.visit) return;
+  const b = w.buildings.get(u.inside ?? u.ai.visit?.b ?? 0);
+  if (b) {
+    const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
+    u.x = u.px = ex + 0.5; u.y = u.py = ey + 0.5; u.z = 0;
+  }
+  delete u.inside; delete u.ai.visit;
+  stop(u);
+}
+
 // ---------------------------------------------------------------- Aufräumen
 /** Ziel unerreichbar: Auftrag zurückgeben und eine Weile keinen neuen bekommen (der Disponent nimmt einen anderen). */
 function giveUp(w: World, u: SUnit): void {
@@ -321,6 +393,7 @@ const dec = (rec: Partial<Record<Good, number>>, g: Good) => { const n = (rec[g]
 /** Auftrag abbrechen und alle Reservierungen zurückgeben. keepCarry: Ware bleibt in der Hand. */
 export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
   const j = u.ai.job;
+  if (u.ai.visit && !u.ai.visit.done) leaveBuilding(w, u);
   if (j) {
     switch (j.k) {
       case "cycle": releaseTarget(w, u, j); break;
@@ -372,6 +445,7 @@ export function toPeasant(w: World, u: SUnit): void {
   const frac = u.hp / u.maxHp;
   u.key = "tageloehner"; u.maxHp = UNITS.tageloehner.hp; u.hp = Math.max(1, Math.round(u.maxHp * frac));
   u.home = 0; u.order = { t: "idle" };
+  if (u.inside) leaveBuilding(w, u);
   stop(u);
   if (u.carry) carryBack(w, u);
 }

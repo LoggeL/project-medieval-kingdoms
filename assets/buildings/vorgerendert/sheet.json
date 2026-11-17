@@ -513,6 +513,90 @@
     ]
    ],
    "front": true
+  },
+  {
+   "key": "lagerhaus",
+   "name": "Lagerhaus",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "lagerhaus_innen",
+   "name": "Lagerhaus (innen)",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "ein Viertel",
+    "halb",
+    "drei Viertel",
+    "voll"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "haus_innen",
+   "name": "Wohnhaus (innen)",
+   "frames": 5,
+   "variants": [
+    "leer",
+    "1 Bewohner",
+    "2 Bewohner",
+    "3 Bewohner",
+    "4 Bewohner"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "holzfaeller_innen",
+   "name": "Holzfällerhütte (innen)",
+   "frames": 3,
+   "variants": [
+    "Hof leer",
+    "Hof halb",
+    "Hof voll"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": true
+  },
+  {
+   "key": "kaserne_innen",
+   "name": "Kaserne (innen)",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": true
   }
  ],
  "team_swap": {
@@ -713,7 +797,7 @@
    ]
   ]
  },
- "colours": 326,
+ "colours": 347,
  "shadow": true,
  "ground": [
   "#c9a56b",

@@ -8,7 +8,7 @@
  */
 import { Container, type Texture } from "pixi.js";
 import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
-import { center, entrance, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { center, entrance, gateOrientation, modelToWorld, shelfWorld, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -69,6 +69,8 @@ export interface SceneOptions {
   highlight: number | null;
   /** Bauvorschau. */
   ghosts: readonly Ghost[];
+  /** Innenansicht je Gebäude-ID (0 = zu, 1 = ganz offen); fehlt = überall zu. */
+  interiors?: ReadonlyMap<number, number>;
 }
 
 export interface UnitOnScreen { id: number; team: number; x: number; y: number; hp: number; maxHp: number; selected: boolean; top: number }
@@ -93,6 +95,15 @@ const SAMPLES: [number, number][] = [[0, -3], [0, -9], [0, -15], [0, -21], [0, -
 const SITE_TINT = 0xd9a86a;
 const FALL_STEP = 1 / (TUNING.fallSeconds * TICKS_PER_SECOND);
 
+/** Füllstand des ganzen Lagers als Variante 0..frames−1 (0 nur, wenn wirklich leer). */
+export function fillFrame(b: Building, frames: number): number {
+  const st = BUILDINGS[b.key].storage;
+  if (!st || frames <= 1) return 0;
+  const sum = b.slots.reduce((n, q) => n + q.amount, 0);
+  if (sum <= 0) return 0;
+  return Math.max(1, Math.min(frames - 1, Math.ceil((sum / Math.max(1, st.slots * st.perSlot)) * (frames - 1))));
+}
+
 export class ObjectLayer {
   readonly container = new Container();
   /** Silhouetten verdeckter Figuren (über der Objektebene). */
@@ -115,6 +126,11 @@ export class ObjectLayer {
   private candList: Part[] = [];
   private byId = new Map<number, Building>();
   private attached = new Map<number, { u: Unit; x: number; y: number; z: number }[]>();
+  /** Figuren im Inneren (Unit.inside) je Gebäude, nur in der Innenansicht sichtbar. */
+  private insideUnits = new Map<number, { u: Unit; x: number; y: number; z: number }[]>();
+  /** Bewohner je Wohnhaus (Bevölkerung der Reihe nach auf die Häuser verteilt), für das Schnittbild. */
+  readonly residents = new Map<number, number>();
+  private contents: { d: number; draw: () => void }[] = [];
   private hitPool: Hit[] = [];
   private nHits = 0;
   private unitPool: UnitOnScreen[] = [];
@@ -144,11 +160,21 @@ export class ObjectLayer {
     this.byId.clear();
     for (const b of state.buildings) this.byId.set(b.id, b);
     for (const list of this.attached.values()) list.length = 0;
+    for (const list of this.insideUnits.values()) list.length = 0;
+    this.countResidents(state);
 
     // Figuren: interpolieren, auf Gebäuden einhängen oder als eigenes Objekt
     for (const u of state.units) {
       let x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha, z = u.pz + (u.z - u.pz) * alpha;
       if (Math.abs(u.x - u.px) + Math.abs(u.y - u.py) > 2) { x = u.x; y = u.y; z = u.z; }
+      if (u.inside) {
+        // im Gebäude: von außen verdeckt, gezeichnet nur mit der Innenansicht
+        if (!this.byId.has(u.inside)) continue;
+        let list = this.insideUnits.get(u.inside);
+        if (!list) { list = []; this.insideUnits.set(u.inside, list); }
+        list.push({ u, x, y, z });
+        continue;
+      }
       if (z > 0.2 || u.layer > 0) {
         const bid = state.tiles[Math.floor(y) * state.w + Math.floor(x)]?.building ?? 0;
         if (bid && this.byId.has(bid)) {
@@ -461,16 +487,11 @@ export class ObjectLayer {
       const open = k === "tor" && b.built >= 1 && this.gateOpen(b, state);
       return k ? { keys: [[k, gateOrientation(b.wallMask, b.o)]], frame: open ? 1 : 0 } : null;
     }
-    if (b.key === "lager") {
+    if (def.storage) {
+      // Lagerhaus: Variante = Füllstand des ganzen Lagers (Kisten und Fässer vor dem Tor); Ersatz: alter Lagerplatz
       const k = this.bkey(def.sprite, "lager");
       if (!k) return null;
-      if (k === "lager") {
-        // Ersatz ohne Stapel: Füllstufe des ganzen Lagers
-        const cap = (def.storage?.slots ?? 8) * (def.storage?.perSlot ?? 8);
-        const sum = b.slots.reduce((s, q) => s + q.amount, 0);
-        return { keys: [[k, b.o]], frame: Math.round((sum / Math.max(1, cap)) * 4) };
-      }
-      return { keys: [[k, b.o]], frame: 0 };
+      return { keys: [[k, b.o]], frame: fillFrame(b, this.bs!.get(k)!.frames) };
     }
     const k = this.bkey(def.sprite);
     if (!k) return null;
@@ -491,13 +512,27 @@ export class ObjectLayer {
     const [w, h] = b.o % 2 === 0 ? fp : [fp[1], fp[0]];
     const [u0, u1, v0, v1] = this.box(b.x, b.y, b.x + w, b.y + h);
     const spr = this.buildingSprite(b, state);
-    // Lager mit eigenem Boden und Stapeln (lager_boden); fehlt das Blatt ganz, gibt es weder Boden noch Zaun
-    const lagerFlat = b.key === "lager" && !!spr && spr.keys[0][0] !== "lager";
-    const it = this.newItem(u0, u1, v0, v1, lagerFlat, false);
+    const it = this.newItem(u0, u1, v0, v1, false, false);
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const [X, Y] = this.scr(cx, cy);
     const [ax, ay] = bs.anchor;
     const tint = opt.danger === b.id ? 0xff8070 : opt.highlight === b.id ? 0xfff2c8 : 0xffffff;
+    // Innenansicht: Schnittbild, Inhalt, niedrige Vorderwände; darüber das Außenbild mit Deckkraft 1 − f
+    const f = b.built >= 1 && spr ? Math.max(0, Math.min(1, opt.interiors?.get(b.id) ?? 0)) : 0;
+    let open = 0;
+    if (f > 0) {
+      const inner = this.interiorFrame(b, spr!.frame);
+      const view = viewOf(b.o, this.r);
+      const tex = inner && bs.texture(inner.key, view, inner.frame, b.team);
+      if (inner && tex) {
+        open = f;
+        const p = this.part(it, tex, X, Y, ax, ay, { tint });
+        if (f >= 0.5) this.occluder(p, inner.key, view, inner.frame);
+        this.interiorContents(it, b, opt, f >= 0.5);
+        const ft = bs.texture(inner.key, view, inner.frame, b.team, "front");
+        if (ft) this.part(it, ft, X, Y, ax, ay, { tint });
+      }
+    }
     if (spr) {
       for (const [key, o] of spr.keys) {
         const view = viewOf(o, this.r);
@@ -506,8 +541,9 @@ export class ObjectLayer {
         const frame = Math.min(spr.frame, bs.get(key)!.frames - 1);
         const hit = this.hit("building", b.id, b.team, "b", key, view, frame, X - ax, Y - ay);
         if (b.built >= 1) {
-          const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
-          if (!lagerFlat) this.occluder(p, key, view, frame);
+          // ganz offen: Außenbild unsichtbar, bleibt aber Treffer (gleiche Fläche, kein Flackern beim Überfahren)
+          const p = this.part(it, tex, X, Y, ax, ay, { tint, hit, alpha: 1 - open });
+          if (open < 0.5) this.occluder(p, key, view, frame);
         } else {
           // Baustelle: voller Umriss halbtransparent in warmem Gerüst-/Holzton, darüber von unten nach oben aufgedeckt
           this.part(it, tex, X, Y, ax, ay, { alpha: 0.32, tint: SITE_TINT, hit });
@@ -536,22 +572,92 @@ export class ObjectLayer {
     }
     const before = this.nItems;
     this.closeItem(it);
-    if (spr && b.built >= 1 && this.nItems === before) this.chimneys(b, spr.keys[0][0], cx, cy);
+    // offen: kein Rauch aus dem (nicht gezeichneten) Schornstein
+    if (spr && b.built >= 1 && this.nItems === before && open < 0.5) this.chimneys(b, spr.keys[0][0], cx, cy);
     // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
-    if (b.key === "lager" && !spr) this.stackItems(b);
-    if (lagerFlat && spr) {
-      this.stackItems(b);
-      // Vorderer Zaun als eigenes Objekt nach Stapeln und Figuren im Hof (lager_boden → Stapel/Figuren → Front)
-      const key = spr.keys[0][0], view = viewOf(spr.keys[0][1], this.r);
-      const ft = b.built >= 1 ? bs.texture(key, view, 0, b.team, "front") : null;
-      if (ft) {
-        const fit = this.newItem(u0, u1, v0, v1, false, false, 0, true);
-        // kein Verdecker: der Zaun ist niedrig (und seine Alphadaten wären die des Bodens)
-        this.part(fit, ft, X, Y, ax, ay, { tint });
-        this.closeItem(fit);
-      }
-    }
+    if (def.storage && !spr) this.stackItems(b);
     if (b.built < 1) this.siteItems(b);
+  }
+
+  /** Schnittbild und Variante: Wohnhaus nach Bewohnern, sonst wie das Außenbild (Hof, Füllstand vor dem Tor). */
+  private interiorFrame(b: Building, outer: number): { key: string; frame: number } | null {
+    const def = BUILDINGS[b.key];
+    const key = def.interior?.sprite;
+    if (!key || !this.bs!.has(key)) return null;
+    const frames = this.bs!.get(key)!.frames;
+    const want = def.housing ? this.residents.get(b.id) ?? 0 : def.storage ? fillFrame(b, frames) : outer;
+    return { key, frame: Math.max(0, Math.min(frames - 1, want)) };
+  }
+
+  /** Bevölkerung der Reihe nach (Gebäude-ID) auf die fertigen eigenen Wohnhäuser verteilen. */
+  private countResidents(state: SimState): void {
+    this.residents.clear();
+    let left = state.population;
+    for (const b of state.buildings) {
+      const cap = BUILDINGS[b.key].housing;
+      if (!cap || b.team !== 0 || b.built < 1) continue;
+      const n = Math.max(0, Math.min(cap, left));
+      this.residents.set(b.id, n);
+      left -= n;
+    }
+  }
+
+  /**
+   * Inhalt im Schnittbild, von hinten nach vorn: Warenstapel je Fach, Figuren im Inneren, Rekrut in der Ausbildung.
+   * Solange das Außenbild noch überwiegt (shown = false), bekommen Figuren drinnen keine Silhouette.
+   */
+  private interiorContents(it: Item, b: Building, opt: SceneOptions, shown: boolean): void {
+    const def = BUILDINGS[b.key];
+    const list = this.contents;
+    list.length = 0;
+    const depth = (x: number, y: number) => { const [u, v] = toView(x, y, this.r, this.W, this.H); return u + v; };
+    const st = def.storage;
+    if (st) {
+      b.slots.forEach((s, k) => {
+        if (!s.good || s.amount <= 0 || k >= st.shelves.length) return;
+        const level = Math.max(1, Math.min(4, Math.ceil((s.amount / st.perSlot) * 4)));
+        const [x, y] = shelfWorld(b.key, b.x, b.y, b.o, k);
+        const good = s.good;
+        list.push({ d: depth(x, y), draw: () => {
+          const [X, Y] = this.scr(x, y);
+          const tx = this.stackTexture(good, level, b.o);
+          this.part(it, tx.tex, X, Y, tx.px, tx.py);
+        } });
+      });
+    }
+    for (const a of this.insideUnits.get(b.id) ?? []) {
+      list.push({ d: depth(a.x, a.y) + 0.01, draw: () => {
+        const n0 = this.nParts;
+        this.figureParts(it, a.u, a.x, a.y, a.z, opt);
+        if (!shown) for (let i = n0; i < this.nParts; i++) this.parts[i].unit = null;
+      } });
+    }
+    const spot = def.interior?.spots?.[0];
+    if (b.training && spot) {
+      const [cx, cy] = center(b.key, b.x, b.y, b.o);
+      const [dx, dy] = modelToWorld(spot[0], spot[1], b.o);
+      const x = cx + dx, y = cy + dy;
+      list.push({ d: depth(x, y), draw: () => this.traineeParts(it, b, x, y) });
+    }
+    list.sort((p, q) => p.d - q.d);
+    for (const e of list) e.draw();
+    list.length = 0;
+  }
+
+  /** Rekrut in der Ausbildung: die künftige Einheit übt zum Strohmann hin (Modell +x), Schützen spannen den Bogen. */
+  private traineeParts(it: Item, b: Building, x: number, y: number): void {
+    const fs = this.fs, tr = b.training;
+    if (!fs || !tr) return;
+    const want = UNITS[tr.unit].sprite;
+    const key = fs.has(want) ? want : fs.has("tageloehner") ? "tageloehner" : null;
+    if (!key) return;
+    const [fx, fy] = modelToWorld(1, 0.35, b.o);
+    const anim: AnimKey = (UNITS[tr.unit].range ?? 0) > 1.5 ? "schiessen" : "angriff";
+    const { frame } = this.figFrame(key, { anim, animT: tr.t } as Unit);
+    const tex = fs.texture(key, figureDir(fx, fy, this.r), frame, b.team);
+    if (!tex) return;
+    const [X, Y] = this.scr(x, y);
+    this.part(it, tex, X, Y, fs.anchor[0], fs.anchor[1]);
   }
 
   /** Schornsteinöffnungen eines sichtbaren Gebäudes als Rauchquellen (gleiche Drehung wie Grundriss und Sprite). */
@@ -579,18 +685,20 @@ export class ObjectLayer {
     return { tex: pileTexture(good, Math.max(1, level)), px: 16, py: 22 };
   }
 
+  /** Ersatz ohne jedes Lagerbild: Stapel als eigene Objekte an den Fächern (immer sichtbar). */
   private stackItems(b: Building): void {
-    const per = BUILDINGS.lager.storage?.perSlot ?? 8;
+    const st = BUILDINGS[b.key].storage;
+    if (!st) return;
     b.slots.forEach((s, k) => {
-      if (!s.good || k >= 8) return;
-      const level = s.amount <= 0 ? 0 : Math.max(1, Math.min(4, Math.ceil((s.amount / per) * 4)));
+      if (!s.good || k >= st.shelves.length) return;
+      const level = s.amount <= 0 ? 0 : Math.max(1, Math.min(4, Math.ceil((s.amount / st.perSlot) * 4)));
       if (level === 0 && !this.bs!.has(GOODS[s.good].stack)) return;
-      const [tx, ty] = slotTile(b.x, b.y, b.o, k);
-      const [u0, u1, v0, v1] = this.box(tx, ty, tx + 1, ty + 1);
-      const it = this.newItem(u0 + 0.05, u1 - 0.05, v0 + 0.05, v1 - 0.05);
-      const [X, Y] = this.scr(tx + 0.5, ty + 0.5);
-      const st = this.stackTexture(s.good, level, b.o);
-      this.part(it, st.tex, X, Y, st.px, st.py);
+      const [x, y] = shelfWorld(b.key, b.x, b.y, b.o, k);
+      const [cu, cv] = toView(x, y, this.r, this.W, this.H);
+      const it = this.newItem(cu - 0.45, cu + 0.45, cv - 0.45, cv + 0.45);
+      const [X, Y] = this.scr(x, y);
+      const tx = this.stackTexture(s.good, level, b.o);
+      this.part(it, tx.tex, X, Y, tx.px, tx.py);
       this.closeItem(it);
     });
   }

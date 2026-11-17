@@ -38,5 +38,7 @@
  "cloth": "#e4dcc4",
  "leather": "#8a5530",
  "bow": "#b88a50",
- "string": "#e9e2c8"
+ "string": "#e9e2c8",
+ "skin": "#d39a74",
+ "hair": "#4b3324"
 }

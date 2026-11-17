@@ -59,7 +59,7 @@ export function nearestEnemy(w: World, u: SUnit, radius: number, ok?: (t: SUnit)
   let best: SUnit | null = null, bd = radius;
   w.grid.query(u.x, u.y, radius, (o) => {
     const t = o as SUnit;
-    if (t.team === u.team || t.dead) return;
+    if (t.team === u.team || t.dead || t.inside) return;
     const d = dist(u.x, u.y, t.x, t.y);
     if (d < bd || (d === bd && best && t.id < best.id)) { if (!ok || ok(t)) { best = t; bd = d; } }
   });

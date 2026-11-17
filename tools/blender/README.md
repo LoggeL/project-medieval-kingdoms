@@ -80,10 +80,17 @@ tools/blender/build_buildings.sh wappen
 | `baum_liegt` | 3, 2, 1 Stammstücke | gefällter Laubbaum entlang Modell +x, mittig auf seinem Tile; Fußende Richtung −x (zum Stumpf), Variante 0 mit Krone, die bis ins Nachbartile +x reicht |
 | `baum_stumpf` | Laubbaum, Tanne | |
 | `fels` | unberührt, angebrochen, halb abgebaut, fast abgebaut | einzelner Brocken 1 × 1 mit frischer Schnittfläche und Schutt |
-| `stapel_holz`, `stapel_stein`, `stapel_eisen`, `stapel_speer`, `stapel_schwert`, `stapel_bogen` | Füllstufe 0–4 | 1 × 1, Stufe 0 leer (transparent), stehen auf den Bohlen von `lager_boden` (Höhe 0,06 m); Speere im hohen Gestell, Schwerter im niedrigen Ständer mit Parierstange und Goldknauf (ab Stufe 3 Kiste), Bögen hängend mit Pfeilfass ab Stufe 2 |
-| `lager_boden` | 1 | Lagerplatz 3 × 3 ohne Waren: Zaun (Einfahrt bei Modell (0, −1)), acht Bohlenflächen an den Slots von `b_lager` bzw. `STORAGE_SLOTS` in `src/sim/geom.ts`; `front` = Zaun zur Kamera. Ist ein Boden: zuerst zeichnen, dann Stapel und Figuren darin, dann `lager_boden_front.png` |
+| `stapel_holz`, `stapel_stein`, `stapel_eisen`, `stapel_speer`, `stapel_schwert`, `stapel_bogen` | Füllstufe 0–4 | 1 × 1, Stufe 0 leer (transparent), stehen auf den Fächern von `lagerhaus_innen` (Höhe 0,06 m); Speere im hohen Gestell, Schwerter im niedrigen Ständer mit Parierstange und Goldknauf (ab Stufe 3 Kiste), Bögen hängend mit Pfeilfass ab Stufe 2 |
+| `lager_boden` | 1 | Früherer offener Lagerplatz 3 × 3 (Zaun, acht Bohlenflächen). Seit ADR 0005 nicht mehr im Spiel, bleibt im Blatt als Bezug |
+| `lagerhaus` | Füllstand 0–4 | geschlossenes Fachwerk-Lagerhaus 3 × 3 mit Satteldach und Tor an Modell (0, −1,5) (Zugang `access` [0, −2] in `src/data`); vor dem Tor Kisten, Fässer und Säcke als Füllstandsanzeige |
+| `lagerhaus_innen` | Füllstand 0–4 | Schnittbild ohne Dach: Bohlenboden, acht Fächer an `shelves` (dieselben Werte wie `BUILDINGS.lager.storage.shelves`), Regale an den hohen Wänden, Mittelgang zum Tor. Waren (`stapel_*`) und Figuren zeichnet das Spiel darauf, dann `lagerhaus_innen_front.png` |
+| `haus_innen` | 0–4 Bewohner | Wohnhaus ohne Dach: Herd am Schornstein, Tisch mit Bank, Truhe, Betten; Variante = belegte Betten |
+| `holzfaeller_innen` | Hof leer, halb, voll | Holzfällerhütte ohne Dach: Werkbank mit Säge und Stamm, Äxte an der Rückwand, Scheite, Strohlager; Hof wie beim Außenbild |
+| `kaserne_innen` | 1 | Kaserne ohne Dach (Erdgeschoss): Speergestelle und Schilde, Pritschen, Rüstungsständer, Tisch, Sack-Übungspuppe bei `dummy`; der Rekrut in Ausbildung steht bei `interior.spots[0]` |
 | `mauer_gerade`, `mauer_ende`, `mauer_ecke`, `mauer_t`, `mauer_kreuz`, `mauer_einzel` | 1 | Verbindungen bei Ausrichtung 0 (Modell +x = Welt Ost, Modell +y = Welt Nord): gerade O+W, ende O, ecke O+N, t O+W+N, kreuz alle, einzel keine (wie `wallPiece` in `src/sim/geom.ts`). Wehrgang auf Stufe 3, Zinnen auf beiden Außenseiten, Posten `[0, 0, 3]`, `front` |
 | `tor` | geschlossen, offen | gerades Mauerstück O+W mit Torbogen, Durchgang entlang Modell ±y, Wehrgang oben, Posten `[0, 0, 3]`. Hinter jeder der beiden Bogenseiten ein Fallgatter aus Bohlen mit Querriegeln und Eisenspitzen, beide Seiten gleich (das Spiel kennt kein Innen und Außen eines Tors, `gateOrientation` liefert nur 0 oder 1). Geschlossen: Gatter unten, das Gitter füllt den Bogen bündig. Offen: Gatter hochgezogen (`GATE_UP`), nur Unterriegel und Spitzen unter dem Bogenscheitel, der Durchgang ist frei. Torflügel gibt es bewusst nicht: In der Iso-Ansicht deckt ein an die sichtbare Laibung geklappter Flügel die halbe Öffnung und sieht wie geschlossen aus |
+
+**Schnittbilder** (`"cutaway": true`): werden je Kameransicht einzeln gebaut (`mb.view`), damit die Wände zur Kamera niedrig bleiben und ins Vorderteil (`_front`) fallen. Boden, Sockel und Grundriss decken sich mit dem Außenbild (gleiche Seeds und Zeichenreihenfolge), damit das Überblenden nicht springt. Das Spiel zeigt sie beim Überfahren und für das ausgewählte Gebäude (ADR 0005).
 
 Die Mauerteile verbinden sich nahtlos: Wandkörper 2,2 m breit bis an die Tile-Kante, Zinnenrhythmus mit halber Lücke an jeder offenen Kante. Der Mauerturm füllt seinen 2 × 2-Grundriss jetzt ganz aus (vorher 0,15 m eingerückt), damit angesetzte Mauern ohne Spalt anschließen; die oberste Treppenstufe reicht 0,17 m über den Grundriss bis an die Mauerfront.
 
@@ -128,6 +135,6 @@ Prüfbild: `python3 tools/blender/preview_blend.py [--style vorgerendert] [--out
 python3 tools/blender/preview.py [--style vorgerendert] [--out .local/preview]
 ```
 
-Schreibt vergrößerte Kontaktbögen der neuen Objekte und aller Figuren, ein Geländebild (Blatt und Flächen aus gemischten Varianten) und zwei Testszenen in allen vier Kameradrehungen: Mauerzug mit Turm, Treppe, Tor, Ecke, T, Kreuz, Enden und Schützen auf den Posten (Teile per Autotiling wie im Spiel) sowie den Lagerplatz mit allen Stapeln und den Trägern.
+Schreibt vergrößerte Kontaktbögen der neuen Objekte und aller Figuren, ein Geländebild (Blatt und Flächen aus gemischten Varianten) und zwei Testszenen in allen vier Kameradrehungen: Mauerzug mit Turm, Treppe, Tor, Ecke, T, Kreuz, Enden und Schützen auf den Posten (Teile per Autotiling wie im Spiel) sowie den früheren Lagerplatz mit allen Stapeln und den Trägern (zeigt noch `lager_boden`, nicht das Lagerhaus).
 
 Auf die Konzeptseite kommen Figuren und Gebäude mit [`tools/konzeptseite/build.py`](../konzeptseite/README.md).

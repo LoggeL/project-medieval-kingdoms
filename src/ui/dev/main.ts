@@ -73,7 +73,7 @@ const actions: [string, () => void][] = [
   ["Feind", () => bridge.select({ units: s.units.filter((u) => u.team === 1).map((u) => u.id), building: null })],
   ["Nichts", () => bridge.select({ units: [], building: null })],
   ["Meldung", () => mock.message("Ein Tagelöhner ist zugezogen.", "info")],
-  ["Warnung", () => mock.message("Der Lagerplatz ist fast voll.", "warnung")],
+  ["Warnung", () => mock.message("Das Lagerhaus ist fast voll.", "warnung")],
   ["Kampf", () => mock.message("Ein Speerträger ist gefallen.", "kampf")],
   ["Hinweis", () => bridge.notify("Muss an Fels grenzen.", "warnung")],
   ["Überfall", () => bridge.dispatch({ t: "ueberfall" })],
