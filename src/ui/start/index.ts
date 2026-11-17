@@ -86,6 +86,7 @@ export class Startbildschirm {
   }
 
   private zeichne(): void {
+    if (this.phase === "fehler") return; // „Laden abgebrochen“ bleibt stehen
     const f = this.fortschritt.fraction();
     if (f !== this.letzterWert) { this.letzterWert = f; this.letzterFortschritt = performance.now(); }
     this.laden.setze(f, this.fortschritt.label());
@@ -168,8 +169,9 @@ export class Startbildschirm {
         : "Beim Laden ist ein Fehler aufgetreten. Meist hilft es, die Seite neu zu laden.",
       msg,
     );
-    // Titel oder Spiel bleiben verborgen
-    this.titelbild?.el.remove();
+    // Titel (mit Musik und Horchern) abbauen, das Spiel bleibt verborgen
+    this.titelbild?.abbauen();
+    this.titelbild = null;
   }
 
   /**

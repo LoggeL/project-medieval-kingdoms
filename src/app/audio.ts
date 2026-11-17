@@ -227,8 +227,21 @@ export class AudioDirector {
     return t ? t.key : null;
   }
 
-  constructor(private settings: () => AudioSettings, private state: () => SimState, private speed: () => number) {
+  private armed = false;
+
+  constructor(private settings: () => AudioSettings, private state: () => SimState, private speed: () => number) {}
+
+  /**
+   * Erst wenn das Spiel wirklich beginnt (nach Titel und Laden): auf Gesten horchen und gleich einen Versuch wagen –
+   * die Wahl „Neues Spiel“ war schon eine Geste. Lehnt der Browser ab (z. B. Safari), schaltet die nächste Geste im
+   * Spiel frei. Vorher (Titel, Ladebildschirm) bleibt die Regie still, damit Begrüßung und Aufbaumusik nicht über dem
+   * Menü oder dem Ladebildschirm verbraucht werden.
+   */
+  arm(): void {
+    if (this.armed) return;
+    this.armed = true;
     this.listen(true);
+    this.gesture(false);
   }
 
   private listen(on: boolean): void {

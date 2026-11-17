@@ -23,7 +23,7 @@
  *
  * Das Spiel startet mit Lade- und Titelbildschirm; window.mk gibt es erst nach „Neues Spiel“. Für Spieltests die URL
  * mit ?direkt=1 aufrufen (überspringt den Titel, nur im Entwicklungsmodus). Weitere Schalter: ?halten=1 hält den
- * Ladebildschirm nach 100 %, ?fehlertest=<schritt> erzwingt die Fehlermeldung; window.mkStart steuert den Start.
+ * Ladebildschirm nach 100 % (nur wenn er dann noch steht: mit ?direkt=1 oder nach früher Wahl im Titel), ?fehlertest=<schritt> erzwingt die Fehlermeldung; window.mkStart steuert den Start.
  * Langsames Netz nachstellen: LANGSAM=<kB/s> (z. B. LANGSAM=600, dazu 80 ms Latenz). Wartezeit nach dem Aufruf der Seite
  * bis zum ersten Schritt: WARTEN=<ms> (Standard 2500).
  * Chrome: CHROME=/pfad/zu/chrome, sonst der Chrome for Testing aus dem Playwright-Cache oder Google Chrome.

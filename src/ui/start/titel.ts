@@ -148,10 +148,24 @@ export class Titelbildschirm {
     if (this.gestartet) return;
     this.gestartet = true;
     this.o.musik.ausblenden(1.5);
+    // Ab jetzt nicht mehr bedienbar: Liegt danach noch der Ladebildschirm darüber, dürfen Tasten das unsichtbare
+    // Menü nicht erreichen (sonst öffnet Enter z. B. das Design-Dokument und das ladende Spiel ist weg).
+    this.el.inert = true;
+    if (this.el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     this.resolve?.();
   }
 
+  /** Sofort abbauen (Ladefehler): Musik aus, Horcher weg, Element entfernen. */
+  abbauen(): void {
+    this.gestartet = true;
+    this.o.musik.ausblenden(0.5);
+    for (const f of this.aus) f();
+    this.aus = [];
+    this.el.remove();
+  }
+
   private taste(e: KeyboardEvent): void {
+    if (this.gestartet) return;
     const haupt = (document.activeElement as Element | null)?.classList.contains("mk-haupt");
     if (!(haupt && (e.key === "Enter" || e.key === " "))) this.geste();
     if (e.key === "Escape" && this.tafel) { e.preventDefault(); e.stopPropagation(); this.zeige(null); return; }

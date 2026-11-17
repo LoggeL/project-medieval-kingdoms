@@ -49,6 +49,7 @@ async function start(boot: Startbildschirm): Promise<void> {
   mountUi(uiRoot, bridge);
   // Titel zeigen, sobald Schriften und Schlüsselbild da sind; das Laden läuft währenddessen weiter
   const titelDa = boot.titel(bridge);
+  titelDa.catch(() => undefined); // Fehler kommt beim await unten an; ohne Rückruf wäre er bei früherem Abbruch „unbehandelt“
 
   const app = new Application();
   await boot.schritt("grafik", () => app.init({
@@ -80,6 +81,7 @@ async function start(boot: Startbildschirm): Promise<void> {
   await titelDa;
   // „Neues Spiel“ gewählt und alles geladen: erst dann Eingabe, Spielschleife und Audio-Regie
   await boot.bereit();
+  audio.arm();
 
   const debug = new DebugOverlay();
   const hint = new PointerHint();

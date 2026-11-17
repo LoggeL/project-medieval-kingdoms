@@ -7,6 +7,14 @@
   - Das Schlüsselbild wird per `preload` parallel zum Spielcode geholt.
   - Umgesetzt mit `Startbildschirm.titel()` / `geladen()` / `bereit()` in `src/ui/start/index.ts` und `Ladebildschirm.zeigen()`. Ein Blendenwettlauf ist behoben: Eine Fehlermeldung während des Ausblendens blieb unsichtbar.
   - `tools/dev/browser.mjs` kann ein langsames Netz nachstellen (`LANGSAM=<kB/s>`, `WARTEN=<ms>`).
+- *Gegenprüfung:* Danach unabhängig gegengeprüft, sechs Befunde behoben:
+  - Nach früher Wahl ließ sich das unsichtbare Menü per Tastatur bedienen; Enter konnte auf das Design-Dokument springen. Der Titel ist jetzt nach der Wahl `inert`.
+  - Begrüßung und Aufbaumusik liefen schon über dem Ladebildschirm, und jede erste Geste im Titel startete sie neben der Titelmusik (das war schon vorher so). Die Audio-Regie wird jetzt erst mit Spielbeginn scharf (`AudioDirector.arm()`).
+  - Ein Ladefehler bei stehendem Titel ließ Titelmusik und Horcher weiterlaufen.
+  - Das Enter der Wahl blätterte gleich einen Tipp weiter.
+  - Ein alter Ausblend-Timer konnte den Ladebildschirm hart abschneiden.
+  - „Laden abgebrochen“ wurde vom Fortschrittstext überschrieben.
+  - Nachweis im kopflosen Chrome: vor der Wahl nur die Titelmusik, während des Ladens keine Ansage, Pfeile und Enter bleiben auf `/`, im Spiel Begrüßung und Aufbaumusik, Fehler bei stehendem Titel mit Musik aus.
 - *Tests:* 299 grün, Typprüfung grün.
 - *Im Browser geprüft* (kopfloser Chrome, stumm):
   - **Build mit 800 kB/s:** Titel nach 2,8 s, frühe Wahl zeigt den Ladebildschirm bei 37 %, danach das Spiel.
@@ -16,6 +24,7 @@
 - *Grenzen:*
   - Während der Titel steht, decodiert der Browser die Sprite-Blätter; der langsame Schwenk des Schlüsselbilds kann dabei kurz ruckeln (auf echter Hardware nicht geprüft).
   - Die Karte des Ladebildschirms (1 MB) lädt weiter mit, auch wenn man den Ladebildschirm nie sieht.
+  - In Safari kann die Freigabe nach dem Laden abgelehnt werden. Dann beginnt der Ton mit der ersten Geste im Spiel; nicht in Safari geprüft.
 
 **2026-11-17 (9): Umbau nach Spielerrückmeldung – Startseite, Bergfried, Lagerhaus, Bauanimation, Wegfindung, Tasten, Zoom.** Sechs Zweige parallel gebaut, nacheinander zusammengeführt, danach Gesamtprüfung mit drei Prüfern und Fehlerbehebung. Entscheidungen ADR 0005–0010.
 - **Startseite (ADR 0007):** `/` öffnet Laden und Titel, der Titel hat den Punkt „Design-Dokument“ (`/konzept/`), die Konzeptseite einen Link „Zum Spiel“. `/spiel/…` leitet per 301 auf `/…` um (Suchteil bleibt). `vite build` erzeugt `konzept/index.html` und `fonts/` selbst (`deploy/konzeptseite.ts`), Dev-Server und `vite preview` liefern dieselben Adressen.

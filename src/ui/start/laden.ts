@@ -19,6 +19,8 @@ export class Ladebildschirm {
   private timer = 0;
   private fadeTimer = 0;
   private aktiv = true;
+  /** Zählt Ein- und Ausblenden: Ein alter Ausblend-Timer entfernt das Element nur, wenn nichts dazwischenkam. */
+  private generation = 0;
   /** Index des gerade gezeigten Tipps (für Tests). */
   tipp = -1;
   /** Wie viele Tipps schon gezeigt wurden. */
@@ -108,6 +110,7 @@ export class Ladebildschirm {
   /** Verständliche Meldung statt ewigem Balken. */
   fehler(titel: string, text: string, detail?: string): void {
     // Auch nach dem Ausblenden (Fehler beim Spielstart) wieder sichtbar machen
+    this.generation++;
     if (!this.el.isConnected) document.body.append(this.el);
     this.el.classList.remove("mk-weg");
     this.el.classList.add("mk-fehler");
@@ -133,6 +136,7 @@ export class Ladebildschirm {
   /** Wieder einblenden (nach „Neues Spiel“, solange noch geladen wird): oben auf, Tipps laufen wieder. */
   zeigen(): void {
     if (this.el.classList.contains("mk-fehler")) return;
+    this.generation++;
     document.body.append(this.el);
     this.el.setAttribute("aria-busy", "true");
     // Erst im nächsten Bild sichtbar schalten, damit die Blende greift
@@ -141,7 +145,8 @@ export class Ladebildschirm {
     this.el.classList.remove("mk-weg");
     if (!this.aktiv) {
       this.aktiv = true;
-      window.addEventListener("keydown", this.onKey);
+      // Erst nach dem laufenden Tastendruck horchen: das Enter, das „Neues Spiel“ gewählt hat, blättert sonst gleich weiter
+      window.setTimeout(() => { if (this.aktiv) window.addEventListener("keydown", this.onKey); }, 0);
       this.weiter(true);
     }
   }
@@ -151,9 +156,10 @@ export class Ladebildschirm {
     this.stop();
     this.el.setAttribute("aria-busy", "false");
     this.el.classList.add("mk-weg");
+    const g = ++this.generation;
     await new Promise((r) => window.setTimeout(r, ms));
-    // Inzwischen wieder eingeblendet (zeigen() oder Fehlermeldung)? Dann bleibt er stehen.
-    if (this.el.classList.contains("mk-weg")) this.el.remove();
+    // Inzwischen wieder eingeblendet (zeigen() oder Fehlermeldung) oder erneut ausgeblendet? Dann nicht dieser Timer.
+    if (g === this.generation && this.el.classList.contains("mk-weg")) this.el.remove();
   }
 
   stop(): void {
