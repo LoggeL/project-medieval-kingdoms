@@ -89,6 +89,8 @@ const SIL_MIN = 0.5;
 export const SOLID_ALPHA = 200;
 /** Stichproben im Figurenbild relativ zum Fußpunkt (Körpermitte von unten nach oben). */
 const SAMPLES: [number, number][] = [[0, -3], [0, -9], [0, -15], [0, -21], [0, -27], [-3, -14], [3, -14], [-2, -22], [2, -22]];
+/** Farbton des noch nicht gebauten Teils einer Baustelle (Holz/Gerüst statt eines kühlen Geisterumrisses). */
+const SITE_TINT = 0xd9a86a;
 const FALL_STEP = 1 / (TUNING.fallSeconds * TICKS_PER_SECOND);
 
 export class ObjectLayer {
@@ -507,8 +509,8 @@ export class ObjectLayer {
           const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
           if (!lagerFlat) this.occluder(p, key, view, frame);
         } else {
-          // Baustelle: voller Umriss halbtransparent, darüber von unten nach oben aufgedeckt
-          this.part(it, tex, X, Y, ax, ay, { alpha: 0.28, tint: 0xc8d4ff, hit });
+          // Baustelle: voller Umriss halbtransparent in warmem Gerüst-/Holzton, darüber von unten nach oben aufgedeckt
+          this.part(it, tex, X, Y, ax, ay, { alpha: 0.32, tint: SITE_TINT, hit });
           const bb = bs.get(key)!.bbox[view]?.[frame];
           if (bb && b.built > 0) {
             const q = Math.round(b.built * 48) / 48;
