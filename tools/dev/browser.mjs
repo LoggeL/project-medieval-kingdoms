@@ -24,6 +24,8 @@
  * Das Spiel startet mit Lade- und Titelbildschirm; window.mk gibt es erst nach „Neues Spiel“. Für Spieltests die URL
  * mit ?direkt=1 aufrufen (überspringt den Titel, nur im Entwicklungsmodus). Weitere Schalter: ?halten=1 hält den
  * Ladebildschirm nach 100 %, ?fehlertest=<schritt> erzwingt die Fehlermeldung; window.mkStart steuert den Start.
+ * Langsames Netz nachstellen: LANGSAM=<kB/s> (z. B. LANGSAM=600, dazu 80 ms Latenz). Wartezeit nach dem Aufruf der Seite
+ * bis zum ersten Schritt: WARTEN=<ms> (Standard 2500).
  * Chrome: CHROME=/pfad/zu/chrome, sonst der Chrome for Testing aus dem Playwright-Cache oder Google Chrome.
  */
 import { spawn } from "node:child_process";
@@ -106,8 +108,13 @@ async function main() {
   await send("Runtime.enable");
   await send("Page.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: +W, height: +H, deviceScaleFactor: 1, mobile: false });
+  if (process.env.LANGSAM) {
+    await send("Network.enable");
+    const bps = Number(process.env.LANGSAM) * 1024;
+    await send("Network.emulateNetworkConditions", { offline: false, latency: 80, downloadThroughput: bps, uploadThroughput: bps });
+  }
   await send("Page.navigate", { url });
-  await sleep(2500);
+  await sleep(Number(process.env.WARTEN ?? 2500));
 
   const steps = JSON.parse(readFileSync(stepsFile, "utf8"));
   let mx = 0, my = 0;

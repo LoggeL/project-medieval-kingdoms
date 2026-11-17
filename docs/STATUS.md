@@ -1,5 +1,22 @@
 # Status
 
+**2026-11-17 (10):** Hauptmenü sofort, Laden im Hintergrund.
+- *Code:* Der Titelbildschirm erscheint, sobald Spielcode, Welt, Schriften und Schlüsselbild da sind (höchstens 2,5 s Wartezeit, ein später ankommendes Bild wird nachgereicht). Grafik und Sprite-Blätter laden dahinter weiter.
+  - **Neues Spiel nach dem Laden:** geht direkt ins Spiel.
+  - **Neues Spiel vorher:** Der Ladebildschirm mit Fortschritt und Tipps blendet sich über den Titel, bis alles bereit ist.
+  - Das Schlüsselbild wird per `preload` parallel zum Spielcode geholt.
+  - Umgesetzt mit `Startbildschirm.titel()` / `geladen()` / `bereit()` in `src/ui/start/index.ts` und `Ladebildschirm.zeigen()`. Ein Blendenwettlauf ist behoben: Eine Fehlermeldung während des Ausblendens blieb unsichtbar.
+  - `tools/dev/browser.mjs` kann ein langsames Netz nachstellen (`LANGSAM=<kB/s>`, `WARTEN=<ms>`).
+- *Tests:* 299 grün, Typprüfung grün.
+- *Im Browser geprüft* (kopfloser Chrome, stumm):
+  - **Build mit 800 kB/s:** Titel nach 2,8 s, frühe Wahl zeigt den Ladebildschirm bei 37 %, danach das Spiel.
+  - **Dev-Server mit 1,5 MB/s:** Titel bei 40 % Ladefortschritt, Wahl, dann Ladebildschirm, dann Spiel.
+  - **Ungedrosselt:** Titel nach 0,6 s.
+  - **Sonderfälle:** `?fehlertest=grafik` zeigt die Fehlermeldung, `?direkt=1` startet wie bisher.
+- *Grenzen:*
+  - Während der Titel steht, decodiert der Browser die Sprite-Blätter; der langsame Schwenk des Schlüsselbilds kann dabei kurz ruckeln (auf echter Hardware nicht geprüft).
+  - Die Karte des Ladebildschirms (1 MB) lädt weiter mit, auch wenn man den Ladebildschirm nie sieht.
+
 **2026-11-17 (9): Umbau nach Spielerrückmeldung – Startseite, Bergfried, Lagerhaus, Bauanimation, Wegfindung, Tasten, Zoom.** Sechs Zweige parallel gebaut, nacheinander zusammengeführt, danach Gesamtprüfung mit drei Prüfern und Fehlerbehebung. Entscheidungen ADR 0005–0010.
 - **Startseite (ADR 0007):** `/` öffnet Laden und Titel, der Titel hat den Punkt „Design-Dokument“ (`/konzept/`), die Konzeptseite einen Link „Zum Spiel“. `/spiel/…` leitet per 301 auf `/…` um (Suchteil bleibt). `vite build` erzeugt `konzept/index.html` und `fonts/` selbst (`deploy/konzeptseite.ts`), Dev-Server und `vite preview` liefern dieselben Adressen.
 - **Lagerhaus und Innenansicht (ADR 0005):** Der offene Lagerplatz ist ein geschlossenes Lagerhaus. Träger gehen durch das Tor an ihr Fach und wieder hinaus, drinnen sind sie kein Ziel. Kisten vor dem Tor zeigen den Füllstand. Beim Überfahren oder Auswählen öffnen Lagerhaus, Wohnhaus, Holzfällerhütte, Kaserne und Bergfried ein Schnittbild (Waren je Fach, Figuren drinnen, Rekrut an der Puppe, Bewohner).

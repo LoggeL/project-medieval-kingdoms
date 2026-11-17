@@ -10,6 +10,8 @@
   <link rel="icon" href="data:,">
   <!-- Lade- und Titelbildschirm: Stil schon vor dem Spielcode (src/ui/start) -->
   <link rel="stylesheet" href="/src/ui/start/start.css">
+  <!-- Schlüsselbild des Titels parallel zum Spielcode laden: der Titel erscheint, sobald es da ist -->
+  <link rel="preload" as="image" href="/ui/titel_schluesselbild.png" fetchpriority="high">
 </head>
 <body>
   <!-- Ladebildschirm: sofort sichtbar, src/ui/start/laden.ts übernimmt ihn, sobald der Spielcode läuft -->

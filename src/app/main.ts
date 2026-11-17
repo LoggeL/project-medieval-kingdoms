@@ -1,7 +1,8 @@
 /**
  * Einstieg: Simulation erzeugen, Pixi starten, Oberfläche einhängen, Sprites laden, Spielschleife, Eingabe und Audio verbinden.
- * Davor und währenddessen: Ladebildschirm mit Fortschritt (boot), danach der Titelbildschirm. Die Simulation tickt erst
- * nach „Neues Spiel“ (src/ui/start).
+ * Zuerst kurz der Ladebildschirm, dann – sobald Welt, Schriften und Schlüsselbild da sind – der Titelbildschirm, während
+ * Grafik und Sprite-Blätter dahinter weiterladen. Die Simulation tickt erst, wenn „Neues Spiel“ gewählt und alles
+ * geladen ist (src/ui/start).
  */
 import { Application, TextureSource } from "pixi.js";
 import { GameRenderer } from "../render";
@@ -46,6 +47,8 @@ async function start(boot: Startbildschirm): Promise<void> {
   }, audioSettings);
   audio = new AudioDirector(() => audioSettings, () => game.state, () => store.speed);
   mountUi(uiRoot, bridge);
+  // Titel zeigen, sobald Schriften und Schlüsselbild da sind; das Laden läuft währenddessen weiter
+  const titelDa = boot.titel(bridge);
 
   const app = new Application();
   await boot.schritt("grafik", () => app.init({
@@ -73,8 +76,10 @@ async function start(boot: Startbildschirm): Promise<void> {
   else renderer.camera.lookAt(game.state.w / 2, game.state.h / 2);
 
   await nebenbei;
-  // Titelbildschirm; erst danach Eingabe, Spielschleife und Audio-Regie
-  await boot.titel(bridge);
+  boot.geladen();
+  await titelDa;
+  // „Neues Spiel“ gewählt und alles geladen: erst dann Eingabe, Spielschleife und Audio-Regie
+  await boot.bereit();
 
   const debug = new DebugOverlay();
   const hint = new PointerHint();

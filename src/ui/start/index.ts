@@ -1,10 +1,14 @@
 /**
- * Startablauf vor dem Spiel: Ladebildschirm mit echtem Fortschritt und Tipps, danach der Titelbildschirm.
- * main.ts meldet die Ladeschritte (schritt/fertig/datei) und wartet mit titel() auf „Neues Spiel“.
+ * Startablauf vor dem Spiel: Der Titelbildschirm erscheint, sobald Spielcode, Schriften und Schlüsselbild da sind;
+ * Welt, Grafik und Sprite-Blätter laden dahinter weiter. Wer „Neues Spiel“ wählt, bevor alles geladen ist, sieht den
+ * Ladebildschirm mit echtem Fortschritt und Tipps, bis das Spiel bereit ist; sonst geht es direkt ins Spiel.
+ * main.ts meldet die Ladeschritte (schritt/fertig/datei), zeigt mit titel() das Menü, meldet mit geladen() das Ende
+ * des Ladens und wartet mit bereit() auf beides.
  *
  * Nur im Entwicklungsmodus:
- *   ?direkt=1  Titel überspringen (Spiel startet nach dem Laden sofort, wie früher)
- *   ?halten=1  Ladebildschirm nach dem Laden stehen lassen, bis man startet() aufruft oder Enter drückt (Prüfung der Tipps)
+ *   ?direkt=1  Titel überspringen (Ladebildschirm bis zum Ende, dann sofort ins Spiel, wie früher)
+ *   ?halten=1  Ladebildschirm nach dem Laden stehen lassen, bis man startet() aufruft oder Enter drückt (Prüfung der Tipps;
+ *              zusammen mit dem Titel: erst „Neues Spiel“ wählen, solange noch geladen wird)
  *   ?fehlertest=<schritt>  Ladeschritt (z. B. grafik) mit einem Fehler abbrechen (Prüfung der Fehlermeldung)
  */
 import type { UiBridge } from "../../app/contract";
@@ -34,6 +38,8 @@ const SCHRIFTEN = ['700 48px "Cinzel"', '600 16px "Cinzel"', '400 16px "Alegreya
 const LANGSAM_MS = 25000;
 /** Schriften blockieren das Laden höchstens so lange (offline geht es mit Ersatzschrift weiter). */
 const SCHRIFT_MS = 6000;
+/** Der Titel wartet höchstens so lange auf Schriften und Schlüsselbild; kommt das Bild später, wird es nachgereicht. */
+const TITEL_WARTEN_MS = 2500;
 
 export type StartPhase = "laden" | "titel" | "spiel" | "fehler";
 
@@ -55,6 +61,16 @@ export class Startbildschirm {
   private schluesselbild: string | null = null;
   private dev = import.meta.env.DEV ? new URLSearchParams(location.search) : null;
   private haltenWeiter: (() => void) | null = null;
+  /** Schriften und Schlüsselbild für den Titel (nebenbei()). */
+  private vorTitel: Promise<void> = Promise.resolve();
+  /** Alles geladen (main.ts ruft geladen()). */
+  private istGeladen = false;
+  private geladenSignal: (() => void) | null = null;
+  private readonly geladenPromise = new Promise<void>((r) => { this.geladenSignal = r; });
+  /** Erfüllt, sobald „Neues Spiel“ gewählt ist (oder ?direkt=1). */
+  private gewaehlt: Promise<void> = new Promise(() => undefined);
+  /** Ladebildschirm ist gerade sichtbar (am Anfang aus index.html, später nach „Neues Spiel“ vor Ende des Ladens). */
+  private ladenSichtbar = true;
 
   constructor() {
     // Die Hilfe des Spiels (F1) gehört nicht auf Lade- und Titelbildschirm. Dieser Horcher hängt vor dem der
@@ -110,6 +126,8 @@ export class Startbildschirm {
       }));
       this.fertig("schriften");
     })();
+    let schluesselbildDa: () => void = () => undefined;
+    const schluessel = new Promise<void>((r) => { schluesselbildDa = r; });
     const bilder = (async () => {
       const liste = [KARTE, SCHLUESSELBILD, ...UI_KACHELN];
       this.fortschritt.add("oberflaeche", liste.length);
@@ -123,13 +141,15 @@ export class Startbildschirm {
           im.src = url;
         });
         if (!ok) console.warn(`[Start] Bild ${p} fehlt`);
-        if (ok && p === KARTE && this.phase === "laden") this.laden.bild(url);
-        if (ok && p === SCHLUESSELBILD) this.schluesselbild = url;
+        if (ok && p === KARTE) this.laden.bild(url);
+        if (ok && p === SCHLUESSELBILD) { this.schluesselbild = url; this.titelbild?.bild(url); }
+        if (p === SCHLUESSELBILD) schluesselbildDa();
         this.fortschritt.tick("oberflaeche");
         this.zeichne();
       }));
       this.fertig("oberflaeche");
     })();
+    this.vorTitel = Promise.all([schriften, schluessel]).then(() => undefined);
     return Promise.all([schriften, bilder]).then(() => undefined);
   }
 
@@ -153,48 +173,74 @@ export class Startbildschirm {
   }
 
   /**
-   * Nach dem Laden: Titelbildschirm zeigen und warten, bis „Neues Spiel“ gewählt wird.
-   * Der Klick darauf ist die Nutzergeste, die die Audio-Regie freischaltet (Begrüßung, Aufbaumusik).
+   * Titelbildschirm zeigen, sobald Schriften und Schlüsselbild da sind (höchstens TITEL_WARTEN_MS); das Laden läuft
+   * dahinter weiter. Kehrt zurück, sobald der Titel steht (bzw. sofort bei ?direkt=1); auf die Wahl wartet bereit().
+   * Der Klick auf „Neues Spiel“ ist die Nutzergeste, die die Audio-Regie freischaltet (Begrüßung, Aufbaumusik).
    */
   async titel(bridge: UiBridge): Promise<void> {
+    if (this.dev?.has("direkt")) { this.gewaehlt = Promise.resolve(); return; }
+    await Promise.race([this.vorTitel, new Promise((r) => window.setTimeout(r, TITEL_WARTEN_MS))]);
+    if (this.phase === "fehler") return;
+    this.musik = new TitelMusik(() => bridge.audio());
+    // Konzeptseite liegt neben dem Spiel unter /konzept/ (Build: nginx, Entwicklung: Middleware in vite.config.ts)
+    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept: "./konzept/" });
+    this.gewaehlt = this.titelbild.zeigen().then(() => this.gewaehltNochLaden());
+    this.phase = "titel";
+    this.ladenSichtbar = false;
+    // Tipps und Hänger-Hinweis ruhen, solange der Titel steht (das Laden selbst läuft weiter)
+    await this.laden.ausblenden(600);
+  }
+
+  /** „Neues Spiel“ gewählt: Ist noch nicht alles geladen, kommt der Ladebildschirm über den Titel. */
+  private gewaehltNochLaden(): void {
+    if (this.istGeladen || this.phase === "fehler") return;
+    this.phase = "laden";
+    this.ladenSichtbar = true;
+    this.letzterFortschritt = performance.now();
+    this.laden.zeigen();
+    this.zeichne();
+    const titel = this.titelbild;
+    window.setTimeout(() => { if (titel && this.titelbild === titel) titel.el.classList.add("mk-weg"); }, 350);
+  }
+
+  /** main.ts: Welt, Grafik und Sprite-Blätter sind geladen. */
+  geladen(): void {
+    this.istGeladen = true;
     window.clearInterval(this.wache);
     this.zeichne();
-    if (this.dev?.has("halten")) {
+    this.geladenSignal?.();
+  }
+
+  /** Warten, bis „Neues Spiel“ gewählt UND alles geladen ist (danach main.ts: Eingabe, Schleife, insSpiel()). */
+  async bereit(): Promise<void> {
+    await Promise.all([this.gewaehlt, this.geladenPromise]);
+    if (this.dev?.has("halten") && this.ladenSichtbar) {
       await new Promise<void>((r) => {
         this.haltenWeiter = r;
         const k = (e: KeyboardEvent) => { if (e.key === "Enter") { window.removeEventListener("keydown", k, true); r(); } };
         window.addEventListener("keydown", k, true);
       });
     }
-    if (this.dev?.has("direkt")) {
-      this.phase = "spiel";
-      await this.laden.ausblenden(0);
-      return;
-    }
-    this.musik = new TitelMusik(() => bridge.audio());
-    // Konzeptseite liegt neben dem Spiel unter /konzept/ (Build: nginx, Entwicklung: Middleware in vite.config.ts)
-    this.titelbild = new Titelbildschirm({ bridge, musik: this.musik, bild: this.schluesselbild, konzept: "./konzept/" });
-    const gewaehlt = this.titelbild.zeigen();
-    this.phase = "titel";
-    await this.laden.ausblenden(600);
-    await gewaehlt;
   }
 
   /** Nur ?halten=1: Ladebildschirm verlassen. */
   weiter(): void { this.haltenWeiter?.(); }
 
-  /** Titel weich ausblenden, sobald das Spiel sein erstes Bild gezeichnet hat. */
+  /** Titel bzw. Ladebildschirm weich ausblenden, sobald das Spiel sein erstes Bild gezeichnet hat. */
   async insSpiel(): Promise<void> {
     this.phase = "spiel";
     await naechstesBild();
     await naechstesBild();
-    await this.titelbild?.ausblenden(700);
+    const weg: Promise<void>[] = [];
+    if (this.ladenSichtbar) { this.ladenSichtbar = false; weg.push(this.laden.ausblenden(600)); }
+    if (this.titelbild) weg.push(this.titelbild.ausblenden(700));
+    await Promise.all(weg);
     this.titelbild = null;
   }
 
   /** Titel per Code auslösen (Tests im Entwicklungsmodus). */
   starten(): void {
-    if (this.phase === "laden") this.weiter();
+    if (this.phase === "laden" && this.istGeladen) this.weiter();
     this.titelbild?.starten();
   }
 }

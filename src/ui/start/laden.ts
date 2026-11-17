@@ -130,13 +130,30 @@ export class Ladebildschirm {
     } else if (!an && n) n.remove();
   }
 
+  /** Wieder einblenden (nach „Neues Spiel“, solange noch geladen wird): oben auf, Tipps laufen wieder. */
+  zeigen(): void {
+    if (this.el.classList.contains("mk-fehler")) return;
+    document.body.append(this.el);
+    this.el.setAttribute("aria-busy", "true");
+    // Erst im nächsten Bild sichtbar schalten, damit die Blende greift
+    this.el.classList.add("mk-weg");
+    void this.el.offsetWidth;
+    this.el.classList.remove("mk-weg");
+    if (!this.aktiv) {
+      this.aktiv = true;
+      window.addEventListener("keydown", this.onKey);
+      this.weiter(true);
+    }
+  }
+
   /** Ausblenden und entfernen. */
   async ausblenden(ms = 600): Promise<void> {
     this.stop();
     this.el.setAttribute("aria-busy", "false");
     this.el.classList.add("mk-weg");
     await new Promise((r) => window.setTimeout(r, ms));
-    this.el.remove();
+    // Inzwischen wieder eingeblendet (zeigen() oder Fehlermeldung)? Dann bleibt er stehen.
+    if (this.el.classList.contains("mk-weg")) this.el.remove();
   }
 
   stop(): void {

@@ -2,6 +2,7 @@
  * Titelbildschirm (DOM): Schlüsselbild vollflächig (cover, Vignette, sehr langsamer Schwenk), Wappen und Schriftzug,
  * Menü „Neues Spiel“, „Klang“, „Steuerung“ und „Design-Dokument“ (Link auf die Konzeptseite unter /konzept/).
  * „Fortsetzen“ gibt es nicht: Der Prototyp speichert keinen Spielstand im Browser.
+ * Der Titel steht schon, während das Spiel dahinter noch lädt (src/ui/start/index.ts).
  *
  * Tastatur: Pfeile hoch/runter wandern durchs Menü, Enter löst aus (ohne Fokus startet Enter das Spiel), Esc schließt
  * eine offene Tafel. Spricht nur über die UiBridge (Klang-Einstellung) mit dem Spiel.
@@ -107,6 +108,15 @@ export class Titelbildschirm {
     this.aus.push(off);
     window.addEventListener("resize", this.skalierung);
     this.aus.push(() => window.removeEventListener("resize", this.skalierung));
+  }
+
+  /** Schlüsselbild nachreichen, wenn es erst nach dem Erscheinen des Titels geladen ist. */
+  bild(url: string): void {
+    const box = this.el.querySelector(".mk-titel-bild") as HTMLElement;
+    if (box.querySelector("img")) return;
+    const img = h("img", { src: url, alt: "", decoding: "async", draggable: "false" }) as HTMLImageElement;
+    img.addEventListener("load", () => { this.el.classList.remove("mk-titel-ohne-bild"); this.skalierung(); }, { once: true });
+    box.append(img);
   }
 
   /** Pixelgenau ab etwa doppelter Vergrößerung, darunter weich (nächster Nachbar bei 0,9× würde Pixel verschlucken). */
