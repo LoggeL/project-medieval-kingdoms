@@ -3,6 +3,7 @@
  * Neue Inhalte sind Einträge hier (plus Grafik), kein neuer Code. Spielertexte auf Deutsch.
  * Zeiten in Sekunden, die Simulation rechnet sie in Ticks um (TICKS_PER_SECOND).
  */
+import type { VoiceKey } from "./audio";
 
 export const TICKS_PER_SECOND = 20;
 
@@ -130,7 +131,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
       unit: "steinmetz", count: 2, cycle: [
         { do: "reserveNearest", tag: "rock", radius: 8 },
         { do: "walkTo", target: "reserved" },
-        { do: "work", anim: "abbauen", seconds: 8, effect: "mineRock", produce: { stein: 1 }, carry: true },
+        { do: "work", anim: "abbauen", seconds: 6, effect: "mineRock", produce: { stein: 1 }, carry: true },
         { do: "walkTo", target: "home" },
         { do: "deposit", into: "output" },
       ],
@@ -228,10 +229,39 @@ export const START = {
   gold: 150,
   peasants: 8,
   /** Startbestand im vorgebauten Lager. */
-  stock: { holz: 40, stein: 30, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
+  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
   raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
 };
+
+// ---------------------------------------------------------------- Einführung
+/**
+ * Zielkette für den Spielbeginn: Jeder Schritt erscheint als Meldung, sobald der vorige erreicht ist.
+ * Sind mehrere Schritte schon erledigt, erscheint nur der erste offene. done null = letzter Schritt.
+ */
+export type TutorialGoal =
+  /** Baustelle oder Gebäude dieser Art vorhanden. */
+  | { placed: BuildingKey }
+  /** Von jeder dieser Arten mindestens ein fertiges Gebäude. */
+  | { built: BuildingKey[] }
+  /** So viele eigene Soldaten. */
+  | { soldiers: number }
+  /** So viele Soldaten mit dem Befehl „Stationieren“. */
+  | { stationed: number };
+
+/** voice: optionale Sprecheransage (nur vorhandene Schlüssel aus audio.ts). */
+export interface TutorialStep { text: string; done: TutorialGoal | null; voice?: VoiceKey }
+
+export const TUTORIAL: TutorialStep[] = [
+  { text: "Willkommen, Burgherr! Baue eine Holzfällerhütte am Waldrand und einen Steinbruch am Fels.", voice: "willkommen", done: { placed: "holzfaeller" } },
+  { text: "Gut. Jetzt einen Steinbruch: Er muss an den Fels im Norden grenzen.", done: { placed: "steinbruch" } },
+  { text: "Baue ein Wohnhaus. Mit mehr Wohnraum ziehen Tagelöhner zu, die tragen und bauen.", done: { placed: "haus" } },
+  { text: "Baue eine Kaserne für deine Soldaten. Sie braucht Holz und viel Stein.", done: { built: ["kaserne"] } },
+  { text: "Die Kaserne steht. Wähle sie und bilde Speerträger, Schwertkämpfer und Bogenschützen aus.", done: { soldiers: 1 } },
+  { text: "Angreifer kommen von Osten über die Furt. Zieh dort eine Mauer, setz ein Tor hinein und innen eine Treppe an (mit R drehen).", done: { built: ["mauer", "tor", "treppe"] } },
+  { text: "Wähle deine Soldaten und stelle sie mit T auf die Mauer.", done: { stationed: 1 } },
+  { text: "Die Mauer ist besetzt. Schützen oben treffen härter, Nahkämpfer verteidigen Tor und Treppe. Ein Turm bietet vier weitere Posten.", done: null },
+];
 
 // ---------------------------------------------------------------- Simulationswerte (Balance)
 /** Schadensarten: welcher Anteil der Rüstung wirkt und wie stark sie gegen Gebäude sind. */

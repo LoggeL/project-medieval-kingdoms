@@ -36,7 +36,7 @@ describe("Karte", () => {
       const [ex, ey] = [l.x + 1, l.y + 3];
       expect(w.nav.comp[1][w.nav.node(0, sx, sy)]).toBe(w.nav.comp[1][w.nav.node(0, ex, ey)]);
       // Startbestand, je Ware eigener Slot
-      expect(s.stock).toMatchObject({ holz: 40, stein: 30, speer: 3, schwert: 2, bogen: 4 });
+      expect(s.stock).toMatchObject({ holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4 }); // Stein 30 → 36: Turm vor der ersten Welle bezahlbar
       for (const slot of l.slots) if (slot.good) expect(slot.amount).toBeGreaterThan(0);
       expect(s.units.filter((u) => u.key === "tageloehner")).toHaveLength(8);
       expect(s.gold).toBe(150);
@@ -111,7 +111,7 @@ describe("Steinbruch", () => {
     expect(g.state.units.filter((u) => u.home === q.id)).toHaveLength(2);
     expect(sawMason).toBe(true);
     expect(rockSum()).toBeLessThan(before - 4);
-    expect(g.state.stock.stein).toBeGreaterThan(30);
+    expect(g.state.stock.stein).toBeGreaterThan(36);
   });
 });
 
