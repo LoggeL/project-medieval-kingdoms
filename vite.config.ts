@@ -1,11 +1,14 @@
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, type Plugin } from "vite";
+import { alteSpielAdresse, hatGoogleFonts, istSchriftDatei, konzeptGeruest, schriftDateien, schriftQuelle } from "./deploy/konzeptseite";
 import { STYLE } from "./src/render/style";
 
 // Das Spiel liegt im Projektstamm (index.html, src/). Die Sprites aus assets/ werden unverändert
 // unter der Basis-URL ausgeliefert (publicDir = assets, also z. B. ./buildings/vorgerendert/sheet.json), damit Blender-Pipeline und Spiel dieselben Dateien nutzen.
 // Im Build bleibt nur, was das Spiel lädt (Plugin spielAssets unten).
+// Die Konzeptseite (docs/konzept-seite.html) liegt unter /konzept/, ihre Schriften unter /fonts/ (Plugin konzeptSeite).
 
 /** Dateien und Ordner unter dir (rekursiv), Größe in Bytes. */
 function size(dir: string): { bytes: number; files: number } {
@@ -35,7 +38,7 @@ function spielAssets(): Plugin {
       const out = resolve(root, outDir);
       const before = size(out);
       const rm = (p: string) => rmSync(p, { recursive: true, force: true });
-      const keepTop = new Set(["buildings", "figures", "terrain", "ui", "audio", "assets", "index.html"]);
+      const keepTop = new Set(["buildings", "figures", "terrain", "ui", "audio", "assets", "index.html", "konzept", "fonts"]);
       // Vite legt JS/CSS unter assets/ ab; die Sprite-Ordner liegen direkt unter outDir
       for (const name of readdirSync(out)) if (!keepTop.has(name)) rm(join(out, name));
       for (const art of ["buildings", "figures", "terrain"]) {
@@ -74,10 +77,70 @@ function spielAssets(): Plugin {
   };
 }
 
+/**
+ * Konzeptseite neben dem Spiel: Build schreibt dist/konzept/index.html (mit Gerüst) und genau die Schriften nach
+ * dist/fonts/, die die Seite verlangt (aus node_modules/@fontsource). Fehlt eine Schrift oder steht ein Google-Fonts-
+ * Verweis in der Seite, bricht der Build ab. Im Dev-Server (und in vite preview) gelten dieselben Adressen wie im
+ * ausgelieferten Image: /konzept → /konzept/, /spiel und /spiel/… → / (301), siehe deploy/nginx.conf.
+ */
+function konzeptSeite(): Plugin {
+  let root = process.cwd();
+  const seite = () => readFileSync(resolve(root, "docs/konzept-seite.html"), "utf8");
+  const weiter = (res: ServerResponse, ziel: string) => { res.statusCode = 301; res.setHeader("Location", ziel); res.end(); };
+  const umleiten = (req: IncomingMessage, res: ServerResponse): boolean => {
+    const url = req.url ?? "/";
+    const alt = alteSpielAdresse(url);
+    if (alt) { weiter(res, alt); return true; }
+    const m = /^\/konzept(\?.*)?$/.exec(url);
+    if (m) { weiter(res, "/konzept/" + (m[1] ?? "")); return true; }
+    return false;
+  };
+  return {
+    name: "konzept-seite",
+    configResolved(c) { root = c.root; },
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (umleiten(req, res)) return;
+        const pfad = (req.url ?? "/").split("?")[0];
+        if (pfad === "/konzept/" || pfad === "/konzept/index.html") {
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader("Cache-Control", "no-cache");
+          res.end(konzeptGeruest(seite()));
+          return;
+        }
+        const f = /^\/fonts\/([^/]+)$/.exec(pfad);
+        if (f) {
+          const datei = istSchriftDatei(f[1]) ? resolve(root, "node_modules", schriftQuelle(f[1])) : null;
+          if (!datei || !existsSync(datei)) { res.statusCode = 404; res.end(); return; }
+          res.setHeader("Content-Type", "font/woff2");
+          res.end(readFileSync(datei));
+          return;
+        }
+        next();
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => { if (!umleiten(req, res)) next(); });
+    },
+    generateBundle() {
+      const s = seite();
+      if (hatGoogleFonts(s)) this.error("docs/konzept-seite.html verweist auf Google Fonts");
+      const schriften = schriftDateien(s);
+      if (!schriften.length) this.error("docs/konzept-seite.html verlangt keine Schriften unter /fonts/ (SCHRIFTEN-Block fehlt?)");
+      this.emitFile({ type: "asset", fileName: "konzept/index.html", source: konzeptGeruest(s) });
+      for (const name of schriften) {
+        const datei = resolve(root, "node_modules", schriftQuelle(name));
+        if (!existsSync(datei)) this.error(`Schrift fehlt: ${datei}`);
+        this.emitFile({ type: "asset", fileName: `fonts/${name}`, source: readFileSync(datei) });
+      }
+    },
+  };
+}
+
 export default defineConfig({
   base: "./",
   publicDir: "assets",
-  plugins: [spielAssets()],
+  plugins: [konzeptSeite(), spielAssets()],
   server: { port: 5173, host: "127.0.0.1" },
   build: { outDir: "dist", assetsInlineLimit: 0, chunkSizeWarningLimit: 2000 },
   test: { include: ["tests/**/*.test.ts"], environment: "node" },
