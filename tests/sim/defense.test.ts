@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { BUILDINGS, START, TUTORIAL, type UnitKey } from "../../src/data";
 import { createGame, stairEnds } from "../../src/sim";
 import { kill } from "../../src/sim/combat";
-import { buildNow, run, spawn } from "../../src/sim/debug";
+import { buildNow, run, spawn, stockUp } from "../../src/sim/debug";
 import type { Simulation } from "../../src/sim/game";
 import { TPS, type SUnit, type World } from "../../src/sim/world";
 
@@ -199,7 +199,40 @@ describe("Kampfverhalten an der Mauer", () => {
   });
 });
 
+describe("Kampf auf dem Wehrgang", () => {
+  it("ein Angreifer auf dem Wehrgang wird vom Nahkämpfer auf dem Posten auf gleicher Ebene bekämpft", () => {
+    const g = createGame({ scenario: "leer", size: 40 });
+    for (let y = 10; y <= 30; y++) buildNow(g, "mauer", 20, y, 1);
+    buildNow(g, "treppe", 18, 22, 3);
+    const sword = spawn(g, "schwert", 0, 15, 22);
+    g.dispatch({ t: "stationieren", units: [sword.id] });
+    run(g, 25 * TPS);
+    expect(sword.layer).toBe(1);
+    const raider = spawn(g, "speer", 1, 20, Math.floor(sword.y) + 4, 1); // oben auf dem Wehrgang
+    const y0 = sword.y;
+    let moved = 0;
+    run(g, 30 * TPS, () => { moved = Math.max(moved, Math.abs(sword.y - y0)); return raider.dead || !!raider.ai.retreat; });
+    expect(raider.dead || raider.ai.retreat).toBe(true);
+    expect(raider.hp).toBeLessThan(raider.maxHp);
+    expect(moved).toBeGreaterThan(0.5); // ist ihm auf dem Wehrgang entgegengegangen
+    expect(sword.layer).toBe(1);
+  });
+});
+
 describe("Steinwirtschaft vor der ersten Welle", () => {
+  it("ein Tor in einem fertigen Mauerstück übernimmt dessen Steine", () => {
+    const g = createGame({ scenario: "leer", size: 30 });
+    buildNow(g, "lager", 4, 4, 0);
+    for (let x = 10; x <= 14; x++) buildNow(g, "mauer", x, 15, 0);
+    stockUp(g, "holz", 4); stockUp(g, "stein", 1);
+    expect(g.canPlace("tor", 12, 15, 0).ok).toBe(true); // 4 Stein, davon 3 aus der Mauer
+    const r = g.dispatch({ t: "bauen", key: "tor", x: 12, y: 15, o: 0 });
+    expect(r.ok).toBe(true);
+    const gate = g.state.buildings.find((b) => b.id === r.ids![0])!;
+    expect(gate.needs).toEqual({ holz: 4, stein: 1 });
+    expect(g.canPlace("tor", 16, 15, 0).ok).toBe(false); // freies Feld neben der Mauer: volle Kosten, nicht gerade
+  });
+
   it("Bauordnung Holzfäller, Steinbruch, Haus, Kaserne, 3 Soldaten, Mauer mit Tor und Treppe: der Turm ist vor 5:00 bezahlbar, aber knapp", () => {
     const g = createGame({ seed: 1 });
     const s = g.state;
