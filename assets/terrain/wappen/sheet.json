@@ -1,0 +1,48 @@
+{
+ "style": "Wappen",
+ "tile": [
+  64,
+  32
+ ],
+ "anchor": [
+  32,
+  16
+ ],
+ "image": "terrain.png",
+ "keys": {
+  "gras": {
+   "row": 0,
+   "variants": 4,
+   "frames": 1
+  },
+  "wiese": {
+   "row": 1,
+   "variants": 4,
+   "frames": 1
+  },
+  "waldboden": {
+   "row": 2,
+   "variants": 4,
+   "frames": 1
+  },
+  "erde": {
+   "row": 3,
+   "variants": 4,
+   "frames": 1
+  },
+  "fels": {
+   "row": 4,
+   "variants": 4,
+   "frames": 1
+  },
+  "wasser": {
+   "row": 5,
+   "variants": 1,
+   "frames": 4
+  }
+ },
+ "layout": "row = terrain type, column = variant * frames + frame",
+ "mask": "pixel (x, y) belongs to the tile if |x + 0.5 - 32| / 32 + |y + 0.5 - 16| / 16 < 1; tiles at offsets (32, 16) fit without gaps or overlaps",
+ "fps": 4,
+ "colours": 87
+}
