@@ -199,6 +199,7 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
   dmg = Math.max(1, dmg - unitArmor(t) * DAMAGE_TYPES[type].armor);
   if (t.z >= 2 && az < 1) dmg *= WALL_BONUS.damageTakenFactor; // Deckung hinter den Zinnen
   t.hp -= dmg;
+  t.ai.hurtT = w.s.tick;
   if (t.hp <= 0) { kill(w, t); return; }
   // Untätige Soldaten wehren sich
   if (isSoldier(t.key) && t.order.t === "idle" && !t.ai.target && t.team === 0) t.ai.target = from;
@@ -206,6 +207,8 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
 }
 
 export function damageBuilding(w: World, akey: UnitKey, b: SBuilding): void {
+  if (BUILDINGS[b.key].ditch) return; // Gräben werden zugeschüttet, nicht zerschlagen (belagerung.fillDitch)
+  b.ai.hitT = w.s.tick;
   const a = UNITS[akey];
   const dmg = (a.damage ?? 1) * DAMAGE_TYPES[a.damageType ?? "hieb"].building * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread);
   b.hp -= dmg;
@@ -221,7 +224,10 @@ export function kill(w: World, u: SUnit): void {
   u.ai.deadT = 0; u.ai.target = 0; u.ai.targetB = 0;
   stop(u);
   setAnim(u, "sterben", true);
-  if (u.team === 1) { w.s.gold += TUNING.bounty; w.meta.raidLosses = (w.meta.raidLosses ?? 0) + 1; }
+  if (u.team === 1) {
+    w.s.gold += TUNING.bounty; w.meta.raidLosses = (w.meta.raidLosses ?? 0) + 1;
+    if (UNITS[u.key].vehicle) w.msg(`Der ${UNITS[u.key].name} ist zerstört!`, "kampf", "ramme-zerstoert", 5);
+  }
   else if (isSoldier(u.key)) w.msg(`Ein ${UNITS[u.key].name} ist gefallen.`, "kampf", "gefallen", 8, "gefallen");
 }
 

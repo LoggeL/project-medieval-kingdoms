@@ -472,6 +472,16 @@ def gear(g, pv, hip, body, H, torso, limb, depth, sw, team, unit):
         ms = empty("mealpv", (sw * 0.48, -limb * 0.6, -limb * 0.4), hr)
         ball("mealsack", (H * 0.11, H * 0.08, H * 0.13), (0, 0, 0), "bow", ms, seg=8, rings=6)
         ball("mealmouth", (H * 0.06, H * 0.06, H * 0.03), (0, 0, -H * 0.12), "gambeson", ms, seg=6, rings=4)
+    elif g == "ladder":
+        # storm ladder carried on the right shoulder, nearly level along the walking direction, steadied by the raised
+        # right hand; shorter than the real one (4.5 m), or it would leave the cell
+        ld = empty("ladderpv", (-sw * 0.45, -H * 0.02, torso * 0.98 + limb * 0.8), hip)
+        ld.rotation_euler = (math.radians(76), 0, math.radians(-14))
+        lh = H * 1.7
+        for k, sx in enumerate((-1, 1)):
+            box("lrail%d" % k, (th(limb * 0.32), th(limb * 0.32), lh), (sx * limb * 1.15, 0, 0), "wood", ld)
+        for k in range(7):
+            box("lrung%d" % k, (limb * 2.3, th(limb * 0.24), th(limb * 0.24)), (0, 0, -lh / 2 + (k + 0.5) * lh / 7), "wood_hi", ld)
     elif g == "peel":
         # baker's peel: long pole with a flat blade, held like a spear (action frames only)
         cyl("peelshaft", th(limb * 0.4) / 2, H * 1.0, (0, 0, H * 0.3), "wood_hi", hr)

@@ -10,7 +10,8 @@ import type { Command, CommandResult, SimState } from "../sim/types";
 export type Tool =
   | { t: "auswahl" }
   | { t: "bauen"; key: BuildingKey; o: number }
-  | { t: "mauer" }
+  /** Linie ziehen: Mauer (ohne key), Palisade oder Graben (ADR 0017). */
+  | { t: "mauer"; key?: BuildingKey }
   | { t: "abriss" };
 
 export interface Selection { units: number[]; building: number | null }

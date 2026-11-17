@@ -15,6 +15,7 @@ import { goalAround, lineClear, stepToward, stop, tileGoal, travel, unitNode } f
 import { available } from "./storage";
 import { applyBoost, levelOf, lockedBy } from "./research";
 import type { CommandResult, UnitOrder } from "./types";
+import { ladderDuty } from "./belagerung";
 import { TPS, distToRect, newUnitAI, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
 // ---------------------------------------------------------------- Verhalten
@@ -149,6 +150,8 @@ function stationAct(w: World, u: SUnit, o: Extract<UnitOrder, { t: "station" }>)
   const layer = def.walkway ?? 0;
   // Nahkämpfer verteidigen Tor, Treppe und Wehrgang in der Nähe; danach zurück auf den Posten
   if (!isRanged(u.key) && guardSection(w, u, px, py)) return;
+  // … und stoßen Sturmleitern in ihrem Abschnitt um (belagerung.ts)
+  if (!isRanged(u.key) && ladderDuty(w, u, px, py)) return;
   u.ai.sortie = false;
   const r = travel(w, u, { ...tileGoal(Math.floor(px), Math.floor(py), layer, 0), endX: px, endY: py });
   if (r === "unreachable") { u.order = { t: "idle" }; w.msg("Der Posten ist nicht erreichbar (Treppe fehlt?).", "warnung", "posten", 10, "kein_posten"); return; }

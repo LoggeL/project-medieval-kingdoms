@@ -8,8 +8,10 @@ import type { Good, StoreKey } from "./goods";
 import type { ProductionDef } from "./recipes";
 import type { TechKey } from "./research";
 import { VERARBEITUNG, type VerarbeitungKey } from "./verarbeitung";
+import { BEFESTIGUNG, BELAGERUNG_UNITS, type BelagerungKey, type BelagerungUnitKey } from "./belagerung";
 
 export * from "./research";
+export * from "./belagerung";
 
 export const TICKS_PER_SECOND = 20;
 
@@ -59,7 +61,7 @@ export type CycleStep =
 export type BuildingKey =
   | "bergfried" | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm"
-  | VerarbeitungKey;
+  | VerarbeitungKey | BelagerungKey;
 
 /**
  * Ausbaustufe eines Gebäudes (bisher nur der Bergfried). levels[0] ist Stufe 1 mit den Grundwerten des Gebäudes,
@@ -172,6 +174,18 @@ export interface BuildingDef {
   deck?: number;
   /** Steuern: Gold je Spielminute. */
   income?: number;
+  /**
+   * Linienbau aus Teilstücken (Palisade, Graben; ADR 0017): Sprite = `${prefix}_gerade|_ende|_ecke|_t|_kreuz|_einzel`
+   * nach der Nachbarschaft (wie die Mauer, geom.wallPiece). joinFort: schließt auch an Mauer, Tor und Turm an.
+   */
+  pieces?: { prefix: string; joinFort?: boolean };
+  /** Flach am Boden (Graben): in der Tiefensortierung unter Figuren und Gebäuden. */
+  flat?: boolean;
+  /**
+   * Graben (ADR 0017): eigene Leute waten hindurch (Wegkosten × ownCost), Angreifer kommen nur durch, indem sie ihn
+   * zuschütten (Lebenspunkte = Füllmenge, SIEGE.ditchFillPerStrike je Wurf).
+   */
+  ditch?: { ownCost: number };
   /** Ausbaustufen (siehe BuildingLevel). */
   levels?: BuildingLevel[];
   /**
@@ -283,6 +297,8 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     category: "befestigung", footprint: [1, 2], cost: { stein: 4 }, buildSeconds: 6, sprite: "treppe",
     construction: { ground: "baustelle_treppe", foundation: 0.15, courses: 10, piles: [[0, -0.5]] }, stairs: true, hp: 400,
   },
+  // Holzpalisade und Graben (src/data/belagerung.ts)
+  ...BEFESTIGUNG,
   turm: {
     name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
     category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm", door: [0, -1.5],
@@ -292,18 +308,19 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
 };
 
 // ---------------------------------------------------------------- Einheiten
-export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "speer" | "schwert" | "bogen";
+export type UnitKey = "tageloehner" | "holzfaeller" | "steinmetz" | "mueller" | "baecker" | "speer" | "schwert" | "bogen" | BelagerungUnitKey;
 
 /** Animationen, die die Simulation meldet. Die Darstellung bildet sie auf Blatt-Animationen ab (mit Ersatz, falls eine fehlt). */
 export type AnimKey = "stehen" | "gehen" | "hacken" | "abbauen" | "bauen" | "mahlen" | "backen" | "angriff" | "schiessen" | "sterben" | "tot";
 
-export type DamageType = "stich" | "hieb" | "pfeil";
+export type DamageType = "stich" | "hieb" | "pfeil" | "wucht";
 
 export interface UnitDef {
   name: string;
   /** Figur im Figurenblatt (assets/figures/<stil>/sheet.json). */
   sprite: string;
-  role: "arbeiter" | "nahkampf" | "fernkampf";
+  /** belagerung: Gerät (Rammbock), greift nur Gebäude an. */
+  role: "arbeiter" | "nahkampf" | "fernkampf" | "belagerung";
   hp: number;
   /** Felder pro Sekunde. */
   speed: number;
@@ -315,13 +332,20 @@ export interface UnitDef {
   /** Sekunden zwischen zwei Angriffen. */
   cooldown?: number;
   /** Bonus gegen Einheitenrollen, z. B. Speer gegen Nahkampf-Ansturm. */
-  bonus?: Partial<Record<"nahkampf" | "fernkampf", number>>;
+  bonus?: Partial<Record<"nahkampf" | "fernkampf" | "belagerung", number>>;
   /** Kosten der Ausbildung (Gold) und Ausrüstung aus dem Lager. */
   train?: { gold: number; equipment: Good; seconds: number };
   /** Darf auf Mauerposten stehen. */
   canStation?: boolean;
   /** Gesperrt, bis diese Forschung abgeschlossen ist. */
   tech?: TechKey;
+  /** Figur, solange die Einheit Gerät trägt (Unit.gear, z. B. die Sturmleiter). */
+  gearSprite?: Partial<Record<"leiter", string>>;
+  /**
+   * Belagerungsgerät (Rammbock): Sprite im Gebäudeblatt statt im Figurenblatt, bewegt sich nur am Boden und nur mit
+   * Mannschaft (crew Sturmknechte schieben ihn).
+   */
+  vehicle?: { crew: number };
 }
 
 export const UNITS: Record<UnitKey, UnitDef> = {
@@ -342,6 +366,8 @@ export const UNITS: Record<UnitKey, UnitDef> = {
     name: "Bogenschütze", sprite: "bogen", role: "fernkampf", hp: 55, speed: 1.6, armor: 1, damage: 7, damageType: "pfeil",
     range: 7, cooldown: 1.8, train: { gold: 15, equipment: "bogen", seconds: 9 }, canStation: true,
   },
+  // Angreifer mit Belagerungswerkzeug (src/data/belagerung.ts)
+  ...BELAGERUNG_UNITS,
 };
 
 /**
@@ -410,6 +436,7 @@ export const DAMAGE_TYPES: Record<DamageType, { armor: number; building: number 
   stich: { armor: 0.7, building: 0.35 },
   hieb: { armor: 1, building: 1 },
   pfeil: { armor: 1, building: 0.1 },
+  wucht: { armor: 0.5, building: 1 },
 };
 
 /** Stellschrauben der Simulation (Sekunden, Tiles, Gold). */

@@ -11,6 +11,7 @@ import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, t
 import { fullMessage, hasStoreOf, reservePut, tidy } from "./storage";
 import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
 import type { Rock, Tree } from "./types";
+import { releaseRepair, runRepair } from "./belagerung";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
 
 type CycleJob = Extract<Job, { k: "cycle" }>;
@@ -24,6 +25,7 @@ export function runJob(w: World, u: SUnit): void {
     case "supply": return runSupply(w, u, j);
     case "build": return runBuild(w, u, j);
     case "recruit": return runRecruit(w, u, j);
+    case "repair": return runRepair(w, u, j);
   }
 }
 
@@ -499,6 +501,7 @@ export function releaseJob(w: World, u: SUnit, keepCarry = false): void {
         if (b && b.ai.recruit === u.id) { b.ai.recruit = 0; b.ai.recruitPicked = false; }
         break;
       }
+      case "repair": releaseRepair(w, u, j); break;
     }
   }
   u.ai.job = null;
@@ -550,6 +553,11 @@ export function abortJobsAt(w: World, b: SBuilding): void {
       case "recruit":
         if (j.ph === 0 && (j.b === b.id || j.from === b.id)) releaseJob(w, u);
         else if (j.ph === 1 && j.b === b.id) { u.ai.job = null; carryBack(w, u); }
+        break;
+      case "repair":
+        if (j.ph === 0 && (j.b === b.id || j.from === b.id)) releaseJob(w, u);
+        else if (j.ph === 1 && j.b === b.id) { u.ai.job = null; carryBack(w, u); }
+        else if (j.ph === 2 && j.b === b.id) { u.ai.job = null; u.order = { t: "idle" }; }
         break;
       case "cycle": break;
     }

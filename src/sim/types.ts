@@ -84,7 +84,28 @@ export interface Building {
   upgrade?: { level: number; t: number };
   /** Verarbeitung nach Rezept (nur Gebäude mit BuildingDef.production, ab Fertigstellung). */
   proc?: ProcState;
+  /** Automatische Reparatur vom Spieler abgeschaltet (fehlt = an; ADR 0017). */
+  repairOff?: boolean;
 }
+
+/**
+ * Sturmleiter an einer Mauer (ADR 0017): Fuß auf dem Boden-Tile (x, y), oberes Ende auf dem Wehrgang-Tile (wx, wy).
+ * o = Ausrichtung wie bei Gebäuden: Modell +y zeigt vom Fuß zur Mauer (Sprite „leiter“). Steht sie, verbindet sie für
+ * Angreifer Boden und Wehrgang. push 0..1 = Fortschritt des Umstoßens; umgestoßen kippt sie (t Sekunden) und liegt.
+ */
+export interface Ladder {
+  id: number;
+  x: number; y: number;
+  wx: number; wy: number;
+  o: number;
+  state: "steht" | "faellt" | "liegt";
+  /** Sekunden im aktuellen Zustand. */
+  t: number;
+  push: number;
+}
+
+/** Trümmer einer zerstörten Befestigung bzw. ein zugeschütteter Graben: begehbar (langsamer), Sprite mit Variante v. */
+export interface Rubble { x: number; y: number; sprite: string; v: number; o: number }
 
 /**
  * Zustand eines Verarbeitungsgebäudes (src/sim/production.ts, ADR 0011). Alle Mengen in Stück; sichtbar sind Puffer
@@ -185,11 +206,15 @@ export interface Unit {
   activity?: UnitActivity;
   /** Boni aus der Forschung (Reichweite in Feldern, Rüstung), fehlt = keine. */
   boost?: { range?: number; armor?: number };
+  /** Getragenes Gerät (Sturmleiter des Sturmknechts), fehlt = keins. */
+  gear?: "leiter";
 }
 
 export type UnitActivity =
   | "wartet" | "unterwegs" | "baut" | "traegt" | "faellt" | "zerlegt" | "baut_ab" | "holt_waffe" | "flieht"
-  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet";
+  | "kaempft" | "wache" | "haelt" | "zieht_zu" | "verarbeitet"
+  /** Belagerung (ADR 0017): Leiter anlegen, klettern, Leiter umstoßen, Rammbock schieben, reparieren, sich erholen. */
+  | "legt_an" | "klettert" | "stoesst_um" | "schiebt" | "repariert" | "erholt";
 
 export interface Projectile {
   id: number;
@@ -229,12 +254,16 @@ export interface SimState {
   research: ResearchState;
   /** Ausgang der Partie: gesetzt, wenn der Bergfried fällt. */
   outcome?: "niederlage";
+  /** Sturmleitern an den Mauern (fehlt in alten Spielständen = keine). */
+  ladders?: Ladder[];
+  /** Trümmer zerstörter Befestigungen (Breschen) und zugeschüttete Gräben. */
+  rubble?: Rubble[];
 }
 
 export type Command =
   | { t: "bauen"; key: BuildingKey; x: number; y: number; o: number }
-  /** Mauer von (x0, y0) bis (x1, y1) ziehen: gerade oder L-förmig, Tile für Tile. */
-  | { t: "mauer"; x0: number; y0: number; x1: number; y1: number }
+  /** Mauer (bzw. key: Palisade, Graben) von (x0, y0) bis (x1, y1) ziehen: gerade oder L-förmig, Tile für Tile. */
+  | { t: "mauer"; x0: number; y0: number; x1: number; y1: number; key?: BuildingKey }
   | { t: "abreissen"; id: number }
   | { t: "rekrutieren"; building: number; unit: UnitKey }
   /** Ziel-Tile; ist er Teil eines Wehrgangs, gehen die Einheiten hinauf (wenn erreichbar). */
@@ -253,7 +282,9 @@ export type Command =
   /** Rezept eines Verarbeitungsgebäudes wählen (nicht passende Puffer-Waren gehen ins Lager zurück). */
   | { t: "rezept"; building: number; recipe: RecipeKey }
   /** Verarbeitung anhalten (an = false) oder fortsetzen. */
-  | { t: "produktion"; building: number; an: boolean };
+  | { t: "produktion"; building: number; an: boolean }
+  /** Automatische Reparatur eines Gebäudes an- oder abschalten. */
+  | { t: "reparatur"; building: number; an: boolean };
 
 /** voice: optionale Sprecheransage zum Ergebnis (z. B. zu_teuer, kein_platz, stationiert, kein_posten, keine_waffe). */
 export interface CommandResult { ok: boolean; reason?: string; ids?: number[]; voice?: VoiceKey }
@@ -272,8 +303,8 @@ export interface Game {
   dispatch(cmd: Command): CommandResult;
   /** Bauvorschau: dieselben Regeln wie "bauen". */
   canPlace(key: BuildingKey, x: number, y: number, o: number): PlacementCheck;
-  /** Mauer-Vorschau. */
-  wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck;
+  /** Mauer-Vorschau (key: Palisade, Graben; Standard Mauer). */
+  wallPath(x0: number, y0: number, x1: number, y1: number, key?: BuildingKey): PlacementCheck;
   /** Laufebene am Tile, falls dort ein Wehrgang ist (für Zielwahl der Maus), sonst 0. */
   walkLayerAt(x: number, y: number): number;
   /** Spielstand als JSON (Speichern) und Laden. */

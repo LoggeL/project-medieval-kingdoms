@@ -63,5 +63,5 @@ export const ROSTER: RosterGroup[] = [
 export const initials = (name: string): string =>
   name.split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
-export const ROLE_NAME: Record<string, string> = { arbeiter: "Arbeiter", nahkampf: "Nahkampf", fernkampf: "Fernkampf" };
-export const DAMAGE_NAME: Record<string, string> = { stich: "Stich", hieb: "Hieb", pfeil: "Pfeil" };
+export const ROLE_NAME: Record<string, string> = { arbeiter: "Arbeiter", nahkampf: "Nahkampf", fernkampf: "Fernkampf", belagerung: "Belagerungsgerät" };
+export const DAMAGE_NAME: Record<string, string> = { stich: "Stich", hieb: "Hieb", pfeil: "Pfeil", wucht: "Wucht" };

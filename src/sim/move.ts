@@ -3,7 +3,7 @@
  * zur Höhe des nächsten Knotens (so steigt sie sichtbar entlang der Treppe). Pfadsuchen sind pro Tick
  * begrenzt (World.budget); wer keine bekommt, wartet einen Tick.
  */
-import { UNITS } from "../data";
+import { SIEGE, UNITS } from "../data";
 import { BUILDINGS } from "../data";
 import { entrance, footprint } from "./geom";
 import { carryFactor } from "./research";
@@ -15,12 +15,14 @@ export interface TravelGoal extends Goal {
   endX?: number; endY?: number;
   /** Belagerungsmodus: Gebäude sind (teuer) passierbar, travel meldet "blocked" davor. */
   breach?: boolean;
+  /** Bodenmodus (Belagerungsgerät): keine Treppen, Leitern und Turmtüren, kein Graben (ADR 0017). */
+  ground?: boolean;
 }
 
 export type TravelResult = "arrived" | "moving" | "waiting" | "unreachable" | "blocked";
 
 export function goalKey(g: TravelGoal): string {
-  return `${g.layer},${g.x0},${g.y0},${g.x1},${g.y1},${g.d}` + (g.endX !== undefined ? `@${g.endX},${g.endY}` : "") + (g.breach ? "b" : "");
+  return `${g.layer},${g.x0},${g.y0},${g.x1},${g.y1},${g.d}` + (g.endX !== undefined ? `@${g.endX},${g.endY}` : "") + (g.breach ? "b" : "") + (g.ground ? "g" : "");
 }
 
 export function tileGoal(x: number, y: number, layer = 0, d = 0): TravelGoal {
@@ -50,7 +52,7 @@ export function travel(w: World, u: SUnit, g: TravelGoal): TravelResult {
     // Raster hat sich geändert: Rest des Wegs prüfen
     ai.navV = w.meta.navVersion;
     for (let i = ai.pi; i < ai.path.length; i++) {
-      if (nav.pass(ai.path[i], u.team, !!g.breach) < 0) { ai.path = null; break; }
+      if (nav.pass(ai.path[i], u.team, !!g.breach, !!g.ground) < 0) { ai.path = null; break; }
     }
   }
   if (!ai.path) {
@@ -58,11 +60,11 @@ export function travel(w: World, u: SUnit, g: TravelGoal): TravelResult {
     if (w.budget <= 0) { setAnim(u, "stehen"); return "waiting"; }
     w.budget--;
     const from = unitNode(w, u);
-    let path = nav.route(u.team, !!g.breach, from, g);
+    let path = nav.route(u.team, !!g.breach, from, g, !!g.ground);
     if (!path && !nav.linkOnly[from] && nav.pass(from, u.team, !!g.breach) < 0) {
       // Steht auf einem gesperrten Tile (z. B. neue Baustelle): erst zum nächsten freien Tile, von dort weiter
       const free = nav.nearestOpen(u.team, nav.tileX(from), nav.tileY(from), u.layer);
-      const rest = free >= 0 ? nav.route(u.team, !!g.breach, free, g) : null;
+      const rest = free >= 0 ? nav.route(u.team, !!g.breach, free, g, !!g.ground) : null;
       if (rest) path = [free, ...rest];
     }
     if (!path) { ai.wait = 2 * TPS; setAnim(u, "stehen"); return "unreachable"; }
@@ -93,7 +95,8 @@ export function blockedNode(u: SUnit): number {
 export function evictUnits(w: World): void {
   const nav = w.nav;
   for (const u of w.s.units) {
-    if (u.dead || u.layer !== 0 || u.inside) continue;
+    // wer gerade an einer Leiter klettert (Höhe ohne Treppe), bleibt, wo er ist
+    if (u.dead || u.layer !== 0 || u.inside || (u.z > 0.2 && nav.stairZ(u.x, u.y) < 0)) continue;
     const n = unitNode(w, u);
     if (nav.linkOnly[n] || nav.open(n, u.team)) continue;
     const free = nav.nearestOpen(u.team, nav.tileX(n), nav.tileY(n), 0);
@@ -110,6 +113,8 @@ export function evictUnits(w: World): void {
 function advance(w: World, u: SUnit): boolean {
   const ai = u.ai, nav = w.nav, path = ai.path!;
   let budget = speedOf(w, u) / TPS;
+  // An der Sturmleiter (Boden ↔ Wehrgang ohne Treppe) geht es langsam hinauf und hinunter
+  if (ai.pi < path.length && climbing(w, u, path[ai.pi])) budget *= SIEGE.climbFactor;
   while (budget > 1e-6) {
     let tx: number, ty: number, tz: number, layer: number;
     if (ai.pi < path.length) {
@@ -139,6 +144,13 @@ function advance(w: World, u: SUnit): boolean {
   const done = ai.pi >= path.length && (!ai.hasEnd || (Math.abs(u.x - ai.endX) < 1e-6 && Math.abs(u.y - ai.endY) < 1e-6));
   setAnim(u, done ? "stehen" : "gehen");
   return done;
+}
+
+/** Führt der Schritt zum Knoten n über eine Sturmleiter (Wechsel Boden ↔ Wehrgang, nicht auf einer Treppe)? */
+export function climbing(w: World, u: SUnit, n: number): boolean {
+  const nav = w.nav, l = nav.layerOf(n);
+  if (l === u.layer || l + u.layer !== 1) return false;
+  return nav.stairZ(u.x, u.y) < 0 && nav.stairZ(nav.tileX(n) + 0.5, nav.tileY(n) + 0.5) < 0;
 }
 
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */

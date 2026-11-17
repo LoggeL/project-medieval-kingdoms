@@ -17,7 +17,7 @@ export type Preview =
     /** Mausfelder in der Nähe, an denen die Platzierung gültig wäre (enge Baubänder, z. B. Steinbruch am Fels). */
     anchors?: readonly { x: number; y: number }[];
   }
-  | { kind: "mauer"; check: PlacementCheck }
+  | { kind: "mauer"; check: PlacementCheck; key?: BuildingKey }
   | { kind: "kachel"; x: number; y: number; z: number; color: number };
 
 export interface Marker { x: number; y: number; z: number; t0: number; color: number }
@@ -69,11 +69,14 @@ export class Overlays {
     g.poly(pts).stroke({ width: 2, color, alpha: 0.95, alignment: 0.5 });
   }
 
-  private fort(state: SimState, x: number, y: number): boolean {
+  private fort(state: SimState, x: number, y: number, key: BuildingKey = "mauer"): boolean {
     const id = state.tiles[y * state.w + x]?.building;
     if (!id) return false;
     const b = state.buildings.find((q) => q.id === id);
-    return !!b && FORT.has(b.key);
+    if (!b) return false;
+    // Linienstücke (Palisade, Graben, ADR 0017): gleiche Art, die Palisade auch Mauer, Tor und Turm (wie updateWallMasks)
+    const pc = BUILDINGS[key].pieces;
+    return pc ? b.key === key || (!!pc.joinFort && FORT.has(b.key)) : FORT.has(b.key);
   }
 
   /** Bauvorschau als Sprites (für die Objektebene). Gilt bis zum nächsten Aufruf. */
@@ -97,12 +100,15 @@ export class Overlays {
       this.addGhost(sk, o, 0, x, y, x + w, y + h, cx, cy, 0.62, check.ok ? 0xffffff : 0xff7a6a);
     } else if (preview.kind === "mauer") {
       const set = new Set(preview.check.tiles.map((q) => q.x + "," + q.y));
-      const fort = (x: number, y: number) => set.has(x + "," + y) || this.fort(state, x, y);
+      const key = preview.key ?? "mauer";
+      const fort = (x: number, y: number) => set.has(x + "," + y) || this.fort(state, x, y, key);
+      const prefix = BUILDINGS[key].pieces?.prefix;
       for (const tl of preview.check.tiles) {
         let mask = 0;
         NEIGHBOURS.forEach(([dx, dy], bit) => { if (fort(tl.x + dx, tl.y + dy)) mask |= 1 << bit; });
         const { piece, o } = wallPiece(mask);
-        const keys: [string, number][] = bs.has(piece) ? [[piece, o]]
+        const own = prefix ? prefix + piece.slice(piece.indexOf("_")) : "";
+        const keys: [string, number][] = prefix ? (bs.has(own) ? [[own, o]] : []) : bs.has(piece) ? [[piece, o]]
           : piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz" ? [["mauer", o], ["mauer", o + 1]] : [["mauer", o]];
         // als Gruppe: die Darstellung zeichnet den Mauerzug deckend und blendet ihn als Ganzes (WALL_GHOST_ALPHA)
         for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, WALL_GHOST_ALPHA, tl.ok ? 0xffffff : 0xff7a6a, true);

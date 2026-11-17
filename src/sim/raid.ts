@@ -11,11 +11,12 @@
  * und verlässt die Karte. Er kämpft dabei nicht mehr. Ist der Rückweg versperrt, stellt er sich und kämpft bis zuletzt.
  * Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
  */
-import { BUILDINGS, START, TUNING, type BuildingKey } from "../data";
+import { BUILDINGS, RAID_SIEGE, START, TUNING, UNITS, type BuildingKey, type UnitKey } from "../data";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, strikeBuilding, strikeUnit, vanish } from "./combat";
 import { center } from "./geom";
 import { blockedNode, goalAround, lineClear, stepToward, stop, tileGoal, travel, type TravelResult } from "./move";
 import { TPS, setAnim, type SUnit, type World } from "./world";
+import { fillDitch, siegeAct, viaLadder } from "./belagerung";
 
 /** Vorwarnung vor einer Welle (Sekunden). */
 export const RAID_WARNING_SECONDS = 30;
@@ -46,22 +47,46 @@ export function spawnWave(w: World): number[] {
   const mix = START.raid.mix;
   s.raid.wave++;
   w.meta.raidLosses = 0;
+  // Belagerungswerkzeug (RAID_SIEGE, ADR 0017): Sturmknechte mit Leitern und Rammböcke samt Mannschaft ersetzen Krieger
+  const siege = siegeFor(s.raid.wave);
+  const crew = UNITS.rammbock.vehicle?.crew ?? 0;
+  const ladders = Math.min(siege.ladders, n);
+  const plan: { key: UnitKey; gear?: "leiter"; ram?: number }[] = [];
+  for (let k = 0; k < Math.max(0, n - ladders - siege.rams * crew); k++) plan.push({ key: mix[k % mix.length] });
+  for (let k = 0; k < ladders; k++) plan.push({ key: "sturmknecht", gear: "leiter" });
+  for (let r = 0; r < siege.rams; r++) {
+    plan.push({ key: "rammbock" });
+    for (let c = 0; c < crew; c++) plan.push({ key: "sturmknecht", ram: r });
+  }
   const [sx, sy] = w.meta.raidSpawn;
   const ids: number[] = [];
-  let k = 0;
-  for (let r = 0; r <= 8 && ids.length < n; r++) {
-    for (let dy = -r; dy <= r && ids.length < n; dy++) for (let dx = -r; dx <= r && ids.length < n; dx++) {
+  const rams: number[] = [];
+  for (let r = 0; r <= 8 && ids.length < plan.length; r++) {
+    for (let dy = -r; dy <= r && ids.length < plan.length; dy++) for (let dx = -r; dx <= r && ids.length < plan.length; dx++) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       const x = sx + dx, y = sy + dy;
       if (!w.inMap(x, y) || !nav.open(nav.node(0, x, y), 1)) continue;
-      const u = w.addUnit(mix[k++ % mix.length], 1, x + 0.5, y + 0.5);
+      const p = plan[ids.length];
+      const u = w.addUnit(p.key, 1, x + 0.5, y + 0.5);
       u.ai.think = ids.length % TPS;
+      if (p.gear) u.gear = p.gear;
+      if (UNITS[p.key].vehicle) rams.push(u.id);
+      if (p.ram !== undefined) u.ai.ram = rams[p.ram] ?? 0;
       ids.push(u.id);
     }
   }
   w.meta.raidRunning = true;
-  w.msg(`Angreifer aus dem ${side(w)}! ${ids.length} Krieger rücken an (Welle ${s.raid.wave}).`, "kampf", undefined, 20, "ueberfall");
+  const men = ids.filter((id) => !UNITS[w.units.get(id)!.key].vehicle).length;
+  w.msg(`Angreifer aus dem ${side(w)}! ${men} Krieger rücken an (Welle ${s.raid.wave}).`, "kampf", undefined, 20, "ueberfall");
+  if (ladders || rams.length) w.msg(rams.length ? "Sie bringen Sturmleitern und einen Rammbock mit!" : "Sie tragen Sturmleitern!", "kampf");
   return ids;
+}
+
+/** Belagerungswerkzeug der Welle (höchste passende Zeile aus RAID_SIEGE, vor der ersten keines). */
+export function siegeFor(wave: number): { ladders: number; rams: number } {
+  let out = { ladders: 0, rams: 0 };
+  for (const r of RAID_SIEGE) if (wave >= r.wave) out = r;
+  return out;
 }
 
 function side(w: World): string {
@@ -75,6 +100,7 @@ function side(w: World): string {
 // ---------------------------------------------------------------- KI
 export function raiderAct(w: World, u: SUnit): void {
   const ai = u.ai;
+  if (siegeAct(w, u)) return; // Rammbock, seine Mannschaft, Sturmknecht mit Leiter (belagerung.ts)
   if (ai.retreat) { retreatAct(w, u); return; }
   if (--ai.think <= 0) {
     ai.think = TPS;
@@ -89,7 +115,7 @@ export function raiderAct(w: World, u: SUnit): void {
     if (t.layer === u.layer && d < 3 && lineClear(w, u, t.x, t.y) && stepToward(w, u, t.x, t.y, isRanged(u.key) ? 3 : 0.6)) { ai.goal = ""; return; }
     const tx = Math.floor(t.x), ty = Math.floor(t.y);
     if (!ai.goal || Math.hypot(tx - ai.cx, ty - ai.cy) > 1.5) { ai.cx = tx; ai.cy = ty; }
-    const r = travel(w, u, { ...tileGoal(ai.cx, ai.cy, t.layer, 1), breach: true });
+    const r = travel(w, u, viaLadder(w, u, { ...tileGoal(ai.cx, ai.cy, t.layer, 1), breach: true }));
     if (r === "unreachable") ai.target = 0;
     else if (r === "blocked") breakThrough(w, u);
     return;
@@ -98,7 +124,7 @@ export function raiderAct(w: World, u: SUnit): void {
   const b = ai.targetB ? w.buildings.get(ai.targetB) : undefined;
   if (b && b.team !== u.team) {
     if (inRangeBuilding(u, b)) { strikeBuilding(w, u, b); return; }
-    const r: TravelResult = travel(w, u, goalAround(b, true));
+    const r: TravelResult = travel(w, u, viaLadder(w, u, goalAround(b, true)));
     if (r === "unreachable") ai.targetB = 0;
     else if (r === "blocked") breakThrough(w, u);
     return;
@@ -144,6 +170,7 @@ function breakThrough(w: World, u: SUnit): void {
   if (n < 0) return;
   const b = w.buildingAt(w.nav.tileX(n), w.nav.tileY(n));
   if (!b || b.team === u.team) return;
+  if (BUILDINGS[b.key].ditch) { fillDitch(w, u, b); return; }
   if (inRangeBuilding(u, b)) strikeBuilding(w, u, b);
   else { const [cx, cy] = center(b.key, b.x, b.y, b.o); if (!stepToward(w, u, cx, cy, 0.5)) setAnim(u, "stehen"); }
 }
@@ -170,7 +197,7 @@ function chooseTarget(w: World, u: SUnit): void {
   let best = 0, bd = Infinity;
   for (const pass of [0, 1, 2]) {
     for (const x of w.s.buildings) {
-      if (x.team === u.team || rank(x.key) !== pass) continue;
+      if (x.team === u.team || rank(x.key) !== pass || BUILDINGS[x.key].ditch) continue;
       const [cx, cy] = center(x.key, x.x, x.y, x.o);
       const d = Math.hypot(cx - u.x, cy - u.y);
       if (d < bd) { bd = d; best = x.id; }

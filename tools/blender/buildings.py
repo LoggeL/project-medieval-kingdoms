@@ -2741,6 +2741,597 @@ BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
 BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
 
 
+# ---------------------------------------------------------------- siege and fortification (ADR 0017)
+# Wooden palisade and ditch pieces (autotiling like the wall), ruins, storm ladder, battering ram, damage stages of the
+# fortifications (same geometry as the intact piece, blocks knocked out, merlons gone, cracks, soot, rubble) and
+# generic damage overlays (rubble and scorch at the camera-facing edges) for the other buildings.
+import hashlib
+
+PIECE_CONN = {"gerade": "ew", "ende": "e", "ecke": "en", "t": "ewn", "kreuz": "ewns", "einzel": ""}
+
+
+def h01(*v):
+    """Deterministic 0..1 from coordinates. Damage decisions use this, never mb.rnd, so the base geometry of a damaged
+    piece is drawn exactly like the intact one and a block knocked out at stage 1 stays out at stages 2 and 3."""
+    s = ",".join("%.2f" % x for x in v)
+    return int(hashlib.md5(s.encode()).hexdigest()[:8], 16) / 2.0 ** 32
+
+
+# ------------------------------------------------ palisade
+PALI_STEP = T / 10          # stake spacing: ten per tile, so neighbouring pieces keep the rhythm
+PALI_R = 0.125
+PALI_GONE = (0.0, 0.07, 0.2, 0.38)      # share of stakes torn out per damage stage
+PALI_BROKEN = (0.0, 0.16, 0.32, 0.5)    # share snapped (includes the torn out ones)
+PALI_BURNT = (0.0, 0.0, 0.18, 0.32)
+
+
+def pali_runs(conn):
+    """Stake runs (axis, a, b) of a palisade piece: arms from the centre to the tile edge per connection."""
+    L, c = T / 2, PALI_STEP * 0.75
+    runs = []
+    if "e" in conn and "w" in conn:
+        runs.append(("x", -L, L))
+    elif "e" in conn:
+        runs.append(("x", 0.0, L))
+    elif "w" in conn:
+        runs.append(("x", -L, 0.0))
+    has_x = bool(runs)
+    if "n" in conn and "s" in conn and not has_x:
+        runs.append(("y", -L, L))
+    else:
+        if "n" in conn:
+            runs.append(("y", c if has_x else 0.0, L))
+        if "s" in conn:
+            runs.append(("y", -L, -c if has_x else 0.0))
+    if not runs:
+        runs.append(("x", -2 * PALI_STEP, 2 * PALI_STEP))
+    return runs
+
+
+def stake(mb, x, y, h, lean, stage, perp):
+    """One pointed stake; damaged: snapped (short, splintered), torn out (stub plus a stake lying outside) or burnt."""
+    u = h01(x, y, 7.0)
+    burnt = stage and h01(x, y, 3.0) < PALI_BURNT[stage]
+    mat = "soot" if burnt else "log"
+    if stage and u < PALI_GONE[stage]:
+        mb.cyl(mat, (x, y, 0.12), PALI_R, 0.24, n=6)
+        if u < PALI_GONE[stage] * 0.6:   # the stake lies outside, across the line
+            px, py = perp
+            k = 0.3 + 1.0 * h01(x, y, 5.0)
+            ang = math.degrees(math.atan2(py, px)) + (h01(x, y, 6.0) - 0.5) * 50
+            mb.cyl(mat, (x + px * k, y + py * k, PALI_R), PALI_R, h * 0.8, n=6, rot=(0, 90, ang))
+        return
+    if stage and u < PALI_BROKEN[stage]:
+        hh = h * (0.35 + 0.3 * h01(x, y, 4.0))
+        with mb.at((x, y, 0), rz=0):
+            mb.cyl(mat, (0, 0, hh / 2), PALI_R, hh, n=6, rot=(lean, 0, 0))
+            mb.cyl("wood_hi", (0.03, 0, hh + 0.08), 0.06, 0.18, n=4, r2=0, rot=(lean + 15, 0, 0))
+        return
+    with mb.at((x, y, 0), rz=0):
+        mb.cyl(mat, (0, 0, h / 2), PALI_R, h, n=6, rot=(lean, 0, 0))
+        mb.cyl("soot" if burnt else "wood_hi", (0, 0, h + 0.15), PALI_R, 0.3, n=6, r2=0, rot=(lean, 0, 0))
+
+
+def palisade_piece(mb, conn, stage):
+    r = mb.rnd
+    L = T / 2
+    for axis, a, b in pali_runs(conn):
+        n = max(1, round((b - a) / PALI_STEP))
+        perp = (0, -1) if axis == "x" else (-1, 0)
+        # trampled earth bank along the line
+        if axis == "x":
+            mb.bx("dirt", a, b, -0.32, 0.32, 0, 0.05)
+        else:
+            mb.bx("dirt", -0.32, 0.32, a, b, 0, 0.05)
+        for i in range(n):
+            t = a + (i + 0.5) * (b - a) / n
+            x, y = (t, 0.0) if axis == "x" else (0.0, t)
+            h = 2.0 + 0.3 * r.random()
+            lean = r.uniform(-2.5, 2.5)
+            stake(mb, x, y, h, lean, stage, perp)
+            # two rails behind the stakes (model +y / +x side), broken where the stake is gone
+            gone = stage and h01(x, y, 7.0) < PALI_BROKEN[stage]
+            if gone and stage >= 2:
+                continue
+            for zr in (0.55, 1.5):
+                if axis == "x":
+                    mb.bx("timber", t - PALI_STEP / 2, t + PALI_STEP / 2, PALI_R, PALI_R + 0.09, zr, zr + 0.12)
+                else:
+                    mb.bx("timber", PALI_R, PALI_R + 0.09, t - PALI_STEP / 2, t + PALI_STEP / 2, zr, zr + 0.12)
+    if stage:  # splinters on the ground
+        for k in range(3 * stage):
+            x, y = r.uniform(-L + 0.2, L - 0.2), r.uniform(-L + 0.2, -0.3)
+            mb.box("wood_hi", (x, y, 0.03), (0.32, 0.06, 0.05), rot=(0, 0, r.uniform(0, 180)))
+    # stand-ins for the connected neighbours (no ground shadow over them)
+    z = 2.5
+    for d_, box in (("e", (L, 3 * L, -0.2, 0.2)), ("w", (-3 * L, -L, -0.2, 0.2)), ("n", (-0.2, 0.2, L, 3 * L)), ("s", (-0.2, 0.2, -3 * L, -L))):
+        if d_ in conn:
+            mb.bx("log", box[0], box[1], box[2], box[3], 0, z, group="ghost")
+
+
+def b_palisade(key):
+    conn = set(PIECE_CONN[key.split("_", 1)[1]])
+
+    def build(mb, var):
+        palisade_piece(mb, conn, var)
+    return build
+
+
+# ------------------------------------------------ ditch
+DITCH_W = 0.8   # half width of the channel
+
+
+def ditch_cells(conn):
+    """3 x 3 cells of a ditch tile: True = channel. Centre always, the middle of each edge if connected."""
+    cells = {}
+    for i in (-1, 0, 1):
+        for j in (-1, 0, 1):
+            ch = (i == 0 and j == 0) or (j == 0 and ((i == 1 and "e" in conn) or (i == -1 and "w" in conn))) or \
+                 (i == 0 and ((j == 1 and "n" in conn) or (j == -1 and "s" in conn)))
+            cells[(i, j)] = ch
+    if not conn:
+        cells[(1, 0)] = cells[(-1, 0)] = False
+    return cells
+
+
+def cell_rect(i, j):
+    L, w = T / 2, DITCH_W
+    xs = {-1: (-L, -w), 0: (-w, w), 1: (w, L)}
+    return xs[i] + xs[j]
+
+
+def ditch_piece(mb, conn, dug=1.0):
+    """Ditch: earth banks heaped beside a muddy channel with sharpened stakes; dug = 0..1 (site: half dug)."""
+    r = mb.rnd
+    cells = ditch_cells(conn)
+    bank_h = 0.26 * dug + 0.05
+    for (i, j), ch in cells.items():
+        x0, x1, y0, y1 = cell_rect(i, j)
+        if ch:
+            mb.bx("mud", x0, x1, y0, y1, 0, 0.02)
+            if dug >= 1:
+                for k in range(2):
+                    cx, cy = r.uniform(x0 + 0.15, x1 - 0.15), r.uniform(y0 + 0.15, y1 - 0.15)
+                    mb.cyl("ditch_water", (cx, cy, 0.025), r.uniform(0.2, 0.34), 0.012, n=8)
+            continue
+        # bank: heaped earth, darker slope towards each neighbouring channel cell
+        mb.bx("dirt", x0 + 0.04, x1 - 0.04, y0 + 0.04, y1 - 0.04, 0, bank_h)
+        for k in range(6):
+            cx, cy = r.uniform(x0 + 0.12, x1 - 0.12), r.uniform(y0 + 0.12, y1 - 0.12)
+            mb.blob(r.choice(("dirt", "earth_dk", "gravel")), (cx, cy, bank_h), (0.22, 0.18, 0.07), seg=6, rings=3, jitter=0.3)
+        for k in range(3 if dug >= 1 else 0):
+            cx, cy = r.uniform(x0 + 0.15, x1 - 0.15), r.uniform(y0 + 0.15, y1 - 0.15)
+            mb.blob(r.choice(("leaf_dk", "leaf")), (cx, cy, bank_h + 0.04), (0.12, 0.1, 0.06), seg=5, rings=3, jitter=0.3)
+        for (di, dj) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nb = (i + di, j + dj)
+            if nb in cells and cells[nb]:
+                s = 0.24
+                if di == 1:
+                    mb.box("earth_dk", (x1 - 0.04, (y0 + y1) / 2, bank_h / 2), (s, y1 - y0, bank_h * 1.15), rot=(0, 35, 0))
+                elif di == -1:
+                    mb.box("earth_dk", (x0 + 0.04, (y0 + y1) / 2, bank_h / 2), (s, y1 - y0, bank_h * 1.15), rot=(0, -35, 0))
+                elif dj == 1:
+                    mb.box("earth_dk", ((x0 + x1) / 2, y1 - 0.04, bank_h / 2), (x1 - x0, s, bank_h * 1.15), rot=(-35, 0, 0))
+                else:
+                    mb.box("earth_dk", ((x0 + x1) / 2, y0 + 0.04, bank_h / 2), (x1 - x0, s, bank_h * 1.15), rot=(35, 0, 0))
+    if dug >= 1:
+        # sharpened stakes in the channel, leaning alternately to both banks
+        pts = [(0, 0)] + [((0.62 if i > 0 else -0.62) * (T / 2) / 1.27, 0) for i in (-1, 1) if cells[(i, 0)]] + \
+              [(0, (0.62 if j > 0 else -0.62) * (T / 2) / 1.27) for j in (-1, 1) if cells[(0, j)]]
+        for k, (x, y) in enumerate(pts):
+            for s_ in (-1, 1):
+                ax = "x" if (cells[(1, 0)] or cells[(-1, 0)]) and abs(y) < 0.1 else "y"
+                tilt = 32 * s_
+                rot = (tilt, 0, 0) if ax == "x" else (0, tilt, 0)
+                ox, oy = (0, s_ * 0.18) if ax == "x" else (s_ * 0.18, 0)
+                mb.cyl("log", (x + ox * 0.5, y + oy * 0.5, 0.32), 0.06, 0.7, n=5, rot=rot)
+
+
+def b_graben(key):
+    conn = set(PIECE_CONN[key.split("_", 1)[1]])
+
+    def build(mb, var):
+        ditch_piece(mb, conn)
+    return build
+
+
+def b_baustelle_graben(mb, var):
+    """Ditch site: staked-out channel (pegs and string), then half dug with spoil heaps and a spade."""
+    w = DITCH_W
+    L = T / 2
+    if var == 0:
+        for x in (-L + 0.15, 0.0, L - 0.15):
+            for y in (-w, w):
+                peg(mb, x, y, 0.42)
+        string_line(mb, (-L + 0.15, -w), (L - 0.15, -w))
+        string_line(mb, (-L + 0.15, w), (L - 0.15, w))
+        for k in range(4):
+            mb.cyl("dirt", (mb.rnd.uniform(-1, 1), mb.rnd.uniform(-0.6, 0.6), 0.012), mb.rnd.uniform(0.15, 0.3), 0.024, n=7)
+        return
+    ditch_piece(mb, {"e", "w"}, dug=0.45)
+    mb.blob("dirt", (-0.55, -1.0, 0.1), (0.4, 0.22, 0.22), seg=7, rings=4)
+    mb.blob("earth_dk", (0.6, 1.0, 0.1), (0.35, 0.2, 0.2), seg=7, rings=4)
+    # spade stuck in the spoil
+    mb.box("wood_hi", (0.62, 1.0, 0.55), (0.05, 0.05, 0.9), rot=(12, 0, 0))
+    mb.box("iron", (0.62, 0.98, 0.12), (0.2, 0.03, 0.26), rot=(12, 0, 0))
+
+
+# ------------------------------------------------ ruins
+def b_truemmer_stein(mb, var):
+    """Rubble of a fortification: a low walkable heap of blocks, broken masonry and dust over the tile."""
+    r = mb.rnd
+    L = T / 2
+    mb.bx("gravel", -L + 0.2, L - 0.2, -L + 0.25, L - 0.25, 0, 0.04)
+    # stumps of the wall body (the breach): low masonry at both ends of the line, varies per variant
+    for sx in (-1, 1):
+        hh = (0.35, 0.6, 0.45)[var] if sx < 0 else (0.5, 0.3, 0.7)[var]
+        masonry(mb, sx * L - (0.75 if sx > 0 else 0), sx * L + (0.75 if sx < 0 else 0), -1.0, 1.0, 0, hh, row=0.3, top=False)
+        for k in range(4):  # jagged top
+            mb.box("stone" if k % 2 else "stone2", (sx * (L - 0.4) + r.uniform(-0.3, 0.3), r.uniform(-0.8, 0.8), hh + 0.1),
+                   (0.4, 0.3, 0.22), rot=(r.uniform(-15, 15), r.uniform(-15, 15), r.uniform(0, 90)))
+    for k in range(14 + 3 * var):
+        x, y = r.uniform(-L + 0.3, L - 0.3), r.uniform(-L + 0.35, L - 0.35)
+        s = r.uniform(0.25, 0.5)
+        mb.box(r.choice(("stone", "stone2", "stone_top")), (x, y, s * 0.3), (s, s * 0.8, s * 0.6),
+               rot=(r.uniform(-25, 25), r.uniform(-25, 25), r.uniform(0, 180)))
+    for k in range(10):
+        x, y = r.uniform(-L + 0.3, L - 0.3), r.uniform(-L + 0.35, L - 0.35)
+        mb.blob(r.choice(("rock", "mortar", "gravel")), (x, y, 0.05), (0.18, 0.15, 0.1), seg=5, rings=3, jitter=0.25)
+    if var == 2:  # a fallen merlon with its capstone
+        mb.box("stone", (0.3, -0.5, 0.3), (0.62, 0.42, 0.55), rot=(0, 70, 20))
+        mb.box("stone_top", (0.62, -0.42, 0.42), (0.66, 0.46, 0.07), rot=(0, 70, 20))
+    for k in range(3):
+        mb.blob("soot", (r.uniform(-0.8, 0.8), r.uniform(-0.8, 0.8), 0.02), (0.3, 0.25, 0.02), seg=6, rings=3, jitter=0.3)
+
+
+def b_truemmer_holz(mb, var):
+    """Remains of a palisade: stubs in a line, torn stakes lying about, charred wood."""
+    r = mb.rnd
+    L = T / 2
+    mb.bx("dirt", -L, L, -0.32, 0.32, 0, 0.04)
+    for i in range(10):
+        x = -L + (i + 0.5) * T / 10
+        hh = r.uniform(0.15, 0.55) if (i + var) % 3 else r.uniform(0.6, 1.0)
+        mat = "soot" if r.random() < 0.35 + 0.2 * var else "log"
+        mb.cyl(mat, (x, 0, hh / 2), PALI_R, hh, n=6)
+        mb.cyl("wood_hi", (x + 0.02, 0, hh + 0.06), 0.05, 0.14, n=4, r2=0)
+    for k in range(5 + var):
+        x, y = r.uniform(-L + 0.4, L - 0.4), r.uniform(-L + 0.4, L - 0.4)
+        mb.cyl("soot" if r.random() < 0.4 else "log", (x, y, PALI_R), PALI_R, r.uniform(1.0, 1.8), n=6,
+               rot=(0, 90, r.uniform(0, 180)))
+    for k in range(6):
+        mb.box("wood_hi", (r.uniform(-1, 1), r.uniform(-1, 1), 0.03), (0.3, 0.06, 0.05), rot=(0, 0, r.uniform(0, 180)))
+
+
+def b_graben_verfuellt(mb, var):
+    """Ditch filled in by the attackers: loose earth, a few stones and snapped stake ends."""
+    r = mb.rnd
+    L = T / 2
+    mb.bx("earth_dk", -L + 0.15, L - 0.15, -DITCH_W - 0.1, DITCH_W + 0.1, 0, 0.05)
+    for k in range(9):
+        mb.blob(r.choice(("dirt", "earth_dk", "dirt")), (r.uniform(-1.0, 1.0), r.uniform(-0.7, 0.7), 0.05),
+                (r.uniform(0.25, 0.4), r.uniform(0.2, 0.35), r.uniform(0.06, 0.12)), seg=7, rings=4, jitter=0.2)
+    for k in range(5):
+        mb.blob("rock", (r.uniform(-1.0, 1.0), r.uniform(-0.8, 0.8), 0.05), (0.1, 0.09, 0.07), seg=5, rings=3)
+    for k in range(3):
+        mb.cyl("log", (r.uniform(-0.9, 0.9), r.uniform(-0.5, 0.5), 0.12), 0.06, 0.24, n=5, rot=(r.uniform(-30, 30), 0, 0))
+
+
+# ------------------------------------------------ storm ladder
+LADDER_W = 0.3   # half width
+
+
+def ladder_rails(mb, length, rung=0.36, broken=False):
+    """Ladder along local +z from the origin: two rails and rungs."""
+    for s in (-1, 1):
+        mb.bx("wood", s * LADDER_W - 0.05, s * LADDER_W + 0.05, -0.05, 0.05, 0, length)
+    k = 1
+    while k * rung < length - 0.1:
+        if not (broken and k % 4 == 2):
+            mb.bx("wood_hi", -LADDER_W, LADDER_W, -0.035, 0.035, k * rung - 0.035, k * rung + 0.035)
+        k += 1
+    # iron hooks at the top end
+    for s in (-1, 1):
+        mb.bx("iron", s * LADDER_W - 0.04, s * LADDER_W + 0.04, 0.0, 0.22, length - 0.06, length)
+
+
+def b_leiter(mb, var):
+    """Storm ladder on its foot tile, leaning towards model +y onto the wall of the next tile (top hooked over the
+    parapet). Variants: standing, tipping back (pushed off), lying on the ground."""
+    top_y = T - WALL_D + 0.05          # the parapet face of the next tile
+    top_z = WALL_H + PARA_H + 0.12
+    foot = (0.0, -0.15, 0.0)
+    dy, dz = top_y - foot[1], top_z
+    length = math.hypot(dy, dz)
+    lean = math.degrees(math.atan2(dy, dz))    # from vertical towards +y
+    tilt = {0: lean, 1: lean - 48, 2: -90}[var]
+    with mb.at(foot):
+        R = Matrix.Rotation(math.radians(-tilt), 4, "X")  # rotate about x: +z leans to +y for positive angles
+        old = mb.M
+        mb.M = mb.M @ R
+        ladder_rails(mb, length)
+        mb.M = old
+    if var == 2:
+        for k in range(2):
+            mb.blob("dirt", (mb.rnd.uniform(-0.4, 0.4), -0.3 - k * 1.2, 0.02), (0.25, 0.2, 0.02), seg=6, rings=3)
+
+
+# ------------------------------------------------ battering ram
+def b_rammbock(mb, var):
+    """Covered battering ram on four wheels, the iron-shod log hanging from the ridge, pointing to model +y.
+    Variants: at rest, swung back, striking, wrecked (collapsed and charred)."""
+    r = mb.rnd
+    wrecked = var == 3
+    hx, y0, y1 = 0.62, -1.05, 0.95      # frame half width, back, front
+    with mb.at((0, 0, 0), rz=0):
+        # wheels
+        for sx in (-1, 1):
+            for yy in (y0 + 0.3, y1 - 0.3):
+                broken = wrecked and sx < 0 and yy > 0
+                zc = 0.2 if broken else 0.32
+                mb.cyl("wood", (sx * (hx + 0.12), yy, zc), 0.32, 0.12, n=10, rot=(0, 90 + (25 if broken else 0), 0))
+                mb.cyl("iron", (sx * (hx + 0.12), yy, zc), 0.1, 0.16, n=6, rot=(0, 90, 0))
+        sag = 0.25 if wrecked else 0.0
+        # base frame and corner posts
+        for sx in (-1, 1):
+            mb.bx("timber", sx * hx - 0.08, sx * hx + 0.08, y0, y1, 0.4, 0.55)
+        for yy in (y0, y1):
+            mb.bx("timber", -hx, hx, yy - 0.07, yy + 0.07, 0.4, 0.55)
+        post_h = 1.45 - sag
+        for sx in (-1, 1):
+            for yy in (y0 + 0.05, y1 - 0.05):
+                hh = post_h * (0.55 if wrecked and sx > 0 and yy < 0 else 1)
+                mb.bx("timber", sx * hx - 0.06, sx * hx + 0.06, yy - 0.06, yy + 0.06, 0.55, 0.55 + hh)
+        ridge = 0.55 + post_h + 0.5
+        mb.bx("timber", -0.07, 0.07, y0, y1, ridge - 0.12, ridge)
+        # roof of hides over a rafter frame (open at the front so the head shows)
+        tilt_r = 0 if not wrecked else 14
+        for sx in (-1, 1):
+            ang = math.degrees(math.atan2(0.5, hx + 0.12))
+            mb.box("hide" if not wrecked else "soot", (sx * (hx + 0.12) / 2, (y0 + y1) / 2 - 0.08, ridge - 0.3),
+                   (hx + 0.42, y1 - y0 + 0.1, 0.06), rot=(tilt_r * sx, sx * ang, 0))
+            for yy in (y0 + 0.2, (y0 + y1) / 2, y1 - 0.3):
+                mb.box("leather", (sx * (hx + 0.12) / 2, yy, ridge - 0.27), (hx + 0.34, 0.06, 0.07), rot=(0, sx * ang, 0))
+        # the log
+        off = {0: 0.0, 1: -0.42, 2: 0.48, 3: 0.0}[var]
+        if wrecked:
+            mb.cyl("log", (0.25, 0.1, 0.22), 0.2, 2.5, n=8, rot=(90, 0, 10))
+            mb.cyl("iron", (0.47, 1.35, 0.22), 0.23, 0.3, n=8, rot=(90, 0, 10))
+            for k in range(6):
+                mb.blob("soot", (r.uniform(-0.9, 0.9), r.uniform(-1.1, 1.1), 0.02), (0.3, 0.25, 0.02), seg=6, rings=3)
+        else:
+            zl = 0.95 + (0.08 if var == 1 else 0.0)
+            mb.cyl("log", (0, off - 0.1, zl), 0.23, 2.5, n=8, rot=(90 + (6 if var == 1 else 0), 0, 0))
+            mb.cyl("iron", (0, off + 1.18, zl), 0.27, 0.34, n=8, rot=(90, 0, 0))
+            mb.cyl("iron", (0, off + 1.4, zl), 0.18, 0.16, n=8, rot=(90, 0, 0), r2=0.05)
+            for yy in (-0.5, 0.3):   # ropes from the ridge
+                mb.bx("rope", -0.03, 0.03, off + yy - 0.03, off + yy + 0.03, zl + 0.15, ridge - 0.12)
+            for yy in (-0.6, 0.0, 0.6):
+                mb.cyl("iron", (0, off + yy - 0.1, zl), 0.2, 0.05, n=8, rot=(90, 0, 0))
+        # pennant in the attackers' colour
+        if not wrecked:
+            mb.bx("wood", -0.03, 0.03, y0 + 0.02, y0 + 0.08, ridge, ridge + 0.9)
+            mb.bx("team", 0.03, 0.55, y0 + 0.03, y0 + 0.07, ridge + 0.5, ridge + 0.88)
+
+
+# ------------------------------------------------ damage stages of fortifications
+HOLE_P = (0.0, 0.04, 0.09, 0.15)
+MERLON_P = (0.0, 0.12, 0.3, 0.5)
+SCORCH_P = (0.0, 0.0, 0.08, 0.16)
+
+
+class DamageMB(MB):
+    """MB that knocks out skin blocks (dark recess), drops merlons and scorches blocks; decisions from h01 only."""
+    stage = 0
+    top_z = None
+
+    def box(self, mat, c, s, rot=(0, 0, 0), group=None):
+        st = self.stage
+        if st and group != "ghost" and mat in ("stone", "stone2", "stone_top"):
+            wc = self.M @ Vector(c)
+            if self.top_z is not None and c[2] > self.top_z + PARA_H * 0.43 and s[2] < 0.7:
+                # merlon and its capstone share their x/y centre: both go together
+                if h01(round(wc.x, 1), round(wc.y, 1), 11.0) < MERLON_P[st]:
+                    return
+            u = h01(wc.x, wc.y, wc.z)
+            thin = min(s[0], s[1]) <= 0.071 and s[2] > 0.1 and mat != "stone_top"
+            if thin and u < HOLE_P[st]:
+                ax = 0 if s[0] <= s[1] else 1
+                s2 = list(s)
+                s2[ax] = s[ax] * 0.3
+                return MB.box(self, "hole", c, tuple(s2), rot, group)
+            if thin and 1 - u < SCORCH_P[st]:
+                mat = "soot"
+        MB.box(self, mat, c, s, rot, group)
+
+
+def crack(mb, face, a, z, length, r):
+    """Zigzag crack on a face. face = (axis, coord, sign): plane x = coord (axis 'x') or y = coord, outward sign."""
+    axis, coord, sgn = face
+    pos, zz = a, z
+    for k in range(int(length / 0.18)):
+        da, dz = r.uniform(-0.12, 0.12), -0.18
+        p0 = (pos, zz)
+        pos, zz = pos + da, zz + dz
+        cx, cz = (p0[0] + pos) / 2, (p0[1] + zz) / 2
+        ang = math.degrees(math.atan2(da, -dz))
+        off = coord + sgn * 0.012
+        if axis == "y":
+            mb.box("crack", (cx, off, cz), (0.045, 0.02, 0.2), rot=(0, ang, 0))
+        else:
+            mb.box("crack", (off, cx, cz), (0.02, 0.045, 0.2), rot=(ang, 0, 0))
+
+
+def damage_marks(mb, faces, stage, height, rubble_band):
+    """Cracks and soot on the given faces, rubble at their foot. faces: list of (axis, coord, sign, a0, a1)."""
+    r = random.Random(mb.seed * 7 + stage)
+    for (axis, coord, sgn, a0, a1) in faces:
+        for k in range(stage):
+            a = r.uniform(a0 + 0.15, a1 - 0.15)
+            crack(mb, (axis, coord, sgn), a, height * r.uniform(0.6, 0.95), height * (0.25 + 0.15 * stage), r)
+        if stage >= 2:
+            for k in range(stage - 1):
+                a = r.uniform(a0 + 0.3, a1 - 0.3)
+                z = height * r.uniform(0.35, 0.8)
+                w, h = r.uniform(0.3, 0.55), r.uniform(0.35, 0.6)
+                off = coord + sgn * 0.015
+                if axis == "y":
+                    mb.bx("soot", a - w / 2, a + w / 2, off - 0.01, off + 0.01, z - h / 2, z + h / 2)
+                else:
+                    mb.bx("soot", off - 0.01, off + 0.01, a - w / 2, a + w / 2, z - h / 2, z + h / 2)
+        # rubble at the foot, inside the tile
+        for k in range(2 + 2 * stage):
+            a = r.uniform(a0 + 0.15, a1 - 0.15)
+            d = r.uniform(0.12, rubble_band)
+            s = r.uniform(0.18, 0.34)
+            p = (a, coord + sgn * d) if axis == "y" else (coord + sgn * d, a)
+            mb.box(r.choice(("stone", "stone2")), (p[0], p[1], s * 0.3), (s, s * 0.8, s * 0.6),
+                   rot=(r.uniform(-20, 20), r.uniform(-20, 20), r.uniform(0, 90)))
+        for k in range(stage):
+            a = r.uniform(a0 + 0.2, a1 - 0.2)
+            p = (a, coord + sgn * 0.12) if axis == "y" else (coord + sgn * 0.12, a)
+            mb.blob("rock", (p[0], p[1], 0.04), (0.14, 0.12, 0.08), seg=5, rings=3)
+
+
+def wall_faces(conn):
+    L, D = T / 2, WALL_D
+    xa = -L if "w" in conn else -D
+    xb = L if "e" in conn else D
+    faces = []
+    if "s" not in conn:
+        faces.append(("y", -D, -1, xa, xb))
+    if "n" not in conn:
+        faces.append(("y", D, 1, xa, xb))
+    return faces
+
+
+def b_wall_damaged(piece):
+    conn = set(PIECE_CONN[piece])
+    base = "mauer_" + piece
+
+    def build(mb, var):
+        stage = var + 1
+        mb.rnd = random.Random(DEFS[base]["seed"] * 100 + 7)
+        mb.__class__ = DamageMB
+        mb.stage, mb.top_z = stage, WALL_H
+        BUILD[base](mb, 0)
+        mb.top_z = None
+        damage_marks(mb, wall_faces(conn), stage, WALL_H, 0.12)
+    return build
+
+
+def b_tor_damaged(gate_var):
+    def build(mb, var):
+        stage = var + 1
+        mb.rnd = random.Random(DEFS["tor"]["seed"] * 100 + 7)
+        mb.__class__ = DamageMB
+        mb.stage, mb.top_z = stage, WALL_H
+        b_tor(mb, gate_var)
+        mb.top_z = None
+        L, D, hw = T / 2, WALL_D, 0.78
+        faces = [("y", -D, -1, -L, -hw - 0.1), ("y", -D, -1, hw + 0.1, L), ("y", D, 1, -L, -hw - 0.1), ("y", D, 1, hw + 0.1, L)]
+        damage_marks(mb, faces, stage, WALL_H, 0.12)
+        if stage >= 2:   # splintered portcullis bars
+            r = random.Random(mb.seed + 3)
+            for k in range(stage):
+                mb.box("door", (r.uniform(-0.5, 0.5), r.choice((-1, 1)) * (D + 0.25), 0.06), (0.12, 0.6, 0.1),
+                       rot=(0, 0, r.uniform(-40, 40)))
+    return build
+
+
+def b_turm_damaged(mb, var):
+    stage = var + 1
+    mb.rnd = random.Random(DEFS["turm"]["seed"] * 100 + 7)
+    mb.__class__ = DamageMB
+    mb.stage, mb.top_z = stage, 5 * STEP
+    b_turm(mb, 0)
+    mb.top_z = None
+    w = T - 0.03
+    faces = [("y", -w, -1, -w + 0.2, -0.7), ("y", -w, -1, 0.7, w - 0.2), ("x", w, 1, -w + 0.2, w - 0.2),
+             ("x", -w, -1, -w + 0.2, w - 0.2), ("y", w, 1, -w + 0.2, w - 0.2)]
+    damage_marks(mb, faces, stage, 5 * STEP, 0.0)
+
+
+def b_treppe_damaged(mb, var):
+    stage = var + 1
+    mb.rnd = random.Random(DEFS["treppe"]["seed"] * 100 + 7)
+    mb.__class__ = DamageMB
+    mb.stage, mb.top_z = stage, None
+    b_treppe(mb, 0)
+    y0, y1 = -T + 0.05, T + 0.17
+    faces = [("x", 0.9, 1, y0 + 0.3, y1 - 0.6), ("x", -0.9, -1, y0 + 0.3, y1 - 0.6)]
+    r = random.Random(mb.seed * 7 + stage)
+    for (axis, coord, sgn, a0, a1) in faces:   # steps: cracks low on the side walls, rubble beside
+        for k in range(stage):
+            a = r.uniform(a0, a1)
+            crack(mb, (axis, coord, sgn), a, 0.4 + (a - y0) / (y1 - y0) * WALL_H * 0.8, 0.5 + 0.2 * stage, r)
+        for k in range(1 + stage):
+            s = r.uniform(0.18, 0.3)
+            mb.box("stone2", (coord + sgn * 0.12, r.uniform(a0, a1), s * 0.3), (s, s * 0.8, s * 0.6), rot=(0, 0, r.uniform(0, 90)))
+
+
+# ------------------------------------------------ generic damage overlay for the other buildings
+def b_schaden(w, h):
+    """Overlay drawn over a damaged building (footprint w x h tiles, model axes): rubble, broken planks, roof shards
+    and scorched ground along the two edges that face the camera in this view (built per view, like a cutaway), so it
+    never covers the building from behind. Variants = damage stages 1-3."""
+    def build(mb, var):
+        stage = var + 1
+        r = random.Random(mb.seed * 13 + var * 101 + mb.view)
+        X, Y = w * T / 2, h * T / 2
+        edges = []
+        for side in "nesw":
+            if low_side(side, mb.view):
+                edges.append(side)
+        for side in edges:
+            n = (3 + 3 * stage) * (w if side in "ns" else h)
+            for k in range(n):
+                t = r.uniform(-1, 1)
+                d = r.uniform(0.08, 0.5)
+                if side in "ns":
+                    x, y = t * (X - 0.2), (Y - d) * (1 if side == "n" else -1)
+                else:
+                    x, y = (X - d) * (1 if side == "e" else -1), t * (Y - 0.2)
+                kind = r.random()
+                if kind < 0.45:
+                    s = r.uniform(0.16, 0.32)
+                    mb.box(r.choice(("stone", "stone2", "plaster")), (x, y, s * 0.3), (s, s * 0.8, s * 0.6),
+                           rot=(r.uniform(-25, 25), r.uniform(-25, 25), r.uniform(0, 180)))
+                elif kind < 0.7:
+                    mb.box(r.choice(("timber", "wood", "soot")), (x, y, 0.05), (r.uniform(0.5, 1.0), 0.09, 0.08),
+                           rot=(0, r.uniform(-8, 8), r.uniform(0, 180)))
+                elif kind < 0.85:
+                    mb.box(r.choice(("roof_tile", "shingle", "thatch")), (x, y, 0.04), (0.22, 0.16, 0.04),
+                           rot=(r.uniform(-20, 20), 0, r.uniform(0, 180)))
+                else:
+                    mb.blob("rock", (x, y, 0.04), (0.12, 0.1, 0.07), seg=5, rings=3)
+            if stage >= 2:
+                for k in range(stage * (w if side in "ns" else h)):
+                    t = r.uniform(-0.8, 0.8)
+                    if side in "ns":
+                        x, y = t * X, (Y - 0.35) * (1 if side == "n" else -1)
+                    else:
+                        x, y = (X - 0.35) * (1 if side == "e" else -1), t * Y
+                    mb.blob("soot", (x, y, 0.01), (r.uniform(0.35, 0.6), r.uniform(0.25, 0.45), 0.015), seg=7, rings=3, jitter=0.3)
+            if stage == 3:   # a charred beam fallen out of the building
+                x, y = (0.3 * X, -(Y - 0.3)) if side == "s" else ((X - 0.3), 0.3 * Y) if side == "e" else \
+                       (-0.3 * X, Y - 0.3) if side == "n" else (-(X - 0.3), -0.3 * Y)
+                mb.box("soot", (x, y, 0.12), (1.6, 0.2, 0.2), rot=(0, 8, 35 if side in "ns" else 125))
+    return build
+
+
+SCHADEN_SIZES = [(2, 2), (3, 3), (4, 3), (3, 2)]
+
+BUILD.update({"palisade_" + k: b_palisade("palisade_" + k) for k in PIECE_CONN})
+BUILD.update({"graben_" + k: b_graben("graben_" + k) for k in PIECE_CONN})
+BUILD.update({"baustelle_graben": b_baustelle_graben, "truemmer_stein": b_truemmer_stein, "truemmer_holz": b_truemmer_holz,
+              "graben_verfuellt": b_graben_verfuellt, "leiter": b_leiter, "rammbock": b_rammbock,
+              "tor_schaden": b_tor_damaged(0), "tor_offen_schaden": b_tor_damaged(1),
+              "turm_schaden": b_turm_damaged, "treppe_schaden": b_treppe_damaged})
+BUILD.update({"mauer_%s_schaden" % k: b_wall_damaged(k) for k in PIECE_CONN})
+BUILD.update({"schaden_%dx%d" % s: b_schaden(*s) for s in SCHADEN_SIZES})
+
+
 # ---------------------------------------------------------------- scene and render
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)

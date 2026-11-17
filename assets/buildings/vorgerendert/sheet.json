@@ -1251,6 +1251,583 @@
    ],
    "posts": [],
    "front": false
+  },
+  {
+   "key": "palisade_gerade",
+   "name": "Palisade gerade",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "palisade_ende",
+   "name": "Palisade Ende",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "palisade_ecke",
+   "name": "Palisade Ecke",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "palisade_t",
+   "name": "Palisade T-Stück",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "palisade_kreuz",
+   "name": "Palisade Kreuzung",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "palisade_einzel",
+   "name": "Palisade einzeln",
+   "frames": 4,
+   "variants": [
+    "unversehrt",
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_gerade",
+   "name": "Graben gerade",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_ende",
+   "name": "Graben Ende",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_ecke",
+   "name": "Graben Ecke",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_t",
+   "name": "Graben T-Stück",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_kreuz",
+   "name": "Graben Kreuzung",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_einzel",
+   "name": "Graben einzeln",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "baustelle_graben",
+   "name": "Baustelle Graben",
+   "frames": 2,
+   "variants": [
+    "abgesteckt",
+    "halb ausgehoben"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "truemmer_stein",
+   "name": "Trümmer Stein",
+   "frames": 3,
+   "variants": [
+    "A",
+    "B",
+    "C"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "truemmer_holz",
+   "name": "Trümmer Holz",
+   "frames": 2,
+   "variants": [
+    "A",
+    "B"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "graben_verfuellt",
+   "name": "Zugeschütteter Graben",
+   "frames": 1,
+   "variants": [
+    "Standard"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "leiter",
+   "name": "Sturmleiter",
+   "frames": 3,
+   "variants": [
+    "angelegt",
+    "kippt",
+    "liegt"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "rammbock",
+   "name": "Rammbock",
+   "frames": 4,
+   "variants": [
+    "Ruhe",
+    "ausgeholt",
+    "Stoß",
+    "zerstört"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "mauer_gerade_schaden",
+   "name": "Mauer gerade beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_ende_schaden",
+   "name": "Mauer Ende beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_ecke_schaden",
+   "name": "Mauer Ecke beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_t_schaden",
+   "name": "Mauer T-Stück beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_kreuz_schaden",
+   "name": "Mauer Kreuzung beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "mauer_einzel_schaden",
+   "name": "Mauer einzeln beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "tor_schaden",
+   "name": "Tor beschädigt (geschlossen)",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "tor_offen_schaden",
+   "name": "Tor beschädigt (offen)",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    1
+   ],
+   "posts": [
+    [
+     0,
+     0,
+     3
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "turm_schaden",
+   "name": "Mauerturm beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [
+    [
+     -0.65,
+     -0.65,
+     5
+    ],
+    [
+     0.65,
+     -0.65,
+     5
+    ],
+    [
+     -0.65,
+     0.65,
+     5
+    ],
+    [
+     0.65,
+     0.65,
+     5
+    ]
+   ],
+   "front": true
+  },
+  {
+   "key": "treppe_schaden",
+   "name": "Mauertreppe beschädigt",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    1,
+    2
+   ],
+   "posts": [],
+   "front": false
+  },
+  {
+   "key": "schaden_2x2",
+   "name": "Schaden 2 × 2",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    2,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "schaden_3x3",
+   "name": "Schaden 3 × 3",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    3,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "schaden_4x3",
+   "name": "Schaden 4 × 3",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    4,
+    3
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
+  },
+  {
+   "key": "schaden_3x2",
+   "name": "Schaden 3 × 2",
+   "frames": 3,
+   "variants": [
+    "leicht beschädigt",
+    "schwer beschädigt",
+    "dem Einsturz nahe"
+   ],
+   "footprint": [
+    3,
+    2
+   ],
+   "posts": [],
+   "front": false,
+   "shadow_fill": false
   }
  ],
  "team_swap": {

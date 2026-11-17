@@ -167,9 +167,10 @@ export class Input {
       const s = this.wallStart;
       this.wallStart = null;
       const end = this.r.tileAt(x, y);
-      const res = this.ctx.bridge.dispatch({ t: "mauer", x0: s.x, y0: s.y, x1: end.x, y1: end.y });
+      const key = this.dragKey();
+      const res = this.ctx.bridge.dispatch({ t: "mauer", x0: s.x, y0: s.y, x1: end.x, y1: end.y, ...(key !== "mauer" ? { key } : {}) });
       this.check = null;
-      this.report(res, "Hier kann keine Mauer stehen.");
+      this.report(res, key === "mauer" ? "Hier kann keine Mauer stehen." : "Hier kann nicht gebaut werden.");
       return;
     }
     const l = this.left;
@@ -454,6 +455,12 @@ export class Input {
     };
   }
 
+  /** Gezogene Linie: Mauer, Palisade oder Graben (Werkzeug „mauer“ mit key, oder ein Bauwerkzeug für ein Ziehstück). */
+  private dragKey(): BuildingKey {
+    const t = this.tool;
+    return t.t === "mauer" ? t.key ?? "mauer" : t.t === "bauen" && BUILDINGS[t.key].drag ? t.key : "mauer";
+  }
+
   /** Mausauswertung: Bauvorschau, Abriss-Ziel, Hervorhebung, Zielkachel auf dem Wehrgang; Zeiger und Zeiger-Hinweis. */
   private evaluate(): HoverOut {
     let preview: Preview | null = null;
@@ -465,12 +472,13 @@ export class Input {
     if ((t.t === "mauer" || (t.t === "bauen" && BUILDINGS[t.key].drag)) && inside) {
       const end = this.r.tileAt(this.mx, this.my);
       const s = this.wallStart ?? end;
-      const id = `wall:${s.x}:${s.y}:${end.x}:${end.y}`;
+      const key = this.dragKey();
+      const id = `wall:${key}:${s.x}:${s.y}:${end.x}:${end.y}`;
       const tick = this.ctx.game.state.tick;
-      if (!this.check || this.check.id !== id || tick - this.check.tick > 5) this.check = { id, tick, res: this.ctx.game.wallPath(s.x, s.y, end.x, end.y) };
+      if (!this.check || this.check.id !== id || tick - this.check.tick > 5) this.check = { id, tick, res: this.ctx.game.wallPath(s.x, s.y, end.x, end.y, key) };
       const res = this.check.res;
-      preview = { kind: "mauer", check: res.tiles.length ? res : { ...res, tiles: [{ x: end.x, y: end.y, ok: res.ok }] } };
-      if (!res.ok) reason = res.reason ?? "Hier kann keine Mauer stehen.";
+      preview = { kind: "mauer", key, check: res.tiles.length ? res : { ...res, tiles: [{ x: end.x, y: end.y, ok: res.ok }] } };
+      if (!res.ok) reason = res.reason ?? (key === "mauer" ? "Hier kann keine Mauer stehen." : "Hier kann nicht gebaut werden.");
       this.setCursor("crosshair");
     } else if (t.t === "bauen" && inside) {
       const { bx, by, o, check, turnHelps } = this.orient(t.key, t.o, this.mx, this.my);

@@ -16,7 +16,8 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `economy.ts` | Disponent (2× pro Sekunde, prüft Erreichbarkeit vorab, verschränkt Forschung, Baustellen und Verarbeitung gerecht), untätige Tagelöhner (Sammelplatz, Flucht), Bäume, Zuzug, Wohnraum |
 | `combat.ts` | Reichweite, Schaden (Mauerbonus), Zielwahl nach Gefahr mit Haltezeit, Geschosse, Tod, Abstand halten |
 | `military.ts` | Soldatenverhalten je Befehl, Befehle bewegen/angreifen/halten/stationieren, Posten (Feindseite, verteilt), Nahkämpfer verteidigen Tor, Treppe und Wehrgang ihres Abschnitts, Ausbildung |
-| `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Rückzug) |
+| `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Graben zuschütten, Rückzug), Belagerungswerkzeug ab Welle 2 |
+| `belagerung.ts` | Belagerung und Befestigung (ADR 0017): Sturmleitern (anlegen, klettern, umstoßen), Rammbock und Mannschaft, Trümmer (Bresche), Schadensstufen, Reparatur durch Tagelöhner, Heilung, Graben zuschütten |
 | `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden |
 | `debug.ts` | Hilfen für Tests (fertig bauen, Einheiten setzen, Lager füllen) |
 | `demo.ts` | alte Platzhalter-Welt (für Darstellungsversuche) |
@@ -66,6 +67,16 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 
 **Tests**: Kette über echte Ticks, Drosselung, fehlende Eingänge, Abriss, Speichern/Laden und alle vier Ausrichtungen nach dem Muster `tests/sim/verarbeitung.test.ts`.
 
+## Belagerung (ADR 0017)
+
+- **Leitern** sind Laufverbindungen nur für Team 1 (`nav.foeLinks`, Fuß ↔ Wehrgang), neu aufgebaut bei jedem `nav.rebuild()` aus `SimState.ladders`. Wer eine Leiter umstößt oder ein Mauerstück zerstört, ändert den Graphen: danach `nav.rebuild()` und für Team 1 `stop()`, die Bewegung prüft nur Knoten, nicht Kanten. Lebt kein Angreifer mehr, kippen die übrigen Leitern von selbst.
+- **Bodenmodus** (`TravelGoal.ground`, `route(..., ground)`): keine Treppen, Leitern, Turmtüren und Gräben. Für Fahrzeuge (`UnitDef.vehicle`).
+- **Graben** = Bodenwert `DITCH`: Team 0 zahlt `ditch.ownCost`, Team 1 nur im Durchbruchmodus (zuschütten), Bodenmodus nie.
+- **Trümmer** (`SimState.rubble`) heben die Wegkosten auf `SIEGE.rubbleCost`; `placeSite` und `spawnBuilt` räumen sie.
+- **Neue Ziehware** (Linie wie die Mauer): `drag: true` und `pieces: {prefix}` in den Daten, Sprites `<prefix>_gerade|ende|ecke|t|kreuz|einzel`; Befehl `{t: "mauer", key}`.
+- **Schaden** zeigt die Darstellung aus `damageStage(b)`: Blatt `<sprite>_schaden` (Stufen 1–3) oder die Überlagerung `schaden_<b>x<t>`.
+- Tests: `tests/sim/belagerung.test.ts`.
+
 ## Grenzen (Stand Prototyp)
 
 - Kein echtes Ausweichen zwischen Figuren; nur stehende Soldaten schieben sich auseinander. Wartende Arbeiter einer Werkstatt stehen auf eigenen Feldern neben dem Eingang.
@@ -73,7 +84,7 @@ Alles ist Daten; Disponent, Panel, Kopfleiste, Speichern und Darstellung brauche
 - Holzfäller und Steinmetze ohne Baum bzw. Fels in Reichweite warten an ihrer Hütte (Meldung „keine Bäume mehr“), bis der Spieler abreißt.
 - Abriss gibt die Hälfte der Kosten sofort ins Lager zurück (nicht als getragene Ware), bei Verarbeitungsgebäuden auch Puffer, Ausgabestapel und die Eingänge eines laufenden Arbeitsgangs (ebenso beim Rezeptwechsel); was nicht ins Lager passt, verfällt.
 - Getreide entsteht noch nirgends (kein Bauernhof): Die Brotkette läuft vom Startvorrat der Kornkammer (40 Getreide = 20 Mehl = 40 Brot). Brot wird noch nicht verbraucht.
-- Arbeiter fliehen nicht, nur untätige Tagelöhner. Angreifer haben keine Leitern; sie reißen Mauern und Tore ein. Auf Arbeiter gehen sie nur aus der Nähe los (`TUNING.raiderWorkerReach`), flüchtenden Tagelöhnern laufen sie nicht über die Karte nach.
+- Arbeiter fliehen nicht, nur untätige Tagelöhner. Angreifer reißen Mauern und Tore ein; ab Welle 2 bringen sie Sturmleitern, ab Welle 3 einen Rammbock (ADR 0017). Auf Arbeiter gehen sie nur aus der Nähe los (`TUNING.raiderWorkerReach`), flüchtenden Tagelöhnern laufen sie nicht über die Karte nach.
 - Fällt ein Tor, kann ein Mauerabschnitt vom Treppenzugang abgeschnitten sein: Die Wachen dort melden „Posten nicht erreichbar“ und werden untätig (kämpfen dann wie freie Soldaten).
 - Die Balance ist auf die Standardkarte (Seed 1) und die Furt abgestimmt; ab Welle 2 (6 Angreifer) reichen drei Verteidiger ohne Turm nicht mehr.
 - Pfadsuche ist A* auf dem vollen Raster mit Komponenten-Vorprüfung, kein hierarchisches Raster und keine Flussfelder.

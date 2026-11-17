@@ -15,15 +15,20 @@
  * sind sie mit hohen Kosten passierbar: Der Weg zeigt dann, welches Gebäude ein Angreifer einreißen muss.
  * Erreichbarkeit wird über Zusammenhangskomponenten je Team vorab geprüft, damit unerreichbare Ziele
  * keine volle Suche auslösen. Ergebnisse werden bis zur nächsten Änderung des Rasters zwischengespeichert.
+ *
+ * Belagerung (ADR 0017): Trümmer (Bresche) sind begehbar, aber teurer (SIEGE.rubbleCost). Ein fertiger Graben ist für
+ * Team 0 langsam begehbar (DITCH, Kosten × ownCost), für Angreifer nur im Belagerungsmodus (zuschütten). Eine stehende
+ * Sturmleiter verbindet ihren Fuß mit dem Wehrgang, nur für Angreifer (foeLinks). Belagerungsgerät läuft im Bodenmodus
+ * (ground): keine Übergänge zwischen den Ebenen und kein Graben, auch nicht im Belagerungsmodus.
  */
-import { BUILDINGS, TERRAIN, levelDef } from "../data";
+import { BUILDINGS, SIEGE, TERRAIN, levelDef } from "../data";
 import { center, doorInside, entrance, footprintTiles, modelToWorld, stairEnds } from "./geom";
 import type { Team } from "./types";
 import type { World } from "./world";
 
-export const BLOCKED = 0, OPEN = 1, GATE = 2, BUILT = 3;
+export const BLOCKED = 0, OPEN = 1, GATE = 2, BUILT = 3, DITCH = 4;
 export const LAYER_Z = [0, 3, 5];
-const BREACH_COST = 14, BREACH_GATE = 10;
+const BREACH_COST = 14, BREACH_GATE = 10, BREACH_DITCH = 8;
 const MIN_COST = 0.7;
 const SQRT2 = Math.SQRT2;
 const DX = [1, -1, 0, 0, 1, 1, -1, -1];
@@ -47,6 +52,8 @@ export class Nav {
   readonly links = new Map<number, number[]>();
   /** Übergänge nur für Team 0 (Turmtür am Boden ↔ Plattform). */
   readonly ownLinks = new Map<number, number[]>();
+  /** Übergänge nur für Angreifer (Sturmleiter: Fuß ↔ Wehrgang). */
+  readonly foeLinks = new Map<number, number[]>();
   /** Treppen-Tiles: Vorderkante (Welt) und Steigrichtung. */
   private readonly stairs = new Map<number, [number, number, number, number]>();
   /** Zusammenhangskomponenten je Team (−1 = nicht begehbar). */
@@ -83,15 +90,16 @@ export class Nav {
   tileX(n: number): number { return (n % this.N) % this.W; }
   tileY(n: number): number { return ((n % this.N) / this.W) | 0; }
 
-  /** Kosten, einen Knoten zu betreten, oder −1. */
-  pass(n: number, team: Team, breach: boolean): number {
-    if (this.linkOnly[n]) return 1;
+  /** Kosten, einen Knoten zu betreten, oder −1. ground: Bodenmodus des Belagerungsgeräts (kein Graben). */
+  pass(n: number, team: Team, breach: boolean, ground = false): number {
+    if (this.linkOnly[n]) return ground ? -1 : 1;
     const l = (n / this.N) | 0, i = n - l * this.N;
     const v = this.walk[l][i];
-    if (l > 0) return v ? 1 : -1;
+    if (l > 0) return v && !ground ? 1 : -1;
     if (v === OPEN) return this.cost[i];
     if (v === GATE) return team === 0 ? this.cost[i] : breach ? BREACH_GATE : -1;
     if (v === BUILT) return breach ? BREACH_COST : -1;
+    if (v === DITCH) return team === 0 ? this.cost[i] : breach && !ground ? BREACH_DITCH : -1;
     return -1;
   }
 
@@ -106,6 +114,7 @@ export class Nav {
     this.linkOnly.fill(0);
     this.links.clear();
     this.ownLinks.clear();
+    this.foeLinks.clear();
     this.stairs.clear();
     for (let i = 0; i < N; i++) {
       const t = TERRAIN[s.tiles[i].terrain];
@@ -114,6 +123,8 @@ export class Nav {
       this.z[i] = LAYER_Z[0]; this.z[N + i] = LAYER_Z[1]; this.z[2 * N + i] = LAYER_Z[2];
     }
     for (const r of s.rocks) if (r.amount > 0) w0[r.y * W + r.x] = BLOCKED;
+    // Trümmer (Bresche, zugeschütteter Graben): begehbar, aber mühsam
+    for (const r of s.rubble ?? []) if (this.w.inMap(r.x, r.y)) { const i = r.y * W + r.x; this.cost[i] = Math.max(this.cost[i], SIEGE.rubbleCost); }
     for (const b of s.buildings) {
       const def = levelDef(b.key, b.level ?? 1), done = b.built >= 1;
       // Tür im Grundriss (offene Einfahrt): bliebe am fertigen Gebäude begehbar, alles andere ist Hindernis. Die Gebäude
@@ -126,7 +137,8 @@ export class Nav {
         if (i === door) { if (w0[i] === OPEN) this.cost[i] = 1; continue; }
         if (w0[i] !== BLOCKED) w0[i] = BUILT;
         if (!done) continue;
-        if (def.gate) { w0[i] = GATE; w1[i] = 1; }
+        if (def.ditch) { if (w0[i] === BUILT) { w0[i] = DITCH; this.cost[i] *= def.ditch.ownCost; } }
+        else if (def.gate) { w0[i] = GATE; w1[i] = 1; }
         else if (def.walkway === 1) w1[i] = 1;
         else if (def.walkway === 2) { w2[i] = 1; this.z[2 * N + i] = def.deck ?? LAYER_Z[2]; }
       }
@@ -161,6 +173,12 @@ export class Nav {
           this.link(ey * W + ex, 2 * N + best[1] * W + best[0], this.ownLinks);
         }
       }
+    }
+    // Sturmleitern: Fuß (Boden, frei) ↔ Wehrgang, nur für Angreifer
+    for (const l of s.ladders ?? []) {
+      if (l.state !== "steht" || !this.w.inMap(l.x, l.y) || !this.w.inMap(l.wx, l.wy)) continue;
+      const foot = l.y * W + l.x, top = l.wy * W + l.wx;
+      if (w0[foot] === OPEN && w1[top]) this.link(foot, N + top, this.foeLinks);
     }
     this.labelComponents();
     if (bump) this.w.meta.navVersion++;
@@ -204,7 +222,7 @@ export class Nav {
   }
 
   /** Nachbarn eines Knotens in nbN/nbC (Kosten inkl. Diagonale). */
-  private neighbors(n: number, team: Team, breach: boolean): number {
+  private neighbors(n: number, team: Team, breach: boolean, ground = false): number {
     const N = this.N, W = this.W, H = this.H;
     const l = (n / N) | 0, i = n - l * N, x = i % W, y = (i / W) | 0, base = l * N;
     let k = 0;
@@ -214,7 +232,7 @@ export class Nav {
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const nb = base + ny * W + nx;
         if (this.linkOnly[nb]) continue;
-        const c = this.pass(nb, team, breach);
+        const c = this.pass(nb, team, breach, ground);
         if (c < 0) continue;
         if (d >= 4) {
           // Keine Diagonale an einer gesperrten Ecke vorbei, auch nicht im Belagerungsmodus: Wer durch eine diagonale
@@ -225,6 +243,7 @@ export class Nav {
         } else { this.nbN[k] = nb; this.nbC[k++] = c; }
       }
     }
+    if (ground) return k;
     const ls = this.links.get(n);
     if (ls) for (const nb of ls) {
       const c = this.pass(nb, team, breach);
@@ -234,6 +253,10 @@ export class Nav {
     if (os) for (const nb of os) {
       const c = this.pass(nb, team, breach);
       if (c >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = Math.max(1, c); }
+    }
+    const fs = team === 1 ? this.foeLinks.get(n) : undefined;
+    if (fs) for (const nb of fs) {
+      if (this.pass(nb, team, breach) >= 0 && k < 16) { this.nbN[k] = nb; this.nbC[k++] = SIEGE.ladderCost; }
     }
     return k;
   }
@@ -306,20 +329,20 @@ export class Nav {
 
   // ------------------------------------------------------------ Suche
   /** Weg von `from` zum Ziel (ohne Startknoten), [] wenn schon am Ziel, null wenn unerreichbar. */
-  route(team: Team, breach: boolean, from: number, goal: Goal): number[] | null {
-    const key = `${team}${breach ? "b" : ""}:${from}:${goal.layer},${goal.x0},${goal.y0},${goal.x1},${goal.y1},${goal.d}`;
+  route(team: Team, breach: boolean, from: number, goal: Goal, ground = false): number[] | null {
+    const key = `${team}${breach ? "b" : ""}${ground ? "g" : ""}:${from}:${goal.layer},${goal.x0},${goal.y0},${goal.x1},${goal.y1},${goal.d}`;
     const hit = this.cache.get(key);
     if (hit !== undefined) return hit;
     let path: number[] | null;
     const fc = this.comp[team][from];
     if (!breach && fc >= 0 && !this.goalInComp(goal, team, fc)) path = null;
-    else path = this.find(from, team, breach, goal);
+    else path = this.find(from, team, breach, goal, ground);
     if (this.cache.size > 4000) this.cache.clear();
     this.cache.set(key, path);
     return path;
   }
 
-  private find(from: number, team: Team, breach: boolean, goal: Goal): number[] | null {
+  private find(from: number, team: Team, breach: boolean, goal: Goal, ground = false): number[] | null {
     this.searches++;
     if (this.isGoal(from, goal)) return [];
     if (++this.gen >= 0xfffffff0) { this.seen.fill(0); this.closed.fill(0); this.gen = 1; }
@@ -334,7 +357,7 @@ export class Nav {
       closed[n] = gen;
       if (this.isGoal(n, goal)) return this.trace(n);
       if (--budget <= 0) return null;
-      const k = this.neighbors(n, team, breach), gn = g[n];
+      const k = this.neighbors(n, team, breach, ground), gn = g[n];
       for (let j = 0; j < k; j++) {
         const nb = this.nbN[j];
         if (closed[nb] === gen) continue;

@@ -42,7 +42,12 @@ export type Job =
   /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
   | { k: "build"; site: number; spot?: number; t?: number }
   /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
-  | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 };
+  | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 }
+  /**
+   * Reparatur (ADR 0017): ein Stück Ware aus dem Lager holen (ph 0), an das beschädigte Gebäude b tragen (ph 1) und dort
+   * t Ticks hämmern (ph 2), dann kommen Lebenspunkte zurück.
+   */
+  | { k: "repair"; b: number; from: number; slot: number; good: Good; ph: 0 | 1 | 2; t: number };
 
 export interface UnitAI {
   /** Knoten (Laufebene · W · H + y · W + x) bis zum Ziel. */
@@ -87,6 +92,14 @@ export interface UnitAI {
   visit?: { b: number; k: number; s: number; wait: number; done: boolean };
   /** Nahkämpfer auf dem Posten: hat den Posten verlassen, um Tor, Treppe oder Wehrgang zu verteidigen. */
   sortie?: boolean;
+  /** Tick des letzten erlittenen Treffers (Heilung erst nach Ruhe). */
+  hurtT?: number;
+  /** Sturmknecht mit Leiter: gewählter Fuß (fx, fy) an der Mauer (wx, wy), t = Ticks beim Aufrichten. */
+  ladder?: { fx: number; fy: number; wx: number; wy: number; t: number };
+  /** Mannschaft: ID des Rammbocks, den dieser Sturmknecht schiebt (0/fehlt = keiner). */
+  ram?: number;
+  /** Rammbock: Gebäude, das er nicht erreicht hat (bei der nächsten Zielwahl zuletzt). */
+  skipB?: number;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -106,6 +119,9 @@ export interface BuildingAI {
   recruitPicked: boolean;
   /** Kaserne: Rekrut in Ausbildung (aus der Welt genommen). */
   inside: SUnit | null;
+  /** Tagelöhner, der gerade repariert (0/fehlt = keiner), und Tick des letzten Treffers (Reparatur erst nach Ruhe). */
+  repairer?: number;
+  hitT?: number;
 }
 export type SBuilding = Building & { ai: BuildingAI };
 
