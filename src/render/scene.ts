@@ -15,6 +15,7 @@ import { DepthSorter, type DepthItem } from "./depth";
 import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
 import { axisOrientation, figureDir, vecToScreen, viewToScreen } from "./iso";
 import { SpritePool } from "./pool";
+import { CHIMNEYS, chimneyWorld, type Emitter } from "./smoke";
 
 /** Treffer-Eintrag für die Mausauswahl (in Zeichenreihenfolge). Gepoolt: nur im selben Bild gültig. */
 export interface Hit {
@@ -38,6 +39,11 @@ export interface Ghost {
   x0: number; y0: number; x1: number; y1: number;
   cx: number; cy: number;
   alpha: number; tint: number;
+  /**
+   * Teil einer Gruppe (Mauerzug beim Ziehen): nicht einzeln halbtransparent in der Tiefensortierung, sondern deckend in
+   * der eigenen Ebene ghostGroup, die als Ganzes einheitlich transparent ist (keine sich addierenden Überlappungen).
+   */
+  group?: boolean;
 }
 
 interface Part {
@@ -75,14 +81,26 @@ const WORK_ANIMS: AnimKey[] = ["bauen", "hacken", "abbauen", "angriff", "schiess
 const SIL_COLOR = [0x8fc4ff, 0xff7a64];
 const SIL_ALPHA = 0.5;
 const SIL_MIN = 0.5;
+/**
+ * Deckende Sprite-Pixel: Die Gebäudeblätter backen den Schlagschatten mit Alpha 105 (Saum 55) ein, der Körper hat 255.
+ * Verdeckung (Silhouetten) und Treffer zählen nur Körperpixel, sonst bekommt eine Figur im Schatten eines Baums eine
+ * Silhouette oder ein Klick auf sie träfe den Baum.
+ */
+export const SOLID_ALPHA = 200;
 /** Stichproben im Figurenbild relativ zum Fußpunkt (Körpermitte von unten nach oben). */
 const SAMPLES: [number, number][] = [[0, -3], [0, -9], [0, -15], [0, -21], [0, -27], [-3, -14], [3, -14], [-2, -22], [2, -22]];
+/** Farbton des noch nicht gebauten Teils einer Baustelle (Holz/Gerüst statt eines kühlen Geisterumrisses). */
+const SITE_TINT = 0xd9a86a;
 const FALL_STEP = 1 / (TUNING.fallSeconds * TICKS_PER_SECOND);
 
 export class ObjectLayer {
   readonly container = new Container();
   /** Silhouetten verdeckter Figuren (über der Objektebene). */
   readonly silhouettes = new Container();
+  /** Gruppenvorschau (Mauerzug): deckend gezeichnet; die Darstellung gibt dem Container eine gemeinsame Transparenz. */
+  readonly ghostGroup = new Container();
+  private groupPool = new SpritePool(this.ghostGroup);
+  private groupList: Ghost[] = [];
   private pool = new SpritePool(this.container);
   private silPool = new SpritePool(this.silhouettes);
   private sorter = new DepthSorter();
@@ -104,6 +122,9 @@ export class ObjectLayer {
   hits: Hit[] = [];
   /** Figuren dieses Bildes (Rahmenauswahl, Lebensbalken). */
   units: UnitOnScreen[] = [];
+  /** Schornsteine sichtbarer, fertiger Gebäude in diesem Bild (Welt-Pixel), für die Rauchebene. */
+  emitters: Emitter[] = [];
+  private emitterPool: Emitter[] = [];
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
@@ -119,6 +140,7 @@ export class ObjectLayer {
     this.nItems = 0; this.nParts = 0; this.nHits = 0;
     this.hits.length = 0;
     this.units.length = 0;
+    this.emitters.length = 0;
     this.byId.clear();
     for (const b of state.buildings) this.byId.set(b.id, b);
     for (const list of this.attached.values()) list.length = 0;
@@ -136,12 +158,17 @@ export class ObjectLayer {
           continue;
         }
       }
-      this.unitItem(u, x, y, z, opt);
+      this.safe(u.key, () => this.unitItem(u, x, y, z, opt));
     }
-    for (const b of state.buildings) this.buildingItems(b, state, opt);
-    for (const t of state.trees) this.treeItem(t);
-    for (const k of state.rocks) this.rockItem(k);
-    for (const g of opt.ghosts) this.ghostItem(g);
+    for (const b of state.buildings) this.safe(b.key, () => this.buildingItems(b, state, opt));
+    for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
+    for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
+    this.groupList.length = 0;
+    for (const g of opt.ghosts) {
+      if (g.group) this.groupList.push(g);
+      else this.safe(g.key, () => this.ghostItem(g));
+    }
+    this.groupGhosts();
 
     // Sortieren und Sprites belegen
     const items = this.items;
@@ -166,6 +193,18 @@ export class ObjectLayer {
   }
 
   // ---------------------------------------------------------------- Hilfen
+
+  /**
+   * Ein Objekt aufbauen; wirft es (z. B. weil ein Sprite fehlt und ein Sonderfall das übersieht), wird nur dieses Objekt
+   * ausgelassen und der Fehler einmal gemeldet. Ein einzelnes kaputtes Objekt darf nie das ganze Bild abbrechen.
+   */
+  private safe(what: string, fn: () => void): void {
+    const ni = this.nItems, np = this.nParts, nh = this.nHits, nu = this.units.length, ne = this.emitters.length;
+    try { fn(); } catch (e) {
+      this.nItems = ni; this.nParts = np; this.nHits = nh; this.units.length = nu; this.emitters.length = ne;
+      warnOnce(`Objekt „${what}“ lässt sich nicht zeichnen und wird ausgelassen (${e instanceof Error ? e.message : String(e)})`);
+    }
+  }
 
   private newItem(u0: number, u1: number, v0: number, v1: number, flat = false, fig = false, bias = 0, cover = false): Item {
     let it = this.items[this.nItems];
@@ -372,7 +411,7 @@ export class ObjectLayer {
             if (!sp) continue;
             const lx = wx - (o.x - o.px), ly = wy - (o.y - o.py);
             if (lx < 0 || ly < 0 || lx >= bs.cell[0] || ly >= bs.cell[1]) continue;
-            if (sp.pixels.alpha(o.occFrame * bs.cell[0] + lx, o.occView * bs.cell[1] + ly) > 100) { covered++; break; }
+            if (sp.pixels.alpha(o.occFrame * bs.cell[0] + lx, o.occView * bs.cell[1] + ly) > SOLID_ALPHA) { covered++; break; }
           }
         }
         if (!total || covered / total < SIL_MIN) continue;
@@ -452,7 +491,8 @@ export class ObjectLayer {
     const [w, h] = b.o % 2 === 0 ? fp : [fp[1], fp[0]];
     const [u0, u1, v0, v1] = this.box(b.x, b.y, b.x + w, b.y + h);
     const spr = this.buildingSprite(b, state);
-    const lagerFlat = b.key === "lager" && spr?.keys[0][0] !== "lager";
+    // Lager mit eigenem Boden und Stapeln (lager_boden); fehlt das Blatt ganz, gibt es weder Boden noch Zaun
+    const lagerFlat = b.key === "lager" && !!spr && spr.keys[0][0] !== "lager";
     const it = this.newItem(u0, u1, v0, v1, lagerFlat, false);
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const [X, Y] = this.scr(cx, cy);
@@ -469,8 +509,8 @@ export class ObjectLayer {
           const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
           if (!lagerFlat) this.occluder(p, key, view, frame);
         } else {
-          // Baustelle: voller Umriss halbtransparent, darüber von unten nach oben aufgedeckt
-          this.part(it, tex, X, Y, ax, ay, { alpha: 0.28, tint: 0xc8d4ff, hit });
+          // Baustelle: voller Umriss halbtransparent in warmem Gerüst-/Holzton, darüber von unten nach oben aufgedeckt
+          this.part(it, tex, X, Y, ax, ay, { alpha: 0.32, tint: SITE_TINT, hit });
           const bb = bs.get(key)!.bbox[view]?.[frame];
           if (bb && b.built > 0) {
             const q = Math.round(b.built * 48) / 48;
@@ -494,11 +534,15 @@ export class ObjectLayer {
         if (ft) this.part(it, ft, X, Y, ax, ay, { tint });
       }
     }
+    const before = this.nItems;
     this.closeItem(it);
-    if (b.key === "lager" && lagerFlat) {
+    if (spr && b.built >= 1 && this.nItems === before) this.chimneys(b, spr.keys[0][0], cx, cy);
+    // Ohne jedes Lagerbild bleiben wenigstens die Warenstapel sichtbar (Ersatzstapel, falls auch die fehlen)
+    if (b.key === "lager" && !spr) this.stackItems(b);
+    if (lagerFlat && spr) {
       this.stackItems(b);
       // Vorderer Zaun als eigenes Objekt nach Stapeln und Figuren im Hof (lager_boden → Stapel/Figuren → Front)
-      const key = spr!.keys[0][0], view = viewOf(spr!.keys[0][1], this.r);
+      const key = spr.keys[0][0], view = viewOf(spr.keys[0][1], this.r);
       const ft = b.built >= 1 ? bs.texture(key, view, 0, b.team, "front") : null;
       if (ft) {
         const fit = this.newItem(u0, u1, v0, v1, false, false, 0, true);
@@ -508,6 +552,20 @@ export class ObjectLayer {
       }
     }
     if (b.built < 1) this.siteItems(b);
+  }
+
+  /** Schornsteinöffnungen eines sichtbaren Gebäudes als Rauchquellen (gleiche Drehung wie Grundriss und Sprite). */
+  private chimneys(b: Building, key: string, cx: number, cy: number): void {
+    const list = CHIMNEYS[key];
+    if (!list) return;
+    list.forEach((m, k) => {
+      const [wx, wy, z] = chimneyWorld(m, b.o);
+      const [X, Y] = this.scr(cx + wx, cy + wy, z);
+      let e = this.emitterPool[this.emitters.length];
+      if (!e) { e = { x: 0, y: 0, seed: 0 }; this.emitterPool.push(e); }
+      e.x = X; e.y = Y; e.seed = b.id * 7 + k;
+      this.emitters.push(e);
+    });
   }
 
   private stackTexture(good: Good, level: number, o: number): { tex: Texture; px: number; py: number } {
@@ -567,6 +625,31 @@ export class ObjectLayer {
     const [X, Y] = this.scr(g.cx, g.cy);
     this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1], { alpha: g.alpha, tint: g.tint });
     this.closeItem(it);
+  }
+
+  /** Gruppenvorschau: von hinten nach vorn (Ansicht u + v, dann u) deckend in ghostGroup. */
+  private groupGhosts(): void {
+    this.groupPool.reset();
+    const bs = this.bs;
+    const list = this.groupList;
+    if (bs && list.length) {
+      const key = (g: Ghost) => {
+        const [u, v] = toView(g.cx, g.cy, this.r, this.W, this.H);
+        return [u + v, u];
+      };
+      const keyed = list.map((g) => ({ g, k: key(g) }));
+      keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1]);
+      for (const { g } of keyed) {
+        const tex = bs.texture(g.key, viewOf(g.o, this.r), g.frame);
+        if (!tex) continue;
+        const [X, Y] = this.scr(g.cx, g.cy);
+        const s = this.groupPool.next(tex);
+        s.pivot.set(bs.anchor[0], bs.anchor[1]);
+        s.position.set(Math.round(X), Math.round(Y));
+        if (g.tint !== 0xffffff) s.tint = g.tint;
+      }
+    }
+    this.groupPool.finish();
   }
 
   // ---------------------------------------------------------------- Bäume und Felsen
@@ -665,7 +748,7 @@ export class ObjectLayer {
         const [cw, ch] = bs.cell;
         if (lx < 0 || ly < 0 || lx >= cw || ly >= ch) continue;
         const sp = bs.get(h.key);
-        if (sp && sp.pixels.alpha(h.frame * cw + lx, h.view * ch + ly) > 40) return h;
+        if (sp && sp.pixels.alpha(h.frame * cw + lx, h.view * ch + ly) > SOLID_ALPHA) return h;
       }
     }
     return null;

@@ -12,7 +12,11 @@ import { viewToScreen } from "./iso";
 import { gateOrientation, type Ghost, type UnitOnScreen } from "./scene";
 
 export type Preview =
-  | { kind: "bauen"; key: BuildingKey; x: number; y: number; o: number; check: PlacementCheck }
+  | {
+    kind: "bauen"; key: BuildingKey; x: number; y: number; o: number; check: PlacementCheck;
+    /** Mausfelder in der Nähe, an denen die Platzierung gültig wäre (enge Baubänder, z. B. Steinbruch am Fels). */
+    anchors?: readonly { x: number; y: number }[];
+  }
   | { kind: "mauer"; check: PlacementCheck }
   | { kind: "kachel"; x: number; y: number; z: number; color: number };
 
@@ -23,6 +27,8 @@ const BAD_FILL = 0xe0503c, BAD_LINE = 0xff8a70;
 /** Regelverstoß, der nicht an einer Kachel hängt (z. B. „Zu wenige Bäume“): alle Rauten orange. */
 const RULE_FILL = 0xe89a3a, RULE_LINE = 0xffc070;
 const FORT = new Set<string>(["mauer", "tor", "turm"]);
+/** Gemeinsame Transparenz des gezogenen Mauerzugs (Gruppe, siehe Ghost.group). */
+export const WALL_GHOST_ALPHA = 0.6;
 
 export class Overlays {
   /** Unter den Objekten (Boden). */
@@ -48,6 +54,13 @@ export class Overlays {
     const pts = [this.scr(x, y, z), this.scr(x + 1, y, z), this.scr(x + 1, y + 1, z), this.scr(x, y + 1, z)].flat();
     g.poly(pts).fill({ color, alpha });
     if (line) g.poly(pts).stroke({ width: 1, color: line, alpha: 0.9, alignment: 0.5 });
+  }
+
+  /** Dezente Marke für ein gültiges Mausfeld (kleinere Raute mit zartem Rand). */
+  private anchorMark(g: Graphics, x: number, y: number): void {
+    const m = 0.22;
+    const pts = [this.scr(x + m, y + m), this.scr(x + 1 - m, y + m), this.scr(x + 1 - m, y + 1 - m), this.scr(x + m, y + 1 - m)].flat();
+    g.poly(pts).fill({ color: OK_FILL, alpha: 0.2 }).stroke({ width: 1, color: OK_LINE, alpha: 0.45, alignment: 0.5 });
   }
 
   /** Umriss eines Rechtecks von Tiles (Auswahl eines Gebäudes). */
@@ -91,16 +104,17 @@ export class Overlays {
         const { piece, o } = wallPiece(mask);
         const keys: [string, number][] = bs.has(piece) ? [[piece, o]]
           : piece === "mauer_ecke" || piece === "mauer_t" || piece === "mauer_kreuz" ? [["mauer", o], ["mauer", o + 1]] : [["mauer", o]];
-        for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, 0.55, tl.ok ? 0xffffff : 0xff7a6a);
+        // als Gruppe: die Darstellung zeichnet den Mauerzug deckend und blendet ihn als Ganzes (WALL_GHOST_ALPHA)
+        for (const [k, ko] of keys) this.addGhost(k, ko, 0, tl.x, tl.y, tl.x + 1, tl.y + 1, tl.x + 0.5, tl.y + 0.5, WALL_GHOST_ALPHA, tl.ok ? 0xffffff : 0xff7a6a, true);
       }
     }
     return this.ghostList;
   }
 
-  private addGhost(key: string, o: number, frame: number, x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, alpha: number, tint: number): void {
+  private addGhost(key: string, o: number, frame: number, x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, alpha: number, tint: number, group = false): void {
     let g = this.ghostPool[this.ghostList.length];
-    if (!g) { g = { key, o, frame, x0, y0, x1, y1, cx, cy, alpha, tint }; this.ghostPool.push(g); }
-    g.key = key; g.o = o; g.frame = frame; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.cx = cx; g.cy = cy; g.alpha = alpha; g.tint = tint;
+    if (!g) { g = { key, o, frame, x0, y0, x1, y1, cx, cy, alpha, tint, group }; this.ghostPool.push(g); }
+    g.key = key; g.o = o; g.frame = frame; g.x0 = x0; g.y0 = y0; g.x1 = x1; g.y1 = y1; g.cx = cx; g.cy = cy; g.alpha = alpha; g.tint = tint; g.group = group;
     this.ghostList.push(g);
   }
 
@@ -127,10 +141,13 @@ export class Overlays {
     // Vorschau (Rauten; die Sprites zeichnet die Objektebene)
     const p = o.preview;
     if (p?.kind === "bauen" || p?.kind === "mauer") {
+      if (p.kind === "bauen" && p.anchors) for (const a of p.anchors) this.anchorMark(g, a.x, a.y);
       const rule = !p.check.ok && p.check.tiles.every((q) => q.ok);
       for (const tl of p.check.tiles) {
         const [fill, line] = rule ? [RULE_FILL, RULE_LINE] : tl.ok ? [OK_FILL, OK_LINE] : [BAD_FILL, BAD_LINE];
-        this.diamond(g, tl.x, tl.y, 0, fill, 0.38, line);
+        // Rote Felder liegen auf einem Hindernis (z. B. dem Boden eines Lagers): über den Objekten zeichnen, sonst
+        // verschwinden sie darunter. Grüne und orange bleiben am Boden unter der Vorschau.
+        this.diamond(!rule && !tl.ok ? t : g, tl.x, tl.y, 0, fill, 0.38, line);
       }
     } else if (p?.kind === "kachel") {
       // Ziel auf dem Wehrgang: über den Objekten, sonst verdeckt es die Mauer

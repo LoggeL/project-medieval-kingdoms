@@ -7,7 +7,9 @@
  * Auswahl: Linksklick (pixelgenau, oberstes Objekt), Rahmen ziehen (eigene Einheiten), Shift ergänzt,
  * Doppelklick wählt alle sichtbaren gleicher Art. Rechtsklick: Feind angreifen, sonst bewegen (auch auf den Wehrgang).
  * T stationieren, H halten, Strg+Ziffer Gruppe speichern, Ziffer Gruppe wählen.
- * Bauen: Vorschau, R dreht, Linksklick baut, Shift hält das Werkzeug, Esc/Rechtsklick bricht ab.
+ * Bauen: Vorschau, R dreht, Linksklick baut, Shift hält das Werkzeug, Esc/Rechtsklick bricht ab. Ist die gewählte
+ * Ausrichtung an der Mausposition ungültig, eine andere aber gültig (z. B. Mauertreppe: Rückseite zur Mauer), nimmt die
+ * Vorschau die nächste gültige in Drehrichtung; R dreht von dort weiter. Der Zeiger-Hinweis nennt R, wenn Drehen hilft.
  * Mauer: von Start- zu End-Tile ziehen, Loslassen baut. Abriss: Klick auf ein eigenes Gebäude.
  *
  * Leistung: Treffer und Vorschau unter der Maus werden nur neu berechnet, wenn sich Maus, Kamera, Werkzeug, Auswahl
@@ -25,6 +27,8 @@ const DRAG_PX = 5;
 const EDGE_PX = 6;
 const PAN_SPEED = 900; // Bildschirmpixel je Sekunde
 const DBL_MS = 320;
+/** Umkreis (Felder) um die Maus, in dem gültige Bauplätze enger Baubänder markiert werden. */
+const ANCHOR_R = 6;
 
 export interface InputContext {
   canvas: HTMLCanvasElement;
@@ -54,6 +58,12 @@ export class Input {
   private wheelAcc = 0;
   private lastClick = { t: 0, id: 0 };
   private check: { id: string; tick: number; res: PlacementCheck } | null = null;
+  /** Platzierungsprüfungen je Gebäude, Lage und Ausrichtung (bis zu vier je Mausstellung), verfallen nach 5 Ticks. */
+  private checks = new Map<string, { tick: number; res: PlacementCheck }>();
+  /** Tatsächlich gezeigte Ausrichtung der Bauvorschau (kann von tool.o abweichen, s. orient). */
+  private shownO: { key: BuildingKey; o: number } | null = null;
+  /** Gültige Mausfelder um die Maus für enge Baubänder (Schlüssel: Gebäude, Ausrichtung, Mausfeld, Tick-Abschnitt). */
+  private anchorCache: { id: string; list: { x: number; y: number }[] } | null = null;
   private time = 0;
   private cursor = "";
   /** Zwischenspeicher der Mausauswertung (Treffer, Vorschau) und ihr Schlüssel. */
@@ -248,22 +258,74 @@ export class Input {
   /** Linke obere Ecke so, dass der Grundriss um den Maus-Tile liegt. */
   private buildOrigin(key: BuildingKey, o: number, x: number, y: number): [number, number] {
     const tile = this.r.tileAt(x, y);
-    const [w, h] = footprint(key, o);
-    return [tile.x - Math.floor((w - 1) / 2), tile.y - Math.floor((h - 1) / 2)];
+    return originAt(key, o, tile.x, tile.y);
+  }
+
+  /**
+   * Enges Bauband (Gebäude muss an ein Gelände grenzen, z. B. Steinbruch am Fels): Mausfelder im Umkreis, an denen die
+   * Vorschau in irgendeiner Ausrichtung gültig wäre (wie orient, über die Platzierungsprüfung der Simulation).
+   */
+  private anchors(key: BuildingKey, o0: number, mx: number, my: number): { x: number; y: number }[] | undefined {
+    if (!BUILDINGS[key].placement?.adjacentTerrain) return undefined;
+    const tile = this.r.tileAt(mx, my);
+    const id = `${key}:${o0}:${tile.x}:${tile.y}:${Math.floor(this.ctx.game.state.tick / 20)}`;
+    if (this.anchorCache?.id === id) return this.anchorCache.list;
+    const { w, h } = this.ctx.game.state;
+    const list: { x: number; y: number }[] = [];
+    for (let dy = -ANCHOR_R; dy <= ANCHOR_R; dy++) for (let dx = -ANCHOR_R; dx <= ANCHOR_R; dx++) {
+      if (dx * dx + dy * dy > ANCHOR_R * ANCHOR_R) continue;
+      const x = tile.x + dx, y = tile.y + dy;
+      if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      for (let k = 0; k < 4; k++) {
+        const o = (o0 + k) % 4;
+        const [bx, by] = originAt(key, o, x, y);
+        if (this.ctx.game.canPlace(key, bx, by, o).ok) { list.push({ x, y }); break; }
+      }
+    }
+    this.anchorCache = { id, list };
+    return list;
   }
 
   private placement(key: BuildingKey, bx: number, by: number, o: number): PlacementCheck {
     const id = `${key}:${bx}:${by}:${o}`;
     const tick = this.ctx.game.state.tick;
-    if (!this.check || this.check.id !== id || tick - this.check.tick > 5) this.check = { id, tick, res: this.ctx.game.canPlace(key, bx, by, o) };
-    return this.check.res;
+    const c = this.checks.get(id);
+    if (c && tick - c.tick <= 5 && tick >= c.tick) return c.res;
+    if (this.checks.size > 64) this.checks.clear();
+    const res = this.ctx.game.canPlace(key, bx, by, o);
+    this.checks.set(id, { tick, res });
+    return res;
+  }
+
+  /**
+   * Ausrichtung für die Bauvorschau an Bildschirmpunkt (x, y): die gewählte, wenn sie gültig ist, sonst die nächste
+   * gültige in Drehrichtung. turnHelps: Eine andere Ausrichtung ergäbe einen anderen Befund (Hinweis „R dreht“).
+   */
+  private orient(key: BuildingKey, o0: number, x: number, y: number): { o: number; bx: number; by: number; check: PlacementCheck; turnHelps: boolean } {
+    const at = (o: number) => {
+      const [bx, by] = this.buildOrigin(key, o, x, y);
+      return { o, bx, by, check: this.placement(key, bx, by, o) };
+    };
+    const first = at(o0);
+    if (first.check.ok) return { ...first, turnHelps: false };
+    // Treppe: Ausrichtung ist die Bauregel selbst (Rückseite zur Mauer), R immer nennen
+    let turnHelps = !!BUILDINGS[key].stairs;
+    for (let k = 1; k < 4; k++) {
+      const c = at((o0 + k) % 4);
+      if (c.check.ok) return { ...c, turnHelps: true };
+      if (c.check.reason !== first.check.reason) turnHelps = true;
+    }
+    return { ...first, turnHelps };
   }
 
   private build(t: Extract<Tool, { t: "bauen" }>, x: number, y: number, shift: boolean): void {
-    const [bx, by] = this.buildOrigin(t.key, t.o, x, y);
+    const { bx, by, o } = this.orient(t.key, t.o, x, y);
     // Auch bei roter Vorschau an die Simulation schicken: Sie nennt den Grund und die passende Ansage.
-    const res = this.ctx.bridge.dispatch({ t: "bauen", key: t.key, x: bx, y: by, o: t.o });
+    const res = this.ctx.bridge.dispatch({ t: "bauen", key: t.key, x: bx, y: by, o });
     this.check = null;
+    this.checks.clear();
+    // gewählte Ausrichtung merken (bei Shift baut der nächste Klick in derselben weiter)
+    if (res.ok && o !== t.o && shift) this.ctx.store.setTool({ ...t, o });
     this.report(res, "Hier kann nicht gebaut werden.");
     if (res.ok && !shift) this.ctx.store.setTool({ t: "auswahl" });
   }
@@ -312,7 +374,9 @@ export class Input {
       case "KeyE": bridge.rotate(1); break;
       case "KeyR": {
         const t = store.tool;
-        if (t.t === "bauen") store.setTool({ ...t, o: (t.o + (e.shiftKey ? 3 : 1)) % 4 });
+        // von der gezeigten Ausrichtung aus weiterdrehen (sie kann automatisch gewählt sein)
+        const base = t.t === "bauen" && this.shownO?.key === t.key ? this.shownO.o : t.t === "bauen" ? t.o : 0;
+        if (t.t === "bauen") store.setTool({ ...t, o: (base + (e.shiftKey ? 3 : 1)) % 4 });
         break;
       }
       case "KeyT": {
@@ -402,10 +466,10 @@ export class Input {
       if (!res.ok) reason = res.reason ?? "Hier kann keine Mauer stehen.";
       this.setCursor("crosshair");
     } else if (t.t === "bauen" && inside) {
-      const [bx, by] = this.buildOrigin(t.key, t.o, this.mx, this.my);
-      const check = this.placement(t.key, bx, by, t.o);
-      preview = { kind: "bauen", key: t.key, x: bx, y: by, o: t.o, check };
-      if (!check.ok) reason = check.reason ?? "Hier kann nicht gebaut werden.";
+      const { bx, by, o, check, turnHelps } = this.orient(t.key, t.o, this.mx, this.my);
+      this.shownO = { key: t.key, o };
+      preview = { kind: "bauen", key: t.key, x: bx, y: by, o, check, anchors: this.anchors(t.key, t.o, this.mx, this.my) };
+      if (!check.ok) reason = (check.reason ?? "Hier kann nicht gebaut werden.") + (turnHelps ? " – R dreht" : "");
       this.setCursor("crosshair");
     } else if (t.t === "abriss" && inside) {
       danger = this.r.pick(this.mx, this.my, (h) => h.kind === "building" && h.team === 0)?.id ?? null;
@@ -434,6 +498,12 @@ export class Input {
     const b = this.ctx.game.state.buildings.find((q) => q.id === id);
     return !!b && b.built >= 1 && !!BUILDINGS[b.key].walkway;
   }
+}
+
+/** Linke obere Ecke des Grundrisses, wenn die Maus auf Feld (tx, ty) steht. */
+function originAt(key: BuildingKey, o: number, tx: number, ty: number): [number, number] {
+  const [w, h] = footprint(key, o);
+  return [tx - Math.floor((w - 1) / 2), ty - Math.floor((h - 1) / 2)];
 }
 
 /** Tastendruck gehört einem Texteingabefeld? (Regler, Häkchen und Knöpfe zählen nicht: dort gilt die Leertaste als Pause.) */

@@ -972,10 +972,12 @@ kbd {
 .mk-speaker .mk-sp-x { fill: var(--mk-red-light); }
 .mk-btn.mk-on .mk-speaker .mk-sp-x { fill: var(--mk-red-ink); }
 .mk-btn-audio.mk-muted-btn:not(.mk-on) { color: var(--mk-light-soft); }
+/* Unter der Kopfleiste am rechten Rand; ist das Auswahl-Panel offen, links daneben, damit es dessen Kopf und
+   Schließen-Knopf nicht verdeckt (fixed: unabhängig davon, wo der Lautsprecher-Knopf in der Leiste sitzt). */
 .mk-audio-pop {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: -6px;
+  position: fixed;
+  top: calc(var(--mk-top-h) + 10px);
+  right: 12px;
   z-index: 4;
   width: 260px;
   padding: 10px 14px 12px;
@@ -985,6 +987,7 @@ kbd {
   pointer-events: auto;
   animation: mk-pop 0.14s ease-out;
 }
+.mk-root:has(.mk-side:not([hidden])) .mk-audio-pop { right: calc(var(--mk-side-w) + 24px); }
 .mk-audio-row { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--mk-ink); cursor: pointer; }
 .mk-range-val { text-align: right; font-size: 14px; color: var(--mk-ink); }
 .mk-audio-muted .mk-audio-row { opacity: 0.55; }
