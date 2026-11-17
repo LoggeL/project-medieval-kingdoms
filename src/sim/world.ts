@@ -29,7 +29,8 @@ export type Job =
   /** Lager-Slot → Baustelle. */
   | { k: "supply"; site: number; from: number; slot: number; good: Good; ph: 0 | 1 }
   /** Bauen auf einer Baustelle, deren Material vollständig ist. */
-  | { k: "build"; site: number }
+  /** Bauen: spot = Index des Standplatzes rund um den Grundriss (−1 = irgendwo daneben), t = Arbeitsticks dort. Fehlen in alten Spielständen. */
+  | { k: "build"; site: number; spot?: number; t?: number }
   /** Waffe aus dem Lager holen und in der Kaserne ausbilden lassen. */
   | { k: "recruit"; b: number; from: number; slot: number; good: Good; unit: UnitKey; ph: 0 | 1 };
 

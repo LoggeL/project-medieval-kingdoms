@@ -7,8 +7,8 @@
  * in Teamfarbe über allem (und bleiben dort anklickbar).
  */
 import { Container, type Texture } from "pixi.js";
-import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type Good } from "../data";
-import { center, entrance, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
+import { BUILDINGS, GOODS, TICKS_PER_SECOND, TUNING, UNITS, type AnimKey, type BuildingKey, type Good } from "../data";
+import { center, gateOrientation, modelToWorld, slotTile, toView, viewOf, wallPiece, type Rot } from "../sim/geom";
 import type { Building, Rock, SimState, Tree, Unit } from "../sim/types";
 import { warnOnce, type BuildingSheet, type FigureSheet } from "./assets";
 import { DepthSorter, type DepthItem } from "./depth";
@@ -16,6 +16,7 @@ import { pileTexture, ringTexture, rockTexture } from "./fallbacks";
 import { axisOrientation, figureDir, vecToScreen, viewToScreen } from "./iso";
 import { SpritePool } from "./pool";
 import { CHIMNEYS, chimneyWorld, type Emitter } from "./smoke";
+import { RUBBLE_LIFE, type DustMat, type RubbleEmitter, type StrikeEmitter } from "./dust";
 
 /** Treffer-Eintrag für die Mausauswahl (in Zeichenreihenfolge). Gepoolt: nur im selben Bild gültig. */
 export interface Hit {
@@ -92,6 +93,27 @@ const SAMPLES: [number, number][] = [[0, -3], [0, -9], [0, -15], [0, -21], [0, -
 /** Farbton des noch nicht gebauten Teils einer Baustelle (Holz/Gerüst statt eines kühlen Geisterumrisses). */
 const SITE_TINT = 0xd9a86a;
 const FALL_STEP = 1 / (TUNING.fallSeconds * TICKS_PER_SECOND);
+/** Grundmauern eines abgerissenen Gebäudes bleiben so lange sichtbar (s), die letzten 1,5 s blenden sie aus. */
+const DEBRIS_SECONDS = 4.5;
+/** Gerüst: so viele Pixel ragt es über den schon gebauten Teil hinaus. */
+const SCAFFOLD_LEAD = 14;
+
+/**
+ * Sichtbarer Anteil des wachsenden Baus (0..1) beim Baufortschritt built: das erste Stück (foundation) ist Fundament,
+ * danach wächst der Bau gleichmäßig, mit courses in so vielen Lagen (Stein für Stein), sonst in 48 feinen Stufen.
+ */
+export function siteGrowth(built: number, foundation: number, courses?: number): number {
+  if (built >= 1) return 1;
+  const g = Math.max(0, Math.min(1, (built - foundation) / Math.max(1e-6, 1 - foundation)));
+  const n = courses ?? 48;
+  return Math.floor(g * n + 1e-9) / n;
+}
+
+/** Stapelstufe (1..4) für n Stück, wenn insgesamt total davon verbaut werden. */
+export function pileLevel(n: number, total: number): number {
+  if (n <= 0) return 0;
+  return Math.max(1, Math.min(4, Math.ceil((n / Math.max(1, total)) * 4)));
+}
 
 export class ObjectLayer {
   readonly container = new Container();
@@ -125,6 +147,15 @@ export class ObjectLayer {
   /** Schornsteine sichtbarer, fertiger Gebäude in diesem Bild (Welt-Pixel), für die Rauchebene. */
   emitters: Emitter[] = [];
   private emitterPool: Emitter[] = [];
+  /** Hämmernde Bauarbeiter und Staubwolken abgerissener Gebäude in diesem Bild, für die Staubebene (dust.ts). */
+  strikes: StrikeEmitter[] = [];
+  rubble: RubbleEmitter[] = [];
+  private strikePool: StrikeEmitter[] = [];
+  private rubblePool: RubbleEmitter[] = [];
+  /** Gebäude des letzten Bildes (Abriss erkennen) und Grundmauern verschwundener Gebäude mit Zeitpunkt (Spielsekunden). */
+  private prevB = new Map<number, { key: BuildingKey; x: number; y: number; o: number }>();
+  private prevSeen = false;
+  private debris: { id: number; key: BuildingKey; x: number; y: number; o: number; t0: number }[] = [];
   stats = { items: 0, sprites: 0, pairs: 0, silhouettes: 0 };
 
   private r: Rot = 0;
@@ -141,8 +172,12 @@ export class ObjectLayer {
     this.hits.length = 0;
     this.units.length = 0;
     this.emitters.length = 0;
+    this.strikes.length = 0;
+    this.rubble.length = 0;
     this.byId.clear();
     for (const b of state.buildings) this.byId.set(b.id, b);
+    const time = (state.tick + alpha) / TICKS_PER_SECOND;
+    this.trackDebris(state, time);
     for (const list of this.attached.values()) list.length = 0;
 
     // Figuren: interpolieren, auf Gebäuden einhängen oder als eigenes Objekt
@@ -161,6 +196,8 @@ export class ObjectLayer {
       this.safe(u.key, () => this.unitItem(u, x, y, z, opt));
     }
     for (const b of state.buildings) this.safe(b.key, () => this.buildingItems(b, state, opt));
+    for (const d of this.debris) this.safe(d.key, () => this.debrisItem(d, time));
+    for (const u of state.units) if (u.anim === "bauen" && !u.dead) this.strikeAt(u, state, alpha);
     for (const t of state.trees) this.safe(t.kind, () => this.treeItem(t));
     for (const k of state.rocks) this.safe("fels", () => this.rockItem(k));
     this.groupList.length = 0;
@@ -498,27 +535,16 @@ export class ObjectLayer {
     const [X, Y] = this.scr(cx, cy);
     const [ax, ay] = bs.anchor;
     const tint = opt.danger === b.id ? 0xff8070 : opt.highlight === b.id ? 0xfff2c8 : 0xffffff;
-    if (spr) {
+    if (spr && b.built < 1) this.siteParts(it, b, spr, X, Y, tint, opt);
+    else if (spr) {
       for (const [key, o] of spr.keys) {
         const view = viewOf(o, this.r);
         const tex = bs.texture(key, view, spr.frame, b.team);
         if (!tex) continue;
         const frame = Math.min(spr.frame, bs.get(key)!.frames - 1);
         const hit = this.hit("building", b.id, b.team, "b", key, view, frame, X - ax, Y - ay);
-        if (b.built >= 1) {
-          const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
-          if (!lagerFlat) this.occluder(p, key, view, frame);
-        } else {
-          // Baustelle: voller Umriss halbtransparent in warmem Gerüst-/Holzton, darüber von unten nach oben aufgedeckt
-          this.part(it, tex, X, Y, ax, ay, { alpha: 0.32, tint: SITE_TINT, hit });
-          const bb = bs.get(key)!.bbox[view]?.[frame];
-          if (bb && b.built > 0) {
-            const q = Math.round(b.built * 48) / 48;
-            const cut = Math.round(bb.y1 - q * (bb.y1 - bb.y0));
-            const crop = bs.crop(key, view, spr.frame, b.team, cut, bs.cell[1]);
-            if (crop) this.part(it, crop, X, Y, ax, ay - cut, { tint });
-          }
-        }
+        const p = this.part(it, tex, X, Y, ax, ay, { tint, hit });
+        if (!lagerFlat) this.occluder(p, key, view, frame);
       }
     }
     // Figuren auf Wehrgang, Turm und Treppe, dann das Vorderteil
@@ -552,6 +578,67 @@ export class ObjectLayer {
       }
     }
     if (b.built < 1) this.siteItems(b);
+  }
+
+  /** Abriss und Zerstörung erkennen: verschwundene Gebäude (nicht ersetzte) lassen kurz Grundmauern und Staub zurück. */
+  private trackDebris(state: SimState, time: number): void {
+    if (this.prevSeen) for (const [id, p] of this.prevB) {
+      if (this.byId.has(id)) continue;
+      if (state.tiles[p.y * state.w + p.x]?.building) continue; // ersetzt (Mauer unter einem Tor)
+      this.debris.push({ id, key: p.key, x: p.x, y: p.y, o: p.o, t0: time });
+    }
+    this.prevB.clear();
+    for (const b of state.buildings) this.prevB.set(b.id, { key: b.key, x: b.x, y: b.y, o: b.o });
+    this.prevSeen = true;
+    this.debris = this.debris.filter((d) => time - d.t0 >= 0 && time - d.t0 < DEBRIS_SECONDS);
+  }
+
+  private debrisItem(d: { id: number; key: BuildingKey; x: number; y: number; o: number; t0: number }, time: number): void {
+    const bs = this.bs;
+    if (!bs) return;
+    const t = time - d.t0;
+    const fp = BUILDINGS[d.key].footprint;
+    const [w, h] = d.o % 2 === 0 ? fp : [fp[1], fp[0]];
+    const [cx, cy] = center(d.key, d.x, d.y, d.o);
+    const [X, Y] = this.scr(cx, cy);
+    const [u0, u1, v0, v1] = this.box(d.x, d.y, d.x + w, d.y + h);
+    if (t < RUBBLE_LIFE) {
+      let e = this.rubblePool[this.rubble.length];
+      if (!e) { e = { x: 0, y: 0, w: 0, t: 0, seed: 0 }; this.rubblePool.push(e); }
+      e.x = X; e.y = Y; e.w = Math.max(w, h) * 18; e.t = t; e.seed = d.id;
+      this.rubble.push(e);
+    }
+    const key = BUILDINGS[d.key].construction.ground;
+    const tex = bs.has(key) ? bs.texture(key, viewOf(d.o, this.r), 1, 0) : null;
+    if (!tex) return;
+    const it = this.newItem(u0, u1, v0, v1, true, false);
+    const fade = t < DEBRIS_SECONDS - 1.5 ? 1 : (DEBRIS_SECONDS - t) / 1.5;
+    this.part(it, tex, X, Y, bs.anchor[0], bs.anchor[1], { alpha: Math.max(0, fade), tint: 0xb8b0a4 });
+    this.closeItem(it);
+  }
+
+  /** Trefferpunkt eines hämmernden Bauarbeiters (vor ihm, in Hammerhöhe) und das Material der Baustelle daneben. */
+  private strikeAt(u: Unit, state: SimState, alpha: number): void {
+    const x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha;
+    const [X, Y] = this.scr(x, y);
+    const v = this.view;
+    if (X < v.x0 || X > v.x1 || Y < v.y0 || Y > v.y1) return;
+    let mat = 0;
+    const tx = Math.floor(x), ty = Math.floor(y);
+    for (let dy = -1; dy <= 1 && !mat; dy++) for (let dx = -1; dx <= 1 && !mat; dx++) {
+      const b = this.byId.get(state.tiles[(ty + dy) * state.w + tx + dx]?.building ?? 0);
+      if (!b || b.built >= 1) continue;
+      const cost = BUILDINGS[b.key].cost;
+      mat = ((cost.holz ?? 0) > 0 ? 1 : 0) | ((cost.stein ?? 0) > 0 ? 2 : 0);
+    }
+    if (!mat) mat = 1;
+    const [sx, sy] = vecToScreen(u.fx, u.fy, this.r);
+    const l = Math.hypot(sx, sy) || 1;
+    let e = this.strikePool[this.strikes.length];
+    if (!e) { e = { x: 0, y: 0, t: 0, seed: 0, mat: 1, dir: 1 }; this.strikePool.push(e); }
+    e.x = Math.round(X + (sx / l) * 7); e.y = Math.round(Y + (sy / l) * 4 - 4);
+    e.t = u.animT; e.seed = u.id; e.mat = mat as DustMat; e.dir = sx >= 0 ? 1 : -1;
+    this.strikes.push(e);
   }
 
   /** Schornsteinöffnungen eines sichtbaren Gebäudes als Rauchquellen (gleiche Drehung wie Grundriss und Sprite). */
@@ -595,22 +682,91 @@ export class ObjectLayer {
     });
   }
 
+  /**
+   * Baustelle in Bauphasen (Daten: BUILDINGS[key].construction, Ablauf in docs/decisions/0005-baustellen.md):
+   * abgesteckt (Pflöcke und Schnur, solange noch nichts verbaut ist) → Fundament → Gerüst und Bau, der von unten nach
+   * oben wächst (bei Mauern, Tor, Treppe und Turm in sichtbaren Lagen). Reihenfolge im Objekt: Boden, Gerüst (ganz),
+   * aufgedeckter Bau, Vorderteil des Gerüsts. Bei Maus/Auswahl zeigt ein blasser Umriss, was hier entsteht.
+   */
+  private siteParts(it: Item, b: Building, spr: { keys: [string, number][]; frame: number }, X: number, Y: number, tint: number, opt: SceneOptions): void {
+    const bs = this.bs!;
+    const [ax, ay] = bs.anchor;
+    const con = BUILDINGS[b.key].construction;
+    const [key0, o0] = spr.keys[0];
+    const view0 = viewOf(o0, this.r);
+    const frame0 = Math.min(spr.frame, bs.get(key0)!.frames - 1);
+    // Treffer: die Fläche des fertigen Baus (so ist die Baustelle dort anklickbar, wo das Gebäude entsteht)
+    const hit = this.hit("building", b.id, b.team, "b", key0, view0, frame0, X - ax, Y - ay);
+    const sview = viewOf(b.o, this.r);
+    const ground = bs.has(con.ground) ? bs.texture(con.ground, sview, b.built > 0 ? 1 : 0, b.team) : null;
+    if (ground) this.part(it, ground, X, Y, ax, ay, { tint, hit });
+    const plan = opt.highlight === b.id || opt.danger === b.id;
+    for (const [key, o] of spr.keys) {
+      const tex = bs.texture(key, viewOf(o, this.r), spr.frame, b.team);
+      if (tex && (plan || !ground)) this.part(it, tex, X, Y, ax, ay, { alpha: plan ? 0.3 : 0.18, tint: opt.danger === b.id ? tint : SITE_TINT, hit: ground ? null : hit });
+    }
+    const grow = siteGrowth(b.built, con.foundation, con.courses);
+    if (grow <= 0) return;
+    const bb0 = bs.get(key0)!.bbox[view0]?.[frame0];
+    const cut0 = bb0 ? Math.round(bb0.y1 - grow * (bb0.y1 - bb0.y0)) : bs.cell[1];
+    const sc = con.scaffold && bs.has(con.scaffold) ? con.scaffold : null;
+    // Gerüst steht etwas höher als der Bau gerade ist (die nächste Lage wird von dort aus gemauert)
+    const scut = Math.max(0, cut0 - SCAFFOLD_LEAD);
+    if (sc) {
+      const t = bs.crop(sc, sview, 0, b.team, scut, bs.cell[1]);
+      if (t) this.part(it, t, X, Y, ax, ay - scut, { tint });
+    }
+    for (const [key, o] of spr.keys) {
+      const view = viewOf(o, this.r);
+      const frame = Math.min(spr.frame, bs.get(key)!.frames - 1);
+      const bb = bs.get(key)!.bbox[view]?.[frame];
+      if (!bb) continue;
+      const cut = Math.round(bb.y1 - grow * (bb.y1 - bb.y0));
+      const crop = bs.crop(key, view, spr.frame, b.team, cut, bs.cell[1]);
+      if (crop) this.part(it, crop, X, Y, ax, ay - cut, { tint });
+    }
+    if (sc) {
+      const t = bs.crop(sc, sview, 0, b.team, scut, bs.cell[1], "front");
+      if (t) this.part(it, t, X, Y, ax, ay - scut, { tint });
+    }
+  }
+
+  /**
+   * Gelieferte Baustoffe auf der Baustelle: je Ware ein Stapel an ihrem Ablageplatz im Grundriss (construction.piles),
+   * so groß wie der Rest (Stufe 1–4 von dem, was insgesamt davon verbaut wird). Eigene Objekte in der Tiefensortierung:
+   * vor dem Bau sichtbar, hinter ihm verdeckt.
+   */
   private siteItems(b: Building): void {
-    const goods = (Object.keys(b.site) as Good[]).filter((g) => (b.site[g] ?? 0) > 0);
-    if (!goods.length) return;
-    const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
-    const [lx, ly] = modelToWorld(1, 0, b.o);
+    const def = BUILDINGS[b.key];
+    const piles = def.construction.piles;
+    if (!piles.length) return;
+    const goods = (Object.keys(def.cost) as (Good | "gold")[]).filter((g): g is Good => g !== "gold");
+    const [cx, cy] = center(b.key, b.x, b.y, b.o);
     goods.forEach((g, k) => {
-      const off = (k - (goods.length - 1) / 2) * 0.7;
-      const x = ex + 0.5 + lx * off, y = ey + 0.5 + ly * off;
+      const n = b.site[g] ?? 0;
+      if (n <= 0) return;
+      const [px, py] = piles[k % piles.length];
+      const [dx, dy] = modelToWorld(px, py, b.o);
+      const x = cx + dx, y = cy + dy;
       const [cu, cv] = toView(x, y, this.r, this.W, this.H);
-      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3);
+      const it = this.newItem(cu - 0.3, cu + 0.3, cv - 0.3, cv + 0.3, false, false, 0.05);
       const [X, Y] = this.scr(x, y);
-      const level = Math.max(1, Math.min(4, Math.ceil((b.site[g] ?? 0) / 3)));
-      const st = this.stackTexture(g, level, b.o);
+      const level = pileLevel(n, def.cost[g] ?? n);
+      const st = this.sitePileTexture(g, level, b.o);
       this.part(it, st.tex, X, Y, st.px, st.py);
       this.closeItem(it);
     });
+  }
+
+  private sitePileTexture(good: Good, level: number, o: number): { tex: Texture; px: number; py: number } {
+    const key = GOODS[good].sitePile;
+    const bs = this.bs!;
+    if (key && bs.has(key)) {
+      const tex = bs.texture(key, viewOf(o, this.r), level, 0);
+      if (tex) return { tex, px: bs.anchor[0], py: bs.anchor[1] };
+    }
+    if (key) warnOnce(`Sprite „${key}“ fehlt im Gebäudeblatt, Ersatz: Lagerstapel`);
+    return this.stackTexture(good, level, o);
   }
 
   /** Bauvorschau als halbtransparentes Objekt in der Tiefensortierung (Figuren davor bleiben unverdeckt). */

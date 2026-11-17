@@ -1094,6 +1094,208 @@ def b_lager_boden(mb, var):
             mb.bx("wood" if q % 2 else "wood_hi", x - 0.95, x + 0.95, y_ + 0.02, y_ + 0.36, 0.03, 0.06)
 
 
+# ---------------------------------------------------------------- construction sites
+# Outlines of the main bodies (metres, model axes), taken from the b_* functions above. A site shows: stake-out
+# (variant 0), foundation (variant 1); the game then draws the scaffold, reveals the finished sprite from the bottom up
+# and puts the delivered material (baustoff_*) on the lot.
+_KAS_W, _KAS_D = 4 * T - 0.8, 4.0
+_KAS_CY = 3 * T / 2 - _KAS_D / 2 - 0.35
+_TURM_W = T - 0.03
+SITE_RECTS = {
+    "haus": [(-2.05, 2.05, -1.7, 1.7)],
+    "holzfaeller": [(-1.15 - 1.43, -1.15 + 1.43, 1.2 - 1.18, 1.2 + 1.18)],
+    "kaserne": [(-_KAS_W / 2, _KAS_W / 2, _KAS_CY - _KAS_D / 2, _KAS_CY + _KAS_D / 2)],
+    "turm": [(-_TURM_W, _TURM_W, -_TURM_W, _TURM_W)],
+    "mauer": [(-1.1, 1.1, -1.1, 1.1)],
+    "treppe": [(-0.9, 0.9, -T + 0.05, T + 0.12)],
+    "steinbruch": [(-3.3, -1.7, -3.3, -1.8), (1.4, 2.4, -1.4, -0.4)],
+    "lager": [(-3 * T / 2 + 0.15, 3 * T / 2 - 0.15, -3 * T / 2 + 0.15, 3 * T / 2 - 0.15)],
+}
+SITE_KIND = {"steinbruch": "yard", "lager": "yard"}
+# scaffold: outline, number of levels, level height (m)
+SCAFFOLDS = {
+    "haus": (SITE_RECTS["haus"][0], 2, 1.45),
+    "holzfaeller": (SITE_RECTS["holzfaeller"][0], 1, 1.4),
+    "kaserne": (SITE_RECTS["kaserne"][0], 3, 1.45),
+    "turm": (SITE_RECTS["turm"][0], 4, 1.3),
+}
+SIDE_GROUP = {"s": "f:0:-1", "n": "f:0:1", "e": "f:1:0", "w": "f:-1:0"}
+
+
+def corner_group(x, y):
+    """Group of a corner post: facing the camera only in the view where this corner is the nearest one."""
+    return "f:%d:%d" % (1 if x > 0 else -1, 1 if y > 0 else -1)
+
+
+def peg(mb, x, y, h=0.55, group=None):
+    mb.bx("wood", x - 0.045, x + 0.045, y - 0.045, y + 0.045, 0, h, group=group)
+    mb.bx("wood_hi", x - 0.05, x + 0.05, y - 0.05, y + 0.05, h - 0.04, h, group=group)
+
+
+def string_line(mb, a, b, z=0.34):
+    (ax, ay), (bx_, by) = a, b
+    if abs(ay - by) < 1e-6:
+        mb.bx("string", min(ax, bx_), max(ax, bx_), ay - 0.03, ay + 0.03, z, z + 0.05)
+    else:
+        mb.bx("string", ax - 0.03, ax + 0.03, min(ay, by), max(ay, by), z, z + 0.05)
+
+
+def b_site(key):
+    def build(mb, var):
+        rects = SITE_RECTS[key]
+        kind = SITE_KIND.get(key, "masonry")
+        r = mb.rnd
+        for (x0, x1, y0, y1) in rects:
+            m = 0.3  # pegs and string stand a little outside the future walls
+            corners = [(x0 - m, y0 - m), (x1 + m, y0 - m), (x1 + m, y1 + m), (x0 - m, y1 + m)]
+            if var == 0:
+                # stake-out: trampled earth along the line, pegs at the corners and every ~1.4 m, string between
+                for i in range(4):
+                    a, b = corners[i], corners[(i + 1) % 4]
+                    L = math.hypot(b[0] - a[0], b[1] - a[1])
+                    n = max(1, round(L / 1.4))
+                    for k in range(n):
+                        t = k / n
+                        x, y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                        peg(mb, x, y, 0.55 if k == 0 else 0.42)
+                        if r.random() < 0.7:
+                            mb.cyl("dirt", (x + r.uniform(-0.2, 0.2), y + r.uniform(-0.2, 0.2), 0.012), r.uniform(0.18, 0.32), 0.024, n=7)
+                    string_line(mb, a, b)
+            else:
+                pad = 0.35
+                ground(mb, "dirt", x0 - pad, x1 + pad, y0 - pad, y1 + pad, ragged=0.2)
+                if kind == "masonry":
+                    t, h = 0.42, 0.42
+                    masonry(mb, x0, x1, y0, y0 + t, 0, h, row=0.21, sides="nesw")
+                    masonry(mb, x0, x1, y1 - t, y1, 0, h, row=0.21, sides="nesw")
+                    masonry(mb, x0, x0 + t, y0 + t, y1 - t, 0, h, row=0.21, sides="nesw")
+                    masonry(mb, x1 - t, x1, y0 + t, y1 - t, 0, h, row=0.21, sides="nesw")
+                else:
+                    # yard: levelled ground, posts set along the edge
+                    for i in range(4):
+                        a, b = corners[i], corners[(i + 1) % 4]
+                        L = math.hypot(b[0] - a[0], b[1] - a[1])
+                        n = max(1, round(L / 1.1))
+                        for k in range(n):
+                            x, y = a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n
+                            mb.bx("wood", x - 0.06, x + 0.06, y - 0.06, y + 0.06, 0, 0.75)
+                for (x, y) in corners:
+                    peg(mb, x, y, 0.55)
+        if var == 1 and key not in ("mauer", "treppe"):
+            # a few loose blocks and a mortar trough at the first outline (not on narrow wall sites: they stay on the tile)
+            x0, x1, y0, y1 = rects[0]
+            for k in range(3):
+                mb.box("stone", (x0 + 0.5 + k * 0.5, y0 - 0.62, 0.13), (0.4, 0.32, 0.26), rot=(0, 0, r.uniform(-12, 12)))
+            mb.bx("wood", x1 - 1.1, x1 - 0.3, y0 - 0.85, y0 - 0.45, 0, 0.22)
+            mb.bx("mortar", x1 - 1.05, x1 - 0.35, y0 - 0.8, y0 - 0.5, 0.18, 0.23)
+    return build
+
+
+def scaffold(mb, rect, levels, lift):
+    """Pole scaffold around an outline: standards, ledgers, putlogs and plank decks on every level, one diagonal brace
+    per side, a ladder on the south side. Each side is its own front-mask group, so the game can draw the sides facing
+    the camera over the rising building and the others behind it."""
+    x0, x1, y0, y1 = rect
+    off = 0.38
+    X0, X1, Y0, Y1 = x0 - off, x1 + off, y0 - off, y1 + off
+    top = levels * lift + 1.0
+    sides = {"s": ((X0, Y0), (X1, Y0)), "e": ((X1, Y0), (X1, Y1)), "n": ((X1, Y1), (X0, Y1)), "w": ((X0, Y1), (X0, Y0))}
+    for (x, y) in ((X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)):
+        g = corner_group(x, y)
+        mb.cyl("timber", (x, y, top / 2), 0.065, top, n=6, group=g)
+    for side, ((ax, ay), (bx_, by)) in sides.items():
+        g = SIDE_GROUP[side]
+        L = math.hypot(bx_ - ax, by - ay)
+        along_x = abs(ay - by) < 1e-6
+        n = max(1, round(L / 1.9))
+        for k in range(1, n):
+            t = k / n
+            mb.cyl("timber", (ax + (bx_ - ax) * t, ay + (by - ay) * t, top / 2), 0.06, top, n=6, group=g)
+        cx, cy = (ax + bx_) / 2, (ay + by) / 2
+        # wall face on this side (deck runs from the poles to the wall)
+        if along_x:
+            wy = y0 if side == "s" else y1
+            dy0, dy1 = min(wy, ay), max(wy, ay)
+        else:
+            wx = x1 if side == "e" else x0
+            dx0, dx1 = min(wx, ax), max(wx, ax)
+        for lv in range(1, levels + 1):
+            z = lv * lift
+            if along_x:
+                mb.bx("wood", min(ax, bx_) - 0.08, max(ax, bx_) + 0.08, ay - 0.05, ay + 0.05, z - 0.1, z - 0.02, group=g)
+                mb.bx("wood_hi", min(ax, bx_), max(ax, bx_), dy0, dy1, z, z + 0.05, group=g)
+                for q in range(n + 1):
+                    xx = ax + (bx_ - ax) * q / n
+                    mb.bx("wood", xx - 0.04, xx + 0.04, dy0, dy1, z - 0.08, z - 0.02, group=g)
+            else:
+                mb.bx("wood", ax - 0.05, ax + 0.05, min(ay, by) - 0.08, max(ay, by) + 0.08, z - 0.1, z - 0.02, group=g)
+                mb.bx("wood_hi", dx0, dx1, min(ay, by), max(ay, by), z, z + 0.05, group=g)
+                for q in range(n + 1):
+                    yy = ay + (by - ay) * q / n
+                    mb.bx("wood", dx0, dx1, yy - 0.04, yy + 0.04, z - 0.08, z - 0.02, group=g)
+        # hand rail on the top level and a lower guard rail
+        zr = levels * lift + 0.9
+        if along_x:
+            mb.bx("wood", min(ax, bx_), max(ax, bx_), ay - 0.04, ay + 0.04, zr, zr + 0.07, group=g)
+        else:
+            mb.bx("wood", ax - 0.04, ax + 0.04, min(ay, by), max(ay, by), zr, zr + 0.07, group=g)
+        # diagonal brace across the side
+        H = levels * lift
+        ang = math.degrees(math.atan2(H, L))
+        if along_x:
+            mb.box("wood", (cx, ay + (0.07 if side == "n" else -0.07), H / 2), (math.hypot(L, H), 0.06, 0.06), rot=(0, -ang if side == "s" else ang, 0), group=g)
+        else:
+            mb.box("wood", (ax + (0.07 if side == "e" else -0.07), cy, H / 2), (0.06, math.hypot(L, H), 0.06), rot=(ang if side == "e" else -ang, 0, 0), group=g)
+    # ladder to the first level, leaning against the south side
+    lx = X1 - 0.9
+    with mb.at((lx, Y0 - 0.35, 0)):
+        for sx in (-0.22, 0.22):
+            mb.box("wood_hi", (sx, 0.17, lift / 2 + 0.25), (0.06, 0.06, lift + 0.6), rot=(-13, 0, 0), group="f:0:-1")
+        for k in range(1, int(lift / 0.32) + 1):
+            z = k * 0.32
+            mb.bx("wood", -0.22, 0.22, 0.17 + (z - lift / 2 - 0.25) * math.tan(math.radians(13)) - 0.025,
+                  0.17 + (z - lift / 2 - 0.25) * math.tan(math.radians(13)) + 0.025, z - 0.025, z + 0.025, group="f:0:-1")
+
+
+def b_geruest(key):
+    def build(mb, var):
+        rect, levels, lift = SCAFFOLDS[key]
+        scaffold(mb, rect, levels, lift)
+    return build
+
+
+def b_baustoff_holz(mb, var):
+    """Sawn timber on two sleepers: boards and squared beams in crossed layers (1-4)."""
+    for y in (-0.42, 0.42):
+        mb.bx("wood", -0.75, 0.75, y - 0.07, y + 0.07, 0, 0.1)
+    z = 0.1
+    for k in range(var):
+        if k % 2 == 0:  # boards along x
+            for i in range(5):
+                yy = -0.5 + i * 0.25
+                mb.bx("wood_hi" if (i + k) % 3 else "wood", -0.82, 0.82 - 0.06 * ((i + k) % 2), yy - 0.11, yy + 0.11, z, z + 0.06)
+            z += 0.06
+        else:  # squared beams across
+            for i in range(4):
+                xx = -0.6 + i * 0.4
+                mb.bx("wood", xx - 0.09, xx + 0.09, -0.62, 0.62, z, z + 0.16)
+            z += 0.16
+
+
+def b_baustoff_stein(mb, var):
+    """Cut ashlar blocks on a pallet (1-4 = 3, 6, 9, 12 blocks)."""
+    pallet(mb, 0, 0, 0, 1.3, 0.9)
+    spots = [(-0.42, -0.2, 0), (0.0, -0.2, 0), (0.42, -0.2, 0), (-0.42, 0.22, 0), (0.0, 0.22, 0), (0.42, 0.22, 0),
+             (-0.21, -0.2, 1), (0.21, -0.2, 1), (-0.21, 0.22, 1), (0.21, 0.22, 1), (0.0, 0.0, 2), (0.0, 0.0, 3)]
+    r = mb.rnd
+    for i in range(12):
+        x, y, lv = spots[i]
+        rz = r.uniform(-6, 6)
+        if i >= var * 3:
+            continue
+        mb.box("stone2" if i % 4 == 1 else "stone", (x, y, 0.12 + 0.15 + lv * 0.3), (0.38, 0.36, 0.28), rot=(0, 0, rz))
+
+
 BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruch, "lager": b_lager, "kaserne": b_kaserne,
          "turm": b_turm, "mauer": b_mauer, "treppe": b_treppe, "baum": b_baum, "tanne": b_tanne,
          "baum_liegt": b_baum_liegt, "baum_stumpf": b_baum_stumpf, "fels": b_fels,
@@ -1101,6 +1303,9 @@ BUILD = {"haus": b_haus, "holzfaeller": b_holzfaeller, "steinbruch": b_steinbruc
          "stapel_speer": b_stapel_speer, "stapel_schwert": b_stapel_schwert, "stapel_bogen": b_stapel_bogen,
          "lager_boden": b_lager_boden, "tor": b_tor}
 BUILD.update({k: b_wallpiece(k) for k in WALL_CONN})
+BUILD.update({"baustelle_" + k: b_site(k) for k in SITE_RECTS})
+BUILD.update({"geruest_" + k: b_geruest(k) for k in SCAFFOLDS})
+BUILD.update({"baustoff_holz": b_baustoff_holz, "baustoff_stein": b_baustoff_stein})
 
 
 # ---------------------------------------------------------------- scene and render
@@ -1253,7 +1458,8 @@ def main():
                 sh.color_type = "OBJECT"
             print("rendered", key, f, flush=True)
         meta["units"].append({"key": key, "name": df["name"], "frames": len(df["variants"]), "variants": df["variants"],
-                              "footprint": df["footprint"], "posts": df.get("posts", []), "front": bool(df.get("front"))})
+                              "footprint": df["footprint"], "posts": df.get("posts", []), "front": bool(df.get("front")),
+                              **({"shadow_fill": False} if df.get("shadow_fill") is False else {})})
     rj = os.path.join(OUT, "render.json")
     if ONLY and os.path.exists(rj):
         old = {u["key"]: u for u in json.load(open(rj)).get("units", [])}

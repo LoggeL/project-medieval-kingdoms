@@ -38,11 +38,13 @@ export interface GoodDef {
   stack: string;
   /** Figur, die diese Ware trägt (Figurenblatt). */
   carrier: string;
+  /** Baumaterial auf der Baustelle (Gebäudeblatt, Varianten = Menge 0..4); fehlt es, liegt der Lagerstapel dort. */
+  sitePile?: string;
 }
 
 export const GOODS: Record<Good, GoodDef> = {
-  holz: { name: "Holz", stack: "stapel_holz", carrier: "traeger" },
-  stein: { name: "Stein", stack: "stapel_stein", carrier: "traeger_stein" },
+  holz: { name: "Holz", stack: "stapel_holz", carrier: "traeger", sitePile: "baustoff_holz" },
+  stein: { name: "Stein", stack: "stapel_stein", carrier: "traeger_stein", sitePile: "baustoff_stein" },
   eisen: { name: "Eisen", stack: "stapel_eisen", carrier: "traeger_kiste" },
   speer: { name: "Speere", stack: "stapel_speer", carrier: "traeger_speer" },
   schwert: { name: "Schwerter", stack: "stapel_schwert", carrier: "traeger_schwert" },
@@ -65,6 +67,27 @@ export type BuildingKey =
   | "lager" | "holzfaeller" | "steinbruch" | "kaserne" | "haus"
   | "mauer" | "tor" | "treppe" | "turm";
 
+/**
+ * Baustelle (Darstellung, siehe docs/decisions/0005-baustellen.md): Ein gesetzter Bau ist erst abgesteckt (Pflöcke und
+ * Schnur, Variante 0 von ground), mit dem ersten verbauten Material entsteht das Fundament (Variante 1), danach steht
+ * das Gerüst und der Bau wächst von unten nach oben. Wie weit, entscheidet die Simulation (Arbeit und verbautes Material).
+ */
+export interface ConstructionDef {
+  /** Sprite der Baustelle im Gebäudeblatt: Variante 0 abgesteckt, 1 Fundament. */
+  ground: string;
+  /** Gerüst (mit Vorderteil, das vor dem wachsenden Bau liegt); fehlt bei niedrigen Bauten. */
+  scaffold?: string;
+  /** Anteil des Baufortschritts, der aufs Fundament entfällt, bevor der Bau sichtbar wächst. */
+  foundation: number;
+  /** Der Bau wächst in so vielen sichtbaren Lagen (Mauern Stein für Stein); fehlt = stufenlos. */
+  courses?: number;
+  /**
+   * Ablage des Baumaterials, je Ware ein Platz in der Reihenfolge der Kosten: [x, y] in Tiles ab Grundrissmitte,
+   * Modellachsen (wie posts), innerhalb des Grundrisses (dort läuft niemand hindurch).
+   */
+  piles: [number, number][];
+}
+
 export interface BuildingDef {
   name: string;
   /** Kurzbeschreibung im Baumenü. */
@@ -73,8 +96,10 @@ export interface BuildingDef {
   /** Grundriss in Tiles bei Ausrichtung o = 0 (Breite entlang x, Tiefe entlang y). */
   footprint: [number, number];
   cost: Cost;
-  /** Bauzeit in Sekunden, sobald alles Material auf der Baustelle liegt. */
+  /** Reine Arbeitszeit eines Bauarbeiters in Sekunden (er baut nur, solange verbaubares Material auf der Baustelle liegt). */
   buildSeconds: number;
+  /** Bauphasen und Materialablage der Baustelle. */
+  construction: ConstructionDef;
   /** Sprite-Schlüssel im Gebäudeblatt (assets/buildings/<stil>/sheet.json). Mauerteile wählt die Darstellung selbst. */
   sprite: string;
   /** Platzierungsregeln. */
@@ -105,11 +130,13 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   lager: {
     name: "Lagerplatz", desc: "Acht Stellplätze für Holz, Stein, Eisen und Waffen. Jede Ware liegt sichtbar auf ihrem Stapel.",
     category: "wirtschaft", footprint: [3, 3], cost: { holz: 10 }, buildSeconds: 15, sprite: "lager_boden",
+    construction: { ground: "baustelle_lager", foundation: 0.3, piles: [[0, 0]] },
     storage: { slots: 8, perSlot: 20 }, hp: 300,
   },
   holzfaeller: {
     name: "Holzfällerhütte", desc: "Ein Holzfäller fällt Bäume in der Nähe, zerlegt sie und legt die Stämme auf seinen Hof.",
     category: "wirtschaft", footprint: [2, 2], cost: { holz: 6 }, buildSeconds: 12, sprite: "holzfaeller",
+    construction: { ground: "baustelle_holzfaeller", scaffold: "geruest_holzfaeller", foundation: 0.15, piles: [[0.45, -0.35]] },
     placement: { nearTag: { tag: "tree", count: 4, radius: 10 } },
     workers: {
       unit: "holzfaeller", count: 1, cycle: [
@@ -126,6 +153,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   steinbruch: {
     name: "Steinbruch", desc: "Zwei Steinmetze brechen Blöcke aus dem Fels. Muss an Fels grenzen.",
     category: "wirtschaft", footprint: [3, 3], cost: { holz: 12 }, buildSeconds: 18, sprite: "steinbruch",
+    construction: { ground: "baustelle_steinbruch", foundation: 0.2, piles: [[-0.15, -0.7]] },
     placement: { adjacentTerrain: "fels", nearTag: { tag: "rock", count: 1, radius: 6 } },
     workers: {
       unit: "steinmetz", count: 2, cycle: [
@@ -141,29 +169,35 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
   kaserne: {
     name: "Kaserne", desc: "Bildet Soldaten aus. Ein Tagelöhner holt die Waffe aus dem Lager und tritt hier ein.",
     category: "militaer", footprint: [4, 3], cost: { holz: 15, stein: 20 }, buildSeconds: 25, sprite: "kaserne",
+    construction: { ground: "baustelle_kaserne", scaffold: "geruest_kaserne", foundation: 0.12, piles: [[-0.55, -0.8], [0.55, -0.8]] },
     trains: ["speer", "schwert", "bogen"], hp: 500,
   },
   haus: {
     name: "Wohnhaus", desc: "Platz für vier Bewohner. Neue Tagelöhner ziehen nach und nach zu.",
-    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus", housing: 4, hp: 150,
+    category: "wohnen", footprint: [2, 2], cost: { holz: 8 }, buildSeconds: 12, sprite: "haus",
+    construction: { ground: "baustelle_haus", scaffold: "geruest_haus", foundation: 0.15, piles: [[0.35, -0.82]] }, housing: 4, hp: 150,
   },
   mauer: {
     name: "Steinmauer", desc: "Ziehen, um eine Mauer zu bauen. Der Wehrgang ist begehbar, Schützen stehen hinter den Zinnen.",
     category: "befestigung", footprint: [1, 1], cost: { stein: 3 }, buildSeconds: 4, sprite: "mauer",
+    construction: { ground: "baustelle_mauer", foundation: 0.15, courses: 8, piles: [[0, 0]] },
     walkway: 1, posts: [[0, 0, 3]], drag: true, hp: 600,
   },
   tor: {
     name: "Tor", desc: "Öffnet sich für eigene Leute, oben läuft der Wehrgang weiter. Nur in ein gerades Mauerstück setzen.",
     category: "befestigung", footprint: [1, 1], cost: { holz: 4, stein: 4 }, buildSeconds: 8, sprite: "tor",
+    construction: { ground: "baustelle_mauer", foundation: 0.15, courses: 8, piles: [[0, -0.18], [0, 0.18]] },
     walkway: 1, gate: true, hp: 500,
   },
   treppe: {
     name: "Mauertreppe", desc: "Führt vom Boden auf den Wehrgang. Mit der Rückseite an die Mauer setzen.",
-    category: "befestigung", footprint: [1, 2], cost: { stein: 4 }, buildSeconds: 6, sprite: "treppe", stairs: true, hp: 400,
+    category: "befestigung", footprint: [1, 2], cost: { stein: 4 }, buildSeconds: 6, sprite: "treppe",
+    construction: { ground: "baustelle_treppe", foundation: 0.15, courses: 10, piles: [[0, -0.5]] }, stairs: true, hp: 400,
   },
   turm: {
     name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
     category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm",
+    construction: { ground: "baustelle_turm", scaffold: "geruest_turm", foundation: 0.12, courses: 14, piles: [[0.5, -0.5]] },
     walkway: 2, posts: [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]], hp: 1200,
   },
 };

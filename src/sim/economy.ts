@@ -2,10 +2,11 @@
  * Wirtschaft: Disponent (2× pro Sekunde), Bäume, Zuzug und untätige Tagelöhner.
  *
  * Der Disponent verteilt freie Tagelöhner auf Aufgaben, in dieser Reihenfolge: Werkstätten besetzen,
- * Rekruten (Waffe holen), Baustellen fertig bauen, dann abwechselnd Baumaterial anliefern und Hofstapel
+ * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Baumaterial anliefern und Hofstapel
  * ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
 import { BUILDINGS, TUNING, UNITS, type Good } from "../data";
+import { canWork } from "./build";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
 import { goalAround, goalEntrance, goalSlot, tileGoal, travel, unitNode, type TravelGoal } from "./move";
@@ -64,10 +65,10 @@ export function dispatcher(w: World): void {
     u.ai.job = { k: "recruit", b: b.id, from: ref.b.id, slot: ref.k, good: eq, unit, ph: 0 }; u.order = { t: "job" };
     b.ai.recruit = u.id; b.ai.recruitPicked = false;
   }
-  // 3. Baustellen mit vollständigem Material bauen
+  // 3. Baustellen bauen, sobald Material dort liegt (verbaut wird Stück für Stück, jobs.ts runBuild)
   for (const b of own) {
     if (!free.length) return;
-    if (b.built >= 1 || b.ai.builder || Object.keys(b.needs).length) continue;
+    if (b.ai.builder || !canWork(b)) continue;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const u = take(cx, cy, goalAround(b));
     if (!u) { w.msg(`${BUILDINGS[b.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${b.id}`, 60); continue; }

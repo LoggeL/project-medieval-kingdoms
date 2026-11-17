@@ -25,5 +25,19 @@
  "mauer_t": {"name": "Mauer T-Stück", "footprint": [1, 1], "variants": ["Standard"], "seed": 43, "front": true, "posts": [[0, 0, 3]]},
  "mauer_kreuz": {"name": "Mauerkreuzung", "footprint": [1, 1], "variants": ["Standard"], "seed": 44, "front": true, "posts": [[0, 0, 3]]},
  "mauer_einzel": {"name": "Mauerblock", "footprint": [1, 1], "variants": ["Standard"], "seed": 45, "front": true, "posts": [[0, 0, 3]]},
- "tor": {"name": "Tor", "footprint": [1, 1], "variants": ["geschlossen", "offen"], "seed": 46, "front": true, "posts": [[0, 0, 3]]}
+ "tor": {"name": "Tor", "footprint": [1, 1], "variants": ["geschlossen", "offen"], "seed": 46, "front": true, "posts": [[0, 0, 3]]},
+ "baustelle_haus": {"name": "Baustelle Wohnhaus", "footprint": [2, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 60},
+ "baustelle_holzfaeller": {"name": "Baustelle Holzfällerhütte", "footprint": [2, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 61},
+ "baustelle_kaserne": {"name": "Baustelle Kaserne", "footprint": [4, 3], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 62},
+ "baustelle_turm": {"name": "Baustelle Mauerturm", "footprint": [2, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 63},
+ "baustelle_mauer": {"name": "Baustelle Mauer und Tor", "footprint": [1, 1], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 64},
+ "baustelle_treppe": {"name": "Baustelle Mauertreppe", "footprint": [1, 2], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 65},
+ "baustelle_steinbruch": {"name": "Baustelle Steinbruch", "footprint": [3, 3], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 66},
+ "baustelle_lager": {"name": "Baustelle Lagerplatz", "footprint": [3, 3], "variants": ["abgesteckt", "Fundament"], "shadow_fill": false, "seed": 67},
+ "geruest_haus": {"name": "Gerüst Wohnhaus", "footprint": [2, 2], "variants": ["Standard"], "seed": 70, "front": true, "shadow_fill": false},
+ "geruest_holzfaeller": {"name": "Gerüst Holzfällerhütte", "footprint": [2, 2], "variants": ["Standard"], "seed": 71, "front": true, "shadow_fill": false},
+ "geruest_kaserne": {"name": "Gerüst Kaserne", "footprint": [4, 3], "variants": ["Standard"], "seed": 72, "front": true, "shadow_fill": false},
+ "geruest_turm": {"name": "Gerüst Mauerturm", "footprint": [2, 2], "variants": ["Standard"], "seed": 73, "front": true, "shadow_fill": false},
+ "baustoff_holz": {"name": "Bauholz", "footprint": [1, 1], "variants": ["leer", "eine Lage", "zwei Lagen", "drei Lagen", "vier Lagen"], "seed": 74},
+ "baustoff_stein": {"name": "Bausteine", "footprint": [1, 1], "variants": ["leer", "3 Blöcke", "6 Blöcke", "9 Blöcke", "12 Blöcke"], "seed": 75}
 }
