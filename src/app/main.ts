@@ -62,6 +62,8 @@ async function start(): Promise<void> {
   });
   store.emit("assets");
   store.emit("view");
+  // Nur im Entwicklungsmodus: Zugriff für Tests im Browser (window.mk).
+  if (import.meta.env.DEV) Object.assign(window, { mk: { game, bridge, store, renderer } });
 
   let last = performance.now(), fps = 60;
   const t0 = last;
