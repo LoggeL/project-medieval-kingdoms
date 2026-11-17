@@ -44,6 +44,11 @@ API = "https://generativelanguage.googleapis.com/v1beta/models"
 MUSIC_MODEL = "lyria-3.5"
 TTS_MODEL = "gemini-3.8-flash-tts"
 CHECK_MODEL = "gemini-3.8-flash"
+MOODS = {
+    "aufbau": "ruhig, friedlich bis heiter, Hintergrund beim Aufbau einer mittelalterlichen Siedlung",
+    "kampf": "angespannt, bedrohlich und drängend, Gefecht an der Burgmauer (keine fröhliche Tanzmusik)",
+    "sieg": "festlich und erleichtert nach einem abgewehrten Angriff",
+}
 
 
 def api_key() -> str:
@@ -208,8 +213,11 @@ def make_music(key: str, data: dict, apikey: str, tries: int, replace: bool) -> 
         mp3 = rd / f"versuch{attempt}.mp3"
         ffmpeg(["-i", str(src), "-af", "loudnorm=I=-18:TP=-1.5:LRA=11", "-ar", "44100", "-ac", "2", "-b:a", "128k", str(mp3)])
         dur = duration(mp3)
+        want = MOODS.get(d["mood"], d["mood"])
         desc = ask_about_audio(mp3, "audio/mpeg",
+                               f"Gewünschte Stimmung für dieses Stück im Spiel: {want}. "
                                "Beschreibe dieses Musikstück knapp als JSON mit den Feldern "
+                               "{\"passt_zur_stimmung\": bool, "
                                "{\"gesang_mit_worten\": bool, \"summender_chor\": bool, \"instrumente\": [..], "
                                "\"stimmung\": \"..\", \"tempo_bpm\": Zahl, \"mittelalterlich\": bool, "
                                "\"moderne_elemente\": [..], \"stille_oder_defekt\": bool}. Nur JSON.", apikey)
@@ -217,7 +225,7 @@ def make_music(key: str, data: dict, apikey: str, tries: int, replace: bool) -> 
             info = json.loads(re.sub(r"^```(json)?|```$", "", desc.strip(), flags=re.M).strip())
         except Exception:
             info = {"roh": desc}
-        ok = (dur > 15 and not info.get("gesang_mit_worten", False) and not info.get("stille_oder_defekt", False)
+        ok = (dur > 15 and info.get("passt_zur_stimmung", False) and not info.get("gesang_mit_worten", False) and not info.get("stille_oder_defekt", False)
               and info.get("mittelalterlich", True) and not info.get("moderne_elemente"))
         last = {"key": key, "versuch": attempt, "dauer": round(dur, 1), "beschreibung": info, "ok": ok}
         (rd / "bericht.json").write_text(json.dumps(last, ensure_ascii=False, indent=2))

@@ -1,0 +1,354 @@
+{
+  "musik": {
+    "aufbau_tal": {
+      "file": "audio/musik/aufbau_tal.mp3",
+      "titel": "Morgen über dem Tal",
+      "dauer": 179.6,
+      "modell": "lyria-3.5",
+      "beschreibung": {
+        "gesang_mit_worten": false,
+        "summender_chor": false,
+        "instrumente": [
+          "Blockflöte",
+          "Flöte",
+          "Akustische Gitarre",
+          "Laute",
+          "Cello",
+          "Harfe"
+        ],
+        "stimmung": "melancholisch, ruhig, sanft",
+        "tempo_bpm": 74,
+        "mittelalterlich": true,
+        "moderne_elemente": [],
+        "stille_oder_defekt": false
+      },
+      "erzeugt": "2026-11-17"
+    },
+    "aufbau_markt": {
+      "file": "audio/musik/aufbau_markt.mp3",
+      "titel": "Markttag",
+      "dauer": 173.0,
+      "modell": "lyria-3.5",
+      "beschreibung": {
+        "gesang_mit_worten": false,
+        "summender_chor": false,
+        "instrumente": [
+          "Blockflöte",
+          "Fiddle / Violine",
+          "Laute",
+          "Akustikgitarre",
+          "Trommel / Perkussion",
+          "Handklatschen"
+        ],
+        "stimmung": "fröhlich, ausgelassen, tänzerisch",
+        "tempo_bpm": 116,
+        "mittelalterlich": true,
+        "moderne_elemente": [],
+        "stille_oder_defekt": false
+      },
+      "erzeugt": "2026-11-17"
+    },
+    "aufbau_abend": {
+      "file": "audio/musik/aufbau_abend.mp3",
+      "titel": "Abend am Feuer",
+      "dauer": 177.2,
+      "modell": "lyria-3.5",
+      "beschreibung": {
+        "gesang_mit_worten": false,
+        "summender_chor": false,
+        "instrumente": [
+          "Harfe",
+          "Violine",
+          "Cello",
+          "Streichorchester"
+        ],
+        "stimmung": "melancholisch, nachdenklich, sanft",
+        "tempo_bpm": 72,
+        "mittelalterlich": true,
+        "moderne_elemente": [],
+        "stille_oder_defekt": false
+      },
+      "erzeugt": "2026-11-17"
+    },
+    "kampf_sturm": {
+      "file": "audio/musik/kampf_sturm.mp3",
+      "titel": "Sturm auf die Mauern",
+      "dauer": 121.3,
+      "modell": "lyria-3.5",
+      "beschreibung": {
+        "passt_zur_stimmung": true,
+        "gesang_mit_worten": false,
+        "summender_chor": true,
+        "instrumente": [
+          "Kriegstrommeln",
+          "Orchester-Perkussion",
+          "Streicher",
+          "Blechbläser",
+          "Chor"
+        ],
+        "stimmung": "bedrohlich, episch, drängend, kriegerisch",
+        "tempo_bpm": 118,
+        "mittelalterlich": true,
+        "moderne_elemente": [],
+        "stille_oder_defekt": false
+      },
+      "erzeugt": "2026-11-17"
+    },
+    "sieg_abgewehrt": {
+      "file": "audio/musik/sieg_abgewehrt.mp3",
+      "titel": "Abgewehrt",
+      "dauer": 62.4,
+      "modell": "lyria-3.5",
+      "beschreibung": {
+        "gesang_mit_worten": false,
+        "summender_chor": false,
+        "instrumente": [
+          "Blockflöte",
+          "Harfe",
+          "Rahmentrommel",
+          "Tamburin",
+          "Schellen",
+          "Laute"
+        ],
+        "stimmung": "fröhlich und festlich",
+        "tempo_bpm": 125,
+        "mittelalterlich": true,
+        "moderne_elemente": [],
+        "stille_oder_defekt": false
+      },
+      "erzeugt": "2026-11-17"
+    }
+  },
+  "stimme": {
+    "bau_fertig": {
+      "file": "audio/stimme/bau_fertig.mp3",
+      "text": "Der Bau ist fertig, Herr.",
+      "dauer": 1.53,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Der Bau ist fertig, Herr",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "ueberfall": {
+      "file": "audio/stimme/ueberfall.mp3",
+      "text": "Zu den Waffen! Der Feind ist da!",
+      "dauer": 2.2,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Zu den Waffen, der Feind ist da.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "willkommen": {
+      "file": "audio/stimme/willkommen.mp3",
+      "text": "Willkommen, Herr. Das Tal gehört Euch. Eine Holzfällerhütte am Waldrand und ein Steinbruch am Fels wären ein guter Anfang.",
+      "dauer": 8.29,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Willkommen, Herr. Das Tal gehört Euch. Eine Holzfällerhütte am Waldrand und ein Steinbruch am Fels wären ein guter Anfang.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "mauer_fertig": {
+      "file": "audio/stimme/mauer_fertig.mp3",
+      "text": "Die Mauer steht.",
+      "dauer": 1.26,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Die Mauer steht.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "lager_voll": {
+      "file": "audio/stimme/lager_voll.mp3",
+      "text": "Das Lager ist voll. Ohne einen weiteren Lagerplatz ruht die Arbeit.",
+      "dauer": 4.55,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Das Lager ist voll, ohne einen weiteren Lagerplatz ruht die Arbeit.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "hof_voll": {
+      "file": "audio/stimme/hof_voll.mp3",
+      "text": "Die Höfe laufen über, die Träger kommen nicht nach.",
+      "dauer": 3.1,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Die Höfe laufen über. Die Träger kommen nicht nach.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "material_fehlt": {
+      "file": "audio/stimme/material_fehlt.mp3",
+      "text": "Für die Baustelle fehlt uns Material.",
+      "dauer": 2.33,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Für die Baustelle fehlt uns Material",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "rohstoff_leer": {
+      "file": "audio/stimme/rohstoff_leer.mp3",
+      "text": "Hier gibt es nichts mehr zu holen. Baut näher an Wald oder Fels.",
+      "dauer": 3.85,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Hier gibt es nichts mehr zu holen, baut näher an Wald oder Fels.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "zuzug": {
+      "file": "audio/stimme/zuzug.mp3",
+      "text": "Neue Leute ziehen in die Siedlung.",
+      "dauer": 1.98,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Neue Leute ziehen in die Siedlung.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "wohnraum": {
+      "file": "audio/stimme/wohnraum.mp3",
+      "text": "Es fehlt an Wohnraum, Herr. Ohne Häuser kommt niemand mehr.",
+      "dauer": 3.7,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Es fehlt an Wohnraum, Herr. Ohne Häuser kommt niemand mehr.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "keine_waffe": {
+      "file": "audio/stimme/keine_waffe.mp3",
+      "text": "Im Lager liegt keine passende Waffe.",
+      "dauer": 2.17,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Im Lager liegt keine passende Waffe.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "ausgebildet": {
+      "file": "audio/stimme/ausgebildet.mp3",
+      "text": "Ein neuer Soldat steht bereit.",
+      "dauer": 1.82,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Ein neuer Soldat steht bereit.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "ueberfall_bald": {
+      "file": "audio/stimme/ueberfall_bald.mp3",
+      "text": "Späher melden Krieger auf dem Weg hierher. Bald sind sie da.",
+      "dauer": 3.86,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Späher melden Krieger auf dem Weg hierher. Bald sind sie da.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "abgewehrt": {
+      "file": "audio/stimme/abgewehrt.mp3",
+      "text": "Der Angriff ist abgewehrt. Die Siedlung steht.",
+      "dauer": 2.77,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Der Angriff ist abgewehrt. Die Siedlung steht.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "gebaeude_angriff": {
+      "file": "audio/stimme/gebaeude_angriff.mp3",
+      "text": "Unsere Gebäude werden angegriffen!",
+      "dauer": 1.99,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Unsere Gebäude werden angegriffen",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "arbeiter_angriff": {
+      "file": "audio/stimme/arbeiter_angriff.mp3",
+      "text": "Die Arbeiter werden angegriffen!",
+      "dauer": 1.87,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Die Arbeiter werden angegriffen.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "mauer_faellt": {
+      "file": "audio/stimme/mauer_faellt.mp3",
+      "text": "Die Mauer ist durchbrochen!",
+      "dauer": 1.65,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Die Mauer ist durchbrochen.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "zerstoert": {
+      "file": "audio/stimme/zerstoert.mp3",
+      "text": "Wir haben ein Gebäude verloren.",
+      "dauer": 1.57,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Wir haben ein Gebäude verloren.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "gefallen": {
+      "file": "audio/stimme/gefallen.mp3",
+      "text": "Ein Soldat ist gefallen.",
+      "dauer": 1.51,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Ein Soldat ist gefallen.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "stationiert": {
+      "file": "audio/stimme/stationiert.mp3",
+      "text": "Die Männer beziehen die Mauern.",
+      "dauer": 1.97,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Die Männer beziehen die Mauern.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "kein_posten": {
+      "file": "audio/stimme/kein_posten.mp3",
+      "text": "Auf den Mauern ist kein Platz mehr.",
+      "dauer": 1.91,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Auf den Mauern ist kein Platz mehr.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "zu_teuer": {
+      "file": "audio/stimme/zu_teuer.mp3",
+      "text": "Dafür reichen unsere Vorräte nicht.",
+      "dauer": 1.84,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Dafür reichen unsere Vorräte nicht.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    },
+    "kein_platz": {
+      "file": "audio/stimme/kein_platz.mp3",
+      "text": "Dort lässt sich nicht bauen.",
+      "dauer": 1.68,
+      "modell": "gemini-3.8-flash-tts",
+      "sprecher": "Charon",
+      "gehoert": "Dort lässt sich nicht bauen.",
+      "aehnlichkeit": 1.0,
+      "erzeugt": "2026-11-17"
+    }
+  }
+}

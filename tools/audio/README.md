@@ -20,7 +20,7 @@ python3 tools/audio/audio-gen.py pruefen              # Bestand und Längen aufl
 Ohne bestandene Prüfung schreibt das Skript nichts nach `assets/`. Es gibt bis zu 3 Versuche, danach meldet es „abgelehnt“. Ein Fehlschlag wird nie durch etwas anderes ersetzt; das Spiel bleibt an der Stelle still.
 
 - **Ansage:** Gemini 3.8 Flash transkribiert die MP3. Der Text muss dem Soll-Text entsprechen (Ähnlichkeit ≥ 0,9 nach Normalisierung), und die Länge muss plausibel sein: nicht leer und nicht deutlich länger als der Satz. So fällt auf, wenn das Modell etwas dazuspricht.
-- **Musik:** Gemini 3.8 Flash beschreibt das Stück als JSON. Abgelehnt wird es bei Gesang mit Worten, Stille oder Defekt, modernen Elementen oder wenn es nicht mittelalterlich klingt, und bei einer Dauer unter 15 s.
+- **Musik:** Gemini 3.8 Flash beschreibt das Stück als JSON. Es muss zur gewünschten Stimmung passen (aufbau, kampf oder sieg). Abgelehnt wird es außerdem bei Gesang mit Worten, Stille oder Defekt, modernen Elementen oder wenn es nicht mittelalterlich klingt, und bei einer Dauer unter 15 s.
 
 Abhören ersetzt das nicht. Die automatische Prüfung findet grobe Fehler, beurteilt aber nicht, ob ein Stück gut ist.
 

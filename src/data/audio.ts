@@ -35,7 +35,7 @@ export const MUSIC: Record<MusicKey, MusicDef> = {
   },
   kampf_sturm: {
     file: "audio/musik/kampf_sturm.mp3", title: "Sturm auf die Mauern", mood: "kampf", loop: true,
-    prompt: `Urgent, driving piece played by a small authentic medieval folk ensemble, like a reenactment band at a castle siege: pounding davul and tabor drums, a loud shawm and bagpipe playing a fierce modal riff in D phrygian, a buzzing hurdy-gurdy drone, a fast fiddle ostinato, rattling tambourine. About 128 BPM, tense and relentless, steady energy throughout so it can loop, no fade-out. Period instruments only. No orchestra, no string section, no brass section, no choir, no synthesizer, no electronic drums or beats, no cinematic or trailer sound design. ${STYLE}`,
+    prompt: `Ominous, dark and tense medieval siege music, the sound of an approaching enemy army. Deep, slow, heavy war drums (large frame drums and a big low tabor) pounding a menacing marching pulse, a low growling hurdy-gurdy drone, low fiddle tremolo and harsh low string scrapes, sparse dissonant shawm cries in the distance, rattling chains-like percussion. D phrygian / minor, about 96 BPM, brooding and threatening, building pressure, never cheerful, never a dance, no festive melody. Steady intensity throughout so it can loop, no fade-out. Period instruments only. No orchestra, no brass section, no choir, no synthesizer, no electronic drums or beats, no cinematic trailer sound design. ${STYLE}`,
   },
   sieg_abgewehrt: {
     file: "audio/musik/sieg_abgewehrt.mp3", title: "Abgewehrt", mood: "sieg", loop: false,
