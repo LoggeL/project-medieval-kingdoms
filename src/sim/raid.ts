@@ -14,8 +14,14 @@ import { TPS, setAnim, type SUnit, type World } from "./world";
 
 const MIX: UnitKey[] = ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"];
 
+/** Vorwarnung vor einer Welle (Sekunden). */
+export const RAID_WARNING_SECONDS = 30;
+
 export function raidTick(w: World): void {
   const s = w.s;
+  if (w.meta.raidsEnabled && s.tick === s.raid.next - RAID_WARNING_SECONDS * TPS) {
+    w.msg("Späher melden Krieger auf dem Weg. In 30 Sekunden sind sie hier.", "kampf", "ueberfall-bald", 20, "ueberfall_bald");
+  }
   if (w.meta.raidsEnabled && s.tick >= s.raid.next) {
     spawnWave(w);
     s.raid.next = s.tick + START.raid.everySeconds * TPS;
@@ -24,7 +30,7 @@ export function raidTick(w: World): void {
   for (const u of s.units) if (u.team === 1 && !u.dead) { active = true; break; }
   if (w.meta.raidRunning && !active) {
     w.meta.raidRunning = false;
-    w.msg("Der Überfall ist abgewehrt!", "kampf");
+    w.msg("Der Überfall ist abgewehrt!", "kampf", undefined, 20, "abgewehrt");
   }
   s.raid.active = active;
 }
@@ -47,7 +53,7 @@ export function spawnWave(w: World): number[] {
     }
   }
   w.meta.raidRunning = true;
-  w.msg(`Angreifer aus dem ${side(w)}! ${ids.length} Krieger rücken an (Welle ${s.raid.wave}).`, "kampf");
+  w.msg(`Angreifer aus dem ${side(w)}! ${ids.length} Krieger rücken an (Welle ${s.raid.wave}).`, "kampf", undefined, 20, "ueberfall");
   return ids;
 }
 

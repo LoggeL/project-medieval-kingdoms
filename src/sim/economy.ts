@@ -8,21 +8,32 @@
 import { BUILDINGS, TUNING, UNITS, type Good } from "../data";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
-import { tileGoal, travel } from "./move";
-import { hasRoom, reservePut, reserveTake } from "./storage";
+import { goalAround, goalEntrance, goalSlot, tileGoal, travel, unitNode, type TravelGoal } from "./move";
+import { hasRoom, reservePut, reserveTake, tidy } from "./storage";
+import type { StorageSlot } from "./types";
 import { TPS, setAnim, type SBuilding, type SUnit, type World } from "./world";
 
 export const DISPATCH_EVERY = TPS / 2;
 
-export function isFreePeasant(u: SUnit): boolean {
-  return !u.dead && u.team === 0 && u.key === "tageloehner" && !u.ai.job;
+export function isFreePeasant(u: SUnit, tick = -1): boolean {
+  return !u.dead && u.team === 0 && u.key === "tageloehner" && !u.ai.job && !(tick >= 0 && (u.ai.noJob ?? 0) > tick);
+}
+
+/** Kann u das Ziel ohne Einreißen erreichen? (Komponenten-Vorprüfung, keine Suche.) Unbekannt (gesperrtes Startfeld) zählt als ja. */
+export function canReach(w: World, u: SUnit, g: TravelGoal): boolean {
+  const c = w.nav.comp[0][unitNode(w, u)];
+  return c < 0 || w.nav.goalInComp(g, 0, c);
 }
 
 export function dispatcher(w: World): void {
-  const free = w.s.units.filter(isFreePeasant);
-  const take = (x: number, y: number): SUnit | null => {
+  const free = w.s.units.filter((u) => isFreePeasant(u, w.s.tick));
+  /** Nächster freier Tagelöhner, der alle Ziele erreicht. */
+  const take = (x: number, y: number, ...goals: TravelGoal[]): SUnit | null => {
     let bi = -1, bd = Infinity;
-    free.forEach((u, i) => { const d = (u.x - x) ** 2 + (u.y - y) ** 2; if (d < bd) { bd = d; bi = i; } });
+    free.forEach((u, i) => {
+      const d = (u.x - x) ** 2 + (u.y - y) ** 2;
+      if (d < bd && goals.every((g) => canReach(w, u, g))) { bd = d; bi = i; }
+    });
     return bi < 0 ? null : free.splice(bi, 1)[0];
   };
   const own = w.s.buildings.filter((b) => b.team === 0);
@@ -33,7 +44,8 @@ export function dispatcher(w: World): void {
     if (!wk || b.built < 1) continue;
     while (b.workers.length < wk.count && free.length) {
       const [ex, ey] = entrance(b.key, b.x, b.y, b.o);
-      const u = take(ex, ey)!;
+      const u = take(ex, ey, goalEntrance(w, b));
+      if (!u) break;
       u.ai.job = { k: "employ", b: b.id }; u.order = { t: "job" };
       b.workers.push(u.id);
     }
@@ -46,8 +58,9 @@ export function dispatcher(w: World): void {
     const eq = UNITS[unit].train!.equipment;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const ref = reserveTake(w, eq, cx, cy);
-    if (!ref) { w.msg(`Keine ${goodName(eq)} im Lager für die Ausbildung.`, "warnung", `waffe-${eq}`, 30); continue; }
-    const u = take(cx, cy)!;
+    if (!ref) { w.msg(`Keine ${goodName(eq)} im Lager für die Ausbildung.`, "warnung", `waffe-${eq}`, 30, "keine_waffe"); continue; }
+    const u = take(cx, cy, goalSlot(ref.b, ref.k), goalEntrance(w, b));
+    if (!u) { unreserveTake(ref.b.slots[ref.k]); continue; }
     u.ai.job = { k: "recruit", b: b.id, from: ref.b.id, slot: ref.k, good: eq, unit, ph: 0 }; u.order = { t: "job" };
     b.ai.recruit = u.id; b.ai.recruitPicked = false;
   }
@@ -56,7 +69,8 @@ export function dispatcher(w: World): void {
     if (!free.length) return;
     if (b.built >= 1 || b.ai.builder || Object.keys(b.needs).length) continue;
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
-    const u = take(cx, cy)!;
+    const u = take(cx, cy, goalAround(b));
+    if (!u) { w.msg(`${BUILDINGS[b.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${b.id}`, 60); continue; }
     u.ai.job = { k: "build", site: b.id }; u.order = { t: "job" };
     b.ai.builder = u.id;
   }
@@ -74,17 +88,24 @@ export function dispatcher(w: World): void {
     for (let k = b.output.amount - b.output.reserved; k > 0; k--) hauls.push(b);
   }
   const noStock = new Set<Good>();
+  const noReach = new Set<number>();
   let full = false;
   for (let i = 0; free.length && (i < supplies.length || i < hauls.length); i++) {
     const sp = supplies[i];
     if (sp && !noStock.has(sp.good)) {
       const [cx, cy] = center(sp.site.key, sp.site.x, sp.site.y, sp.site.o);
-      const ref = reserveTake(w, sp.good, cx, cy);
-      if (!ref) noStock.add(sp.good);
+      const ref = noReach.has(sp.site.id) ? null : reserveTake(w, sp.good, cx, cy);
+      if (!ref) { if (!noReach.has(sp.site.id)) noStock.add(sp.good); }
       else {
-        const u = take(cx, cy)!;
-        u.ai.job = { k: "supply", site: sp.site.id, from: ref.b.id, slot: ref.k, good: sp.good, ph: 0 }; u.order = { t: "job" };
-        sp.site.ai.enroute[sp.good] = (sp.site.ai.enroute[sp.good] ?? 0) + 1;
+        const u = take(cx, cy, goalSlot(ref.b, ref.k), goalAround(sp.site));
+        if (!u) {
+          unreserveTake(ref.b.slots[ref.k]);
+          noReach.add(sp.site.id);
+          w.msg(`${BUILDINGS[sp.site.key].name}: Die Baustelle ist nicht erreichbar.`, "warnung", `unerreichbar-${sp.site.id}`, 60);
+        } else {
+          u.ai.job = { k: "supply", site: sp.site.id, from: ref.b.id, slot: ref.k, good: sp.good, ph: 0 }; u.order = { t: "job" };
+          sp.site.ai.enroute[sp.good] = (sp.site.ai.enroute[sp.good] ?? 0) + 1;
+        }
       }
     }
     const hb = hauls[i];
@@ -94,15 +115,21 @@ export function dispatcher(w: World): void {
       const ref = reservePut(w, out.good, ex, ey);
       if (!ref) full = !hasRoom(w, out.good);
       else {
-        const u = take(ex, ey)!;
-        u.ai.job = { k: "haul", from: hb.id, to: ref.b.id, slot: ref.k, good: out.good, ph: 0 }; u.order = { t: "job" };
-        out.reserved++;
+        const u = take(ex, ey, goalEntrance(w, hb), goalSlot(ref.b, ref.k));
+        if (!u) { const sl = ref.b.slots[ref.k]; sl.incoming--; tidy(sl); }
+        else {
+          u.ai.job = { k: "haul", from: hb.id, to: ref.b.id, slot: ref.k, good: out.good, ph: 0 }; u.order = { t: "job" };
+          out.reserved++;
+        }
       }
     }
   }
-  if (full) w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30);
-  for (const g of noStock) w.msg(`Für die Baustelle fehlt ${goodName(g)} im Lager.`, "warnung", `fehlt-${g}`, 45);
+  if (full) w.msg("Das Lager ist voll! Baue einen weiteren Lagerplatz.", "warnung", "lagervoll", 30, "lager_voll");
+  for (const g of noStock) w.msg(`Für die Baustelle fehlt ${goodName(g)} im Lager.`, "warnung", `fehlt-${g}`, 45, "material_fehlt");
 }
+
+/** Reservierung zum Abholen zurückgeben (Auftrag kam nicht zustande). */
+function unreserveTake(slot: StorageSlot): void { slot.reserved--; tidy(slot); }
 
 const NAMES: Record<Good, string> = { holz: "Holz", stein: "Stein", eisen: "Eisen", speer: "Speere", schwert: "Schwerter", bogen: "Bögen" };
 const goodName = (g: Good) => NAMES[g];
@@ -135,7 +162,7 @@ export function idlePeasant(w: World, u: SUnit): void {
   if (ai.think > 0) { ai.think--; setAnim(u, "stehen"); return; }
   const [x, y] = campSpot(w, u);
   const r = travel(w, u, tileGoal(x, y, 0, 0));
-  if (r === "arrived" || r === "unreachable") { setAnim(u, "stehen"); ai.think = 2 * TPS; }
+  if (r === "arrived" || r === "unreachable") { setAnim(u, "stehen"); ai.think = 2 * TPS; ai.fresh = false; }
 }
 
 function campSpot(w: World, u: SUnit): [number, number] {
@@ -145,7 +172,9 @@ function campSpot(w: World, u: SUnit): [number, number] {
     const x = cx + dx, y = cy + dy;
     if (w.inMap(x, y) && w.nav.open(w.nav.node(0, x, y), 0)) return [x, y];
   }
-  return [cx, cy];
+  // Sammelplatz zugebaut: nächster freie Tile weiter draußen
+  const n = w.nav.nearestOpen(0, cx, cy, 0, 16);
+  return n >= 0 ? [w.nav.tileX(n), w.nav.tileY(n)] : [cx, cy];
 }
 
 // ---------------------------------------------------------------- Bäume
@@ -169,10 +198,14 @@ export function updatePopulation(w: World): void {
   s.housing = housing; s.population = pop;
   if (!w.meta.immigration || s.tick < w.meta.nextImmigrant) return;
   w.meta.nextImmigrant = s.tick + TUNING.immigrantSeconds * TPS;
-  if (pop >= housing) return;
+  if (pop >= housing) {
+    w.msg("Kein Wohnraum mehr: Baue Wohnhäuser, damit weitere Leute zuziehen.", "warnung", "wohnraum", 120, "wohnraum");
+    return;
+  }
   const [ex, ey] = w.meta.entry;
-  w.addUnit("tageloehner", 0, ex + 0.5, ey + 0.5);
-  w.msg("Ein neuer Tagelöhner ist zugezogen.", "info", "zuzug", 60);
+  const u = w.addUnit("tageloehner", 0, ex + 0.5, ey + 0.5);
+  u.ai.fresh = true;
+  w.msg("Ein neuer Tagelöhner ist zugezogen.", "info", "zuzug", 60, "zuzug");
 }
 
 /** Werkstätten mit Arbeitern, die weg sind (gestorben), freigeben. */

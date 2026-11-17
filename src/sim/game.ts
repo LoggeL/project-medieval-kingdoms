@@ -5,8 +5,8 @@
  * Überfälle → Ausbildung → Einheiten handeln (Startpunkt rotiert, damit das Pfadbudget gerecht verteilt wird)
  * → Abstand halten → Geschosse → Tote → Animationszeit → Lagerstatistik.
  */
-import { BUILDINGS, GOODS, START, TUNING, type BuildingKey, type Good } from "../data";
-import { canPlace, completeBuilding, placeSite, removeBuilding, walkLayerAt, wallPath } from "./build";
+import { GOODS, START, TUNING, type BuildingKey, type Good } from "../data";
+import { canPlace, completeBuilding, placeSite, placeVoice, refreshAfterPlace, removeBuilding, walkLayerAt, wallPath } from "./build";
 import { isSoldier, separate, updateDeaths, updateProjectiles } from "./combat";
 import { DISPATCH_EVERY, dispatcher, idlePeasant, pruneWorkers, updatePopulation, updateTrees } from "./economy";
 import { footprintTiles } from "./geom";
@@ -15,7 +15,8 @@ import { emptyMap, generateMap } from "./mapgen";
 import { cmdAttack, cmdHold, cmdMove, cmdRecruit, cmdStation, soldierAct, updateTraining } from "./military";
 import { raidTick, raiderAct, spawnWave } from "./raid";
 import { nextRandom, seedState } from "./rng";
-import { available, storeDirect, updateStock } from "./storage";
+import { storeDirect, updateStock } from "./storage";
+import { updateActivity, updateGates, updateRecruits } from "./activity";
 import type { Command, CommandResult, Game, PlacementCheck, SimState } from "./types";
 import { PATH_BUDGET, SAVE_VERSION, TPS, World, type Meta, type SBuilding, type SState, type SUnit } from "./world";
 
@@ -35,7 +36,8 @@ export class Simulation implements Game {
   tick(): void { step(this.world); }
   dispatch(cmd: Command): CommandResult { return runCommand(this.world, cmd); }
   canPlace(key: BuildingKey, x: number, y: number, o: number): PlacementCheck {
-    return canPlace(this.world, key, Math.floor(x), Math.floor(y), o);
+    const r = canPlace(this.world, key, Math.floor(x), Math.floor(y), o);
+    return { ok: r.ok, reason: r.reason, tiles: r.tiles };
   }
   wallPath(x0: number, y0: number, x1: number, y1: number): PlacementCheck {
     const r = wallPath(this.world, Math.floor(x0), Math.floor(y0), Math.floor(x1), Math.floor(y1));
@@ -73,10 +75,12 @@ export function createGame(opts: GameOptions = {}): Simulation {
       w.addUnit("tageloehner", 0, map.camp[0] + 0.5 + Math.cos(a) * 1.5, map.camp[1] + 0.5 + Math.sin(a) * 1.5);
     }
     s.messages = [];
-    w.msg("Willkommen, Burgherr! Baue eine Holzfällerhütte am Waldrand und einen Steinbruch am Fels.");
+    w.msg("Willkommen, Burgherr! Baue eine Holzfällerhütte am Waldrand und einen Steinbruch am Fels.", "info", undefined, 20, "willkommen");
   }
   updatePopulation(w);
   updateStock(w);
+  for (const u of s.units) updateActivity(w, u);
+  updateRecruits(w);
   return new Simulation(w);
 }
 
@@ -116,7 +120,10 @@ export function step(w: World): void {
     const u = list[(i + off) % n];
     if (u.dead || !w.units.has(u.id)) continue;
     act(w, u);
+    updateActivity(w, u);
   }
+  updateRecruits(w);
+  updateGates(w);
   separate(w);
   updateProjectiles(w);
   updateDeaths(w);
@@ -138,21 +145,16 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "bauen": {
       const x = Math.floor(c.x), y = Math.floor(c.y);
       const chk = canPlace(w, c.key, x, y, c.o);
-      if (!chk.ok) return { ok: false, reason: chk.reason };
+      if (!chk.ok) return withVoice({ ok: false, reason: chk.reason }, placeVoice(chk));
       return { ok: true, ids: [placeSite(w, c.key, x, y, c.o).id] };
     }
     case "mauer": {
+      // Dasselbe Ergebnis wie die Vorschau (wallPath): bei Hindernis nichts, sonst die bezahlbaren Stücke
       const p = wallPath(w, Math.floor(c.x0), Math.floor(c.y0), Math.floor(c.x1), Math.floor(c.y1));
-      if (!p.build.length) return { ok: false, reason: p.reason };
-      const cost = BUILDINGS.mauer.cost;
-      let n = p.build.length;
-      for (const [g, k] of Object.entries(cost) as [Good | "gold", number][]) {
-        if (k <= 0) continue;
-        n = Math.min(n, Math.floor((g === "gold" ? w.s.gold : available(w, g)) / k));
-      }
-      if (n <= 0) return { ok: false, reason: p.reason ?? "Nicht genug Stein" };
-      const ids = p.build.slice(0, n).map(([x, y]) => placeSite(w, "mauer", x, y, 0).id);
-      return n < p.build.length ? { ok: true, ids, reason: `Nur ${n} von ${p.build.length} Mauerstücken bezahlbar` } : { ok: true, ids };
+      if (!p.ok) return withVoice({ ok: false, reason: p.reason }, p.costFail ? "zu_teuer" : "kein_platz");
+      const ids = p.build.map(([x, y]) => placeSite(w, "mauer", x, y, 0, true).id);
+      refreshAfterPlace(w);
+      return p.reason ? { ok: true, ids, reason: p.reason, voice: "zu_teuer" } : { ok: true, ids };
     }
     case "abreissen": {
       const b = w.buildings.get(c.id);
@@ -168,4 +170,9 @@ export function runCommand(w: World, c: Command): CommandResult {
     case "ueberfall": return { ok: true, ids: spawnWave(w) };
   }
   return { ok: false, reason: "Unbekannter Befehl" };
+}
+
+function withVoice(r: CommandResult, voice: CommandResult["voice"]): CommandResult {
+  if (voice) r.voice = voice;
+  return r;
 }

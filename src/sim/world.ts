@@ -7,6 +7,7 @@
  * Abgeleitete Strukturen (Laufraster, Pfad-Cache, Nachschlagetabellen, Raum-Raster) baut World neu auf.
  */
 import { BUILDINGS, TICKS_PER_SECOND, UNITS, type AnimKey, type BuildingKey, type Good, type UnitKey } from "../data";
+import type { VoiceKey } from "../data/audio";
 import type { Building, Message, Projectile, SimState, Team, Unit } from "./types";
 import { nextRandom } from "./rng";
 import { Nav } from "./nav";
@@ -56,6 +57,10 @@ export interface UnitAI {
   deadT: number;
   /** Tagelöhner auf der Flucht (Ticks). */
   flee: number;
+  /** Tick, bis zu dem der Disponent diesem Tagelöhner keinen Auftrag gibt (nach einem unerreichbaren Ziel). Fehlt in alten Spielständen. */
+  noJob?: number;
+  /** Frisch zugezogen: läuft vom Kartenrand zum Sammelplatz (Anzeige „zieht zu“). */
+  fresh?: boolean;
 }
 export type SUnit = Unit & { ai: UnitAI };
 
@@ -145,14 +150,16 @@ export class World {
     return id ? this.buildings.get(id) : undefined;
   }
 
-  /** Meldung; mit key höchstens alle `seconds` Sekunden. */
-  msg(text: string, kind: Message["kind"] = "info", key?: string, seconds = 20): void {
+  /** Meldung; mit key höchstens alle `seconds` Sekunden. voice: Sprecheransage (VOICE in data/audio.ts). */
+  msg(text: string, kind: Message["kind"] = "info", key?: string, seconds = 20, voice?: VoiceKey): void {
     if (key) {
       const last = this.meta.throttle[key];
       if (last !== undefined && this.s.tick - last < seconds * TPS) return;
       this.meta.throttle[key] = this.s.tick;
     }
-    this.s.messages.push({ tick: this.s.tick, text, kind });
+    const m: Message = { tick: this.s.tick, text, kind };
+    if (voice) m.voice = voice;
+    this.s.messages.push(m);
     if (this.s.messages.length > 40) this.s.messages.splice(0, this.s.messages.length - 40);
   }
 

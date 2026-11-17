@@ -140,14 +140,14 @@ export function damageUnit(w: World, akey: UnitKey, az: number, t: SUnit, from: 
   if (t.hp <= 0) { kill(w, t); return; }
   // Untätige Soldaten wehren sich
   if (isSoldier(t.key) && t.order.t === "idle" && !t.ai.target && t.team === 0) t.ai.target = from;
-  if (t.team === 0 && !isSoldier(t.key)) w.msg("Deine Arbeiter werden angegriffen!", "kampf", "arbeiter-angriff", 20);
+  if (t.team === 0 && !isSoldier(t.key)) w.msg("Deine Arbeiter werden angegriffen!", "kampf", "arbeiter-angriff", 20, "arbeiter_angriff");
 }
 
 export function damageBuilding(w: World, akey: UnitKey, b: SBuilding): void {
   const a = UNITS[akey];
   const dmg = (a.damage ?? 1) * DAMAGE_TYPES[a.damageType ?? "hieb"].building * (1 + (w.rand() * 2 - 1) * TUNING.damageSpread);
   b.hp -= dmg;
-  if (b.team === 0) w.msg(`${BUILDINGS[b.key].name} wird angegriffen!`, "kampf", `angriff-${b.key}`, 15);
+  if (b.team === 0) w.msg(`${BUILDINGS[b.key].name} wird angegriffen!`, "kampf", `angriff-${b.key}`, 15, "gebaeude_angriff");
   if (b.hp <= 0) removeBuilding(w, b, "zerstoert");
 }
 
@@ -160,7 +160,7 @@ export function kill(w: World, u: SUnit): void {
   stop(u);
   setAnim(u, "sterben", true);
   if (u.team === 1) w.s.gold += TUNING.bounty;
-  else if (isSoldier(u.key)) w.msg(`Ein ${UNITS[u.key].name} ist gefallen.`, "kampf", "gefallen", 8);
+  else if (isSoldier(u.key)) w.msg(`Ein ${UNITS[u.key].name} ist gefallen.`, "kampf", "gefallen", 8, "gefallen");
 }
 
 /** Sterbeanimation, liegen bleiben, dann entfernen. */

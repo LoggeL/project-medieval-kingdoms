@@ -152,7 +152,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     walkway: 1, posts: [[0, 0, 3]], drag: true, hp: 600,
   },
   tor: {
-    name: "Tor", desc: "Öffnet sich für eigene Leute, oben läuft der Wehrgang weiter. In eine Mauerlinie setzen.",
+    name: "Tor", desc: "Öffnet sich für eigene Leute, oben läuft der Wehrgang weiter. Nur in ein gerades Mauerstück setzen.",
     category: "befestigung", footprint: [1, 1], cost: { holz: 4, stein: 4 }, buildSeconds: 8, sprite: "tor",
     walkway: 1, gate: true, hp: 500,
   },
@@ -161,7 +161,7 @@ export const BUILDINGS: Record<BuildingKey, BuildingDef> = {
     category: "befestigung", footprint: [1, 2], cost: { stein: 4 }, buildSeconds: 6, sprite: "treppe", stairs: true, hp: 400,
   },
   turm: {
-    name: "Mauerturm", desc: "Vier Posten auf der Plattform, Zugang vom Wehrgang und durch die Tür.",
+    name: "Mauerturm", desc: "Vier Posten für Schützen auf der Plattform, Zugang vom Wehrgang und durch die Tür (nur für eigene Leute).",
     category: "befestigung", footprint: [2, 2], cost: { stein: 16 }, buildSeconds: 20, sprite: "turm",
     walkway: 2, posts: [[-0.65, -0.65, 5], [0.65, -0.65, 5], [-0.65, 0.65, 5], [0.65, 0.65, 5]], hp: 1200,
   },

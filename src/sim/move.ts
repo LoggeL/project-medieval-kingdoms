@@ -56,7 +56,14 @@ export function travel(w: World, u: SUnit, g: TravelGoal): TravelResult {
     if (ai.wait > 0) { ai.wait--; setAnim(u, "stehen"); return "waiting"; }
     if (w.budget <= 0) { setAnim(u, "stehen"); return "waiting"; }
     w.budget--;
-    const path = nav.route(u.team, !!g.breach, unitNode(w, u), g);
+    const from = unitNode(w, u);
+    let path = nav.route(u.team, !!g.breach, from, g);
+    if (!path && !nav.linkOnly[from] && nav.pass(from, u.team, !!g.breach) < 0) {
+      // Steht auf einem gesperrten Tile (z. B. neue Baustelle): erst zum nächsten freien Tile, von dort weiter
+      const free = nav.nearestOpen(u.team, nav.tileX(from), nav.tileY(from), u.layer);
+      const rest = free >= 0 ? nav.route(u.team, !!g.breach, free, g) : null;
+      if (rest) path = [free, ...rest];
+    }
     if (!path) { ai.wait = 2 * TPS; setAnim(u, "stehen"); return "unreachable"; }
     ai.path = path; ai.pi = 0; ai.navV = w.meta.navVersion;
     ai.hasEnd = g.endX !== undefined; ai.endX = g.endX ?? 0; ai.endY = g.endY ?? 0;
@@ -76,6 +83,26 @@ export function travel(w: World, u: SUnit, g: TravelGoal): TravelResult {
 export function blockedNode(u: SUnit): number {
   const ai = u.ai;
   return ai.path && ai.pi < ai.path.length ? ai.path[ai.pi] : -1;
+}
+
+/**
+ * Einheiten am Boden, die auf einem nun gesperrten Tile stehen (neue Baustelle, Tor statt Mauer), auf den nächsten
+ * freien Tile schieben, damit sie nicht im Grundriss festsitzen. Nach nav.rebuild aufrufen.
+ */
+export function evictUnits(w: World): void {
+  const nav = w.nav;
+  for (const u of w.s.units) {
+    if (u.dead || u.layer !== 0) continue;
+    const n = unitNode(w, u);
+    if (nav.linkOnly[n] || nav.open(n, u.team)) continue;
+    const free = nav.nearestOpen(u.team, nav.tileX(n), nav.tileY(n), 0);
+    if (free < 0) continue;
+    const tx = nav.tileX(free), ty = nav.tileY(free);
+    u.x = tx + Math.min(0.85, Math.max(0.15, u.x - tx));
+    u.y = ty + Math.min(0.85, Math.max(0.15, u.y - ty));
+    u.z = 0;
+    stop(u);
+  }
 }
 
 /** Läuft den Weg einen Tick weiter. true = Ende erreicht. */
