@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MUSIC, VOICE } from "../../src/data/audio";
-import { FADE_SECONDS, MusicDirector, SILENCE, VOICE_STALE, VoiceScheduler } from "../../src/app/audio";
+import { AudioGate, FADE_SECONDS, MusicDirector, SILENCE, VOICE_STALE, VoiceScheduler } from "../../src/app/audio";
 
 /** Feste Zufallsfolge für reproduzierbare Tests. */
 function seq(...xs: number[]): () => number {
@@ -79,5 +79,45 @@ describe("Sprecheransagen", () => {
     v.offer("zuzug", 0);
     expect(v.next(VOICE_STALE + 1, false)).toBeNull();
     expect(v.size).toBe(0);
+  });
+});
+
+describe("Freischalten der Wiedergabe", () => {
+  it("eine Geste ohne Aktivierung (z. B. Escape als erste Taste) schaltet nichts frei", () => {
+    const g = new AudioGate();
+    expect(g.gesture(false)).toBe(false);
+    expect(g.state).toBe("gesperrt");
+    expect(g.running).toBe(false);
+  });
+
+  it("frei erst, wenn ein play() gelingt; Ablehnung sperrt wieder und die nächste Geste versucht es erneut", () => {
+    const g = new AudioGate();
+    expect(g.gesture(true)).toBe(true);
+    expect(g.state).toBe("versuch");
+    expect(g.gesture(true)).toBe(false); // läuft schon
+    expect(g.refused()).toBe(true); // NotAllowedError
+    expect(g.state).toBe("gesperrt");
+    expect(g.refused()).toBe(false); // zweite Ablehnung desselben Versuchs ändert nichts
+    expect(g.gesture(undefined)).toBe(true); // Browser ohne userActivation: versuchen
+    expect(g.played()).toBe(true);
+    expect(g.state).toBe("frei");
+    expect(g.played()).toBe(false);
+    expect(g.gesture(true)).toBe(false);
+  });
+
+  it("eine abgelehnte Ansage wird nicht verbraucht (Wiederholsperre aufgehoben)", () => {
+    const v = new VoiceScheduler();
+    v.offer("willkommen", 0);
+    expect(v.next(0.1, false)).toBe("willkommen");
+    expect(v.offer("willkommen", 5)).toBe(false); // Sperre 99999 s
+    v.forget("willkommen");
+    expect(v.offer("willkommen", 5)).toBe(true);
+    expect(v.next(5.1, false)).toBe("willkommen");
+  });
+
+  it("Musik beginnt nach einer Ablehnung mit frischer Regie sofort statt nach 20–60 s Stille", () => {
+    const d = new MusicDirector(seq(0.5));
+    const first = d.step(100, false, false);
+    expect(first && "play" in first).toBe(true);
   });
 });

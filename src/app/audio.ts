@@ -6,10 +6,13 @@
  * dann wieder Aufbau. In der Pause läuft die Musik leise weiter.
  * Ansagen: neue Meldungen mit voice und CommandResult.voice. Nie zwei gleichzeitig, Vorrang nach VOICE.priority,
  * Wiederholsperre VOICE.repeatSeconds, die Musik wird während einer Ansage abgesenkt (Ducking).
- * Start erst nach der ersten Nutzergeste (Autoplay-Regeln), Dateien werden erst bei Bedarf geladen. Fehlt eine Datei,
- * bleibt es still, und die Konsole meldet das einmal als Info.
+ * Start erst nach einer Nutzergeste, die der Browser als Aktivierung wertet (Autoplay-Regeln; Escape zählt nicht).
+ * Freigeschaltet ist die Regie erst, wenn ein play() tatsächlich gelingt (AudioGate). Lehnt der Browser ab
+ * (NotAllowedError), gilt nichts als gespielt: Musik beginnt von vorn, abgewiesene Ansagen werden nicht verbraucht,
+ * und die nächste Geste versucht es erneut. Dateien werden erst bei Bedarf geladen. Fehlt eine Datei, bleibt es still,
+ * und die Konsole meldet das einmal als Info.
  *
- * MusicDirector und VoiceScheduler sind reine Logik (ohne DOM) und werden in tests/app/audio.test.ts geprüft.
+ * MusicDirector, VoiceScheduler und AudioGate sind reine Logik (ohne DOM) und werden in tests/app/audio.test.ts geprüft.
  */
 import { MUSIC, VOICE, type MusicKey, type VoiceKey } from "../data/audio";
 import { TICKS_PER_SECOND } from "../data";
@@ -135,8 +138,50 @@ export class VoiceScheduler {
     return key;
   }
 
+  /** Ansage gilt als nicht gespielt (Browser hat abgelehnt): Wiederholsperre aufheben. */
+  forget(key: VoiceKey): void { this.last.delete(key); }
+
   get size(): number { return this.pending.length; }
 }
+
+// ---------------------------------------------------------------- Freischalten (Logik)
+
+/**
+ * Zustand der Wiedergabe-Erlaubnis: „gesperrt“ (warten auf Geste), „versuch“ (Geste mit Aktivierung, die ersten play()
+ * laufen) und „frei“ (ein play() ist gelungen). Eine Ablehnung führt aus jedem Zustand zurück nach „gesperrt“.
+ */
+export class AudioGate {
+  state: "gesperrt" | "versuch" | "frei" = "gesperrt";
+
+  /**
+   * Nutzergeste. activation: ob der Browser die Seite als aktiviert führt (navigator.userActivation), undefined, wenn er
+   * das nicht verrät. Liefert true, wenn jetzt ein Versuch beginnt.
+   */
+  gesture(activation: boolean | undefined): boolean {
+    if (this.state !== "gesperrt" || activation === false) return false;
+    this.state = "versuch";
+    return true;
+  }
+
+  /** Ein play() ist gelungen. Liefert true beim ersten Erfolg (Übergang nach „frei“). */
+  played(): boolean {
+    if (this.state === "frei") return false;
+    this.state = "frei";
+    return true;
+  }
+
+  /** Der Browser hat abgelehnt (NotAllowedError). Liefert true, wenn vorher nicht gesperrt war. */
+  refused(): boolean {
+    if (this.state === "gesperrt") return false;
+    this.state = "gesperrt";
+    return true;
+  }
+
+  /** Regie läuft (Versuch oder frei). */
+  get running(): boolean { return this.state !== "gesperrt"; }
+}
+
+const notAllowed = (e: unknown) => (e as { name?: string } | null)?.name === "NotAllowedError";
 
 // ---------------------------------------------------------------- Wiedergabe (Browser)
 
@@ -161,9 +206,20 @@ export class AudioDirector {
   private tracks: Track[] = [];
   private voiceEl: HTMLAudioElement | null = null;
   private duck = 1;
-  private unlocked = false;
+  private gate = new AudioGate();
   private seen = new WeakSet<Message>();
   private lastNow = 0;
+  /** Vom Browser abgelehnte Ansagen, die beim nächsten Versuch noch einmal angeboten werden. */
+  private retry: VoiceKey[] = [];
+  private listening = false;
+  /** Zähler der Versuche: eine späte Ablehnung aus einem früheren Versuch sperrt den laufenden nicht. */
+  private attempt = 0;
+  private readonly onGesture = () => this.gesture(true);
+
+  /** Wiedergabe ist tatsächlich erlaubt (ein play() ist gelungen). */
+  get unlocked(): boolean { return this.gate.state === "frei"; }
+  /** Zustand der Freigabe (für Tests und Diagnose). */
+  get gateState(): AudioGate["state"] { return this.gate.state; }
 
   /** Gerade laufendes Musikstück (null in der Pause zwischen zwei Stücken). */
   current(): MusicKey | null {
@@ -172,27 +228,65 @@ export class AudioDirector {
   }
 
   constructor(private settings: () => AudioSettings, private state: () => SimState, private speed: () => number) {
-    const unlock = () => {
-      if (this.unlocked) return;
-      this.unlocked = true;
-      window.removeEventListener("pointerdown", unlock, true);
-      window.removeEventListener("keydown", unlock, true);
-      // Meldungen der letzten Sekunden (z. B. Begrüßung) noch ansagen, ältere nicht
-      const s = this.state();
-      for (const m of s.messages) if (s.tick - m.tick > 15 * TICKS_PER_SECOND) this.seen.add(m);
-    };
-    window.addEventListener("pointerdown", unlock, true);
-    window.addEventListener("keydown", unlock, true);
+    this.listen(true);
+  }
+
+  private listen(on: boolean): void {
+    if (on === this.listening) return;
+    this.listening = on;
+    const f = on ? window.addEventListener.bind(window) : window.removeEventListener.bind(window);
+    for (const ev of ["pointerdown", "keydown", "pointerup"] as const) f(ev, this.onGesture, true);
+  }
+
+  /**
+   * Geste: nur mit Aktivierung durch den Browser (Escape und Tasten, die er nicht als Aktivierung zählt, schalten nicht
+   * frei). Wird die Aktivierung erst nach den Ereignis-Handlern gesetzt, prüft ein zweiter Blick kurz danach.
+   */
+  private gesture(again: boolean): void {
+    if (this.gate.running) return;
+    const ua = (navigator as Navigator & { userActivation?: { isActive: boolean; hasBeenActive: boolean } }).userActivation;
+    const active = ua ? ua.isActive || ua.hasBeenActive : undefined;
+    if (!this.gate.gesture(active)) {
+      if (again && active === false) window.setTimeout(() => this.gesture(false), 0);
+      return;
+    }
+    this.attempt++;
+    // Meldungen der letzten Sekunden (z. B. Begrüßung) noch ansagen, ältere nicht
+    const s = this.state();
+    for (const m of s.messages) if (s.tick - m.tick > 15 * TICKS_PER_SECOND) this.seen.add(m);
+    const now = performance.now() / 1000;
+    for (const k of this.retry.splice(0)) this.voices.offer(k, now);
+    // gleich innerhalb der Geste starten (manche Browser erlauben play() nur dort)
+    this.update();
+  }
+
+  /** play() ist gelungen: endgültig frei, Gesten-Listener entfernen. */
+  private played(): void {
+    if (this.gate.played()) this.listen(false);
+  }
+
+  /**
+   * Browser hat play() abgelehnt: nichts gilt als gespielt. Musik beginnt beim nächsten Versuch von vorn (statt 20–60 s
+   * Stille), laufende Stücke werden verworfen, die Listener bleiben bzw. kommen zurück.
+   */
+  private refused(attempt: number): void {
+    if (attempt !== this.attempt || !this.gate.refused()) return;
+    for (const t of this.tracks) { t.el.pause(); t.el.removeAttribute("src"); t.el.load(); }
+    this.tracks = [];
+    this.music = new MusicDirector();
+    this.voiceEl = null;
+    this.lastNow = 0;
+    this.listen(true);
   }
 
   /** Ansage aus einem Befehlsergebnis. */
   say(key: VoiceKey | undefined): void {
-    if (key && this.unlocked) this.voices.offer(key, performance.now() / 1000);
+    if (key && this.gate.running) this.voices.offer(key, performance.now() / 1000);
   }
 
   /** Jedes Bild (oder seltener): Meldungen prüfen, Musik steuern, Pegel nachführen. */
   update(): void {
-    if (!this.unlocked) return;
+    if (!this.gate.running) return;
     const now = performance.now() / 1000;
     const dt = Math.min(0.25, Math.max(0, now - (this.lastNow || now)));
     this.lastNow = now;
@@ -223,7 +317,16 @@ export class AudioDirector {
     el.addEventListener("error", () => { reportMissing(file); if (this.voiceEl === el) this.voiceEl = null; }, { once: true });
     this.voiceEl = el;
     this.volume(el, this.voiceLevel());
-    el.play().catch(() => { if (this.voiceEl === el) this.voiceEl = null; });
+    const attempt = this.attempt;
+    el.play().then(() => this.played(), (e) => {
+      if (this.voiceEl === el) this.voiceEl = null;
+      if (notAllowed(e)) {
+        // nicht verbraucht: Wiederholsperre aufheben und beim nächsten Versuch erneut anbieten
+        this.voices.forget(key);
+        if (!this.retry.includes(key)) this.retry.push(key);
+        this.refused(attempt);
+      }
+    });
   }
 
   private apply(cmd: MusicCommand): void {
@@ -243,7 +346,11 @@ export class AudioDirector {
     this.tracks.push(track);
     this.volume(el, 0);
     if (missing.has(file)) { track.ended = true; return; }
-    el.play().catch(() => { track.ended = true; });
+    const attempt = this.attempt;
+    el.play().then(() => this.played(), (e) => {
+      if (notAllowed(e)) this.refused(attempt);
+      else track.ended = true;
+    });
   }
 
   private voiceLevel(): number {
