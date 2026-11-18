@@ -185,7 +185,8 @@ describe("Drosseln und Stillstand", () => {
     expect(m.proc!.out.mehl).toBe(cap);
     expect(m.proc!.why).toEqual({ k: "ausgang", goods: ["mehl"], full: true });
     expect(procReason(g.state, m)).toContain("kein Platz mehr im Lager");
-    expect(g.state.messages.some((x) => x.text === STORES.nahrung.full)).toBe(true);
+    // die Meldung nennt die Ware und den Grund (alle Fächer belegt bzw. voll) und rät zur Kornkammer
+    expect(g.state.messages.some((x) => x.text.includes("für Mehl") && x.text.includes("weitere Kornkammer"))).toBe(true);
     const done = m.proc!.done;
     run(g, 60 * TPS, () => { if (k.slots[0].amount < 12) k.slots[0].amount = 12; });
     expect(m.proc!.done).toBe(done); // steht wirklich

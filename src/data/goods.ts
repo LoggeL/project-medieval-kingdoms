@@ -17,8 +17,13 @@ export interface StoreDef {
   name: string;
   /** Gebäude dieses Typs, das der Spieler baut (für Hinweise, z. B. „Baue eine weitere Kornkammer“). */
   building: string;
-  /** Meldung, wenn eine Ware dieses Typs nirgends mehr Platz hat. */
+  /** Meldung, wenn eine Ware dieses Typs nirgends mehr Platz hat ({ware} = Name der Ware). */
   full: string;
+  /**
+   * Meldung, wenn zwar noch Stück frei sind, aber kein Fach: Jedes Fach nimmt nur eine Ware ({ware}, {belegt} und
+   * {plaetze} = Bestand und Kapazität dieses Lagertyps).
+   */
+  slots: string;
   /** Meldung, wenn es gar kein Lager dieses Typs gibt und ein Träger seine Last nicht loswird. */
   none: string;
 }
@@ -26,12 +31,14 @@ export interface StoreDef {
 export const STORES: Record<StoreKey, StoreDef> = {
   material: {
     name: "Materiallager", building: "Lagerhaus",
-    full: "Das Lager ist voll! Baue ein weiteres Lagerhaus.",
+    full: "Kein Platz mehr für {ware}: Das Lager ist voll! Baue ein weiteres Lagerhaus.",
+    slots: "Kein freies Fach für {ware}: Jedes Fach nimmt nur eine Ware, alle sind belegt ({belegt} von {plaetze} Stück). Baue ein weiteres Lagerhaus.",
     none: "Kein Lagerhaus mehr: Getragene Waren bleiben liegen.",
   },
   nahrung: {
     name: "Kornkammer", building: "Kornkammer",
-    full: "Die Kornkammer ist voll! Baue eine weitere Kornkammer.",
+    full: "Kein Platz mehr für {ware}: Die Kornkammer ist voll! Baue eine weitere Kornkammer.",
+    slots: "Kein freies Fach für {ware}: Jedes Fach nimmt nur eine Ware, alle sind belegt ({belegt} von {plaetze} Stück). Baue eine weitere Kornkammer.",
     none: "Keine Kornkammer: Getragene Lebensmittel bleiben liegen.",
   },
 };

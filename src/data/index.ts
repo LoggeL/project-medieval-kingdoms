@@ -502,9 +502,9 @@ export const START = {
    * Kornkammer: Die Siedlung isst ab Beginn (src/data/nahrung.ts), der Vorrat reicht, bis Getreidehof und Obstgarten
    * liefern (ADR 0013).
    */
-  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4, getreide: 40, brot: 40 } as Partial<Record<Good, number>>,
+  stock: { holz: 40, stein: 36, speer: 3, schwert: 2, bogen: 4, getreide: 40, brot: 60 } as Partial<Record<Good, number>>,
   /** Erster Überfall nach Sekunden, danach Abstand; Wellengröße baseSize + growth · (Welle − 1), Zusammensetzung reihum aus mix. */
-  raid: { firstSeconds: 300, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
+  raid: { firstSeconds: 360, everySeconds: 240, baseSize: 4, growth: 2, mix: ["schwert", "speer", "bogen", "speer", "schwert", "bogen", "speer"] as UnitKey[] },
 };
 
 // ---------------------------------------------------------------- Einführung
@@ -558,7 +558,7 @@ export const TUNING = {
   /** Wohnraum ohne Häuser und ohne Bergfried (der Bergfried bringt seinen eigenen, BUILDINGS.bergfried.housing). */
   baseHousing: 0,
   /** Abstand, in dem neue Tagelöhner zuziehen, solange Wohnraum frei ist. */
-  immigrantSeconds: 20,
+  immigrantSeconds: 15,
   /** Stämme pro gefälltem Baum. */
   treeLogs: 3,
   fallSeconds: 1.5,
@@ -611,3 +611,6 @@ export const maxLevel = (key: BuildingKey): number => BUILDINGS[key].levels?.len
 
 // ---------------------------------------------------------------- Lebendige Welt (Tiere, Wald, Fahnen, Tageslicht; ADR 0016)
 export * from "./leben";
+
+// ---------------------------------------------------------------- Träger-Reserve und Notzuzug (ADR 0020)
+export * from "./traeger";

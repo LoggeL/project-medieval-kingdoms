@@ -65,7 +65,18 @@ describe("Sprecheransagen", () => {
       buildNow(g, "holzfaeller", x, y, 0);
       stockUp(g, "eisen", 200); // alle freien Slots belegen
       for (const s of lagerOf(g).slots) if (s.good === "holz") s.amount = 20;
-      run(g, 150 * TPS, () => { listen(g, "Lager"); return heard.has("lager_voll") && heard.has("hof_voll"); });
+      run(g, 150 * TPS, () => { listen(g, "Lager"); return heard.has("lager_voll"); });
+    }
+
+    // Hof voll, weil kein Tagelöhner zum Abholen kommt (Lager hat Platz)
+    {
+      const g = createGame({ seed: 1, raids: false });
+      worldOf(g).meta.immigration = false;
+      const [x, y] = findSpot(g, "holzfaeller", 17, 30);
+      const h = buildNow(g, "holzfaeller", x, y, 0);
+      run(g, 30 * TPS, () => h.workers.length > 0);
+      for (const u of worldOf(g).s.units) if (u.key === "tageloehner") u.ai.noJob = 1e9;
+      run(g, 400 * TPS, () => { listen(g, "Hof"); return heard.has("hof_voll"); });
     }
 
     // Material fehlt, Rohstoff leer, Mauer steht

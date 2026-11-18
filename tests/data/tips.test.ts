@@ -56,7 +56,7 @@ describe("Tipps (Ladebildschirm)", () => {
     expect(find("Wohnhaus")).toContain("vier Bewohnern");
     expect(BUILDINGS.haus.housing).toBe(4);
     expect(find("Wohnhaus")).toContain(`${TUNING.immigrantSeconds} Sekunden`);
-    expect(START.raid.firstSeconds).toBe(300); // „etwa fünf Minuten“
+    expect(START.raid.firstSeconds).toBe(360); // „etwa sechs Minuten“
     expect(START.raid.everySeconds).toBe(240); // „alle vier Minuten“
     expect(find("besiegte Angreifer")).toContain(`${TUNING.bounty} Gold`);
     expect(find("Die Kaserne")).toContain("sechs Truppen");

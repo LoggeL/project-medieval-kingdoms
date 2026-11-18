@@ -5,7 +5,7 @@
  * Rekruten (Waffe holen), Baustellen bauen (sobald Material dort liegt), dann abwechselnd Material anliefern (Baustellen und
  * Forschung im Wechsel) und Hofstapel ins Lager tragen. Jede Aufgabe reserviert Ware bzw. Platz sofort, damit nichts doppelt vergeben wird.
  */
-import { BUILDINGS, GOODS, LIFE, TUNING, UNITS, equipmentOf, levelDef, storeOf, type AnimKey, type Good, type StoreKey, type TechKey } from "../data";
+import { BUILDINGS, CARRIERS, GOODS, LIFE, TUNING, UNITS, equipmentOf, levelDef, storeOf, type AnimKey, type Good, type StoreKey, type TechKey } from "../data";
 import { canWork } from "./build";
 import { center, entrance } from "./geom";
 import { nearestEnemy } from "./combat";
@@ -22,6 +22,20 @@ export const DISPATCH_EVERY = TPS / 2;
 
 export function isFreePeasant(u: SUnit, tick = -1): boolean {
   return !u.dead && u.team === 0 && u.key === "tageloehner" && !u.ai.job && !u.inside && !(tick >= 0 && (u.ai.noJob ?? 0) > tick);
+}
+
+/**
+ * Träger: Tagelöhner, die Waren tragen, bauen oder reparieren können (frei oder gerade dabei). Nicht dazu zählen, wer
+ * gerade eine Werkstatt antritt, als Rekrut seine Waffe holt oder die Siedlung verlässt (ADR 0020).
+ */
+export function carrierCount(w: World): number {
+  let n = 0;
+  for (const u of w.s.units) {
+    if (u.dead || u.team !== 0 || u.key !== "tageloehner") continue;
+    const k = u.ai.job?.k;
+    if (k !== "employ" && k !== "recruit" && k !== "leave") n++;
+  }
+  return n;
 }
 
 /** Kann u das Ziel ohne Einreißen erreichen? (Komponenten-Vorprüfung, keine Suche.) Unbekannt (gesperrtes Startfeld) zählt als ja. */
@@ -55,10 +69,20 @@ export function dispatcher(w: World): void {
       b.workers.push(u.id);
     }
   }
-  // 2. Rekruten: Waffe (und weitere Ausrüstung wie die Rüstung) aus dem Lager holen; alle Stücke werden gleich reserviert
+  // 2. Rekruten: Waffe (und weitere Ausrüstung wie die Rüstung) aus dem Lager holen; alle Stücke werden gleich reserviert.
+  //    Die letzten CARRIERS.reserve Tagelöhner bleiben Träger (ADR 0020), sonst stünden Bau und Transport für immer still.
+  let carriers = carrierCount(w);
+  // Kein einziger Träger: Baustellen, Werkstätten und Höfe stehen (der Notzuzug in updatePopulation hilft ab)
+  if (carriers === 0 && own.some((b) => isSite(b) || haulable(b).length > 0 || inputOrders(b).length > 0)) {
+    w.msg("Kein Tagelöhner als Träger frei: Baustellen und Werkstätten stehen still, bis jemand zuzieht.", "warnung", "keine-traeger", 60);
+  }
   for (const b of own) {
     if (!free.length) return;
     if (b.built < 1 || !b.queue.length || b.ai.recruit || b.training) continue;
+    if (carriers <= CARRIERS.reserve) {
+      w.msg(`Ausbildung wartet: Die letzten ${CARRIERS.reserve} Tagelöhner bleiben Träger. Baue Wohnhäuser für mehr Leute.`, "warnung", "traeger-reserve", 60);
+      continue;
+    }
     const unit = b.queue[0];
     const [cx, cy] = center(b.key, b.x, b.y, b.o);
     const refs: { b: SBuilding; k: number; good: Good }[] = [];
@@ -73,6 +97,7 @@ export function dispatcher(w: World): void {
     const first = refs[0];
     const u = take(cx, cy, first ? goalSlot(w, first.b, first.k) : goalEntrance(w, b), goalEntrance(w, b));
     if (!u) { undo(); continue; }
+    carriers--;
     u.ai.job = {
       k: "recruit", b: b.id, from: first?.b.id ?? 0, slot: first?.k ?? 0, good: first?.good, unit, ph: first ? 0 : 1,
       ...(refs.length > 1 ? { more: refs.slice(1).map((r) => ({ from: r.b.id, slot: r.k, good: r.good })) } : {}),
@@ -284,11 +309,14 @@ export function updatePopulation(w: World): void {
   if (!w.meta.immigration || s.outcome === "niederlage" || s.tick < w.meta.nextImmigrant) return; // nach der Niederlage kein Zuzug (nach dem Sieg schon)
   // Abstand nach Ration und Vielfalt der Nahrung (ADR 0013); eine hungernde Siedlung bekommt keinen Zuzug
   w.meta.nextImmigrant = s.tick + Math.round(TUNING.immigrantSeconds * immigrationFactor(w) * TPS);
-  if (pop >= housing) {
+  // Notzuzug (ADR 0020): Fehlen Träger, zieht trotz vollem Wohnraum und Hunger jemand zu, sonst käme nie wieder Bewegung
+  // (nur in einer Siedlung mit Wohnraum: Bergfried oder Häuser; leere Testkarten bleiben leer)
+  const emergency = CARRIERS.emergency && housing > 0 && carrierCount(w) < CARRIERS.reserve;
+  if (pop >= housing && !emergency) {
     w.msg("Kein Wohnraum mehr: Baue Wohnhäuser, damit weitere Leute zuziehen.", "warnung", "wohnraum", 120, "wohnraum");
     return;
   }
-  const hungry = hungerBlocks(w);
+  const hungry = emergency ? null : hungerBlocks(w);
   if (hungry) { w.msg(hungry, "warnung", "hunger-zuzug", 120); return; }
   const [ex, ey] = w.meta.entry;
   const u = w.addUnit("tageloehner", 0, ex + 0.5, ey + 0.5);

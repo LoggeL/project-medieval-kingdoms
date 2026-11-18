@@ -90,7 +90,8 @@ describe("Holzfäller", () => {
     const before = cutter.ai.job && JSON.stringify(cutter.ai.job);
     run(g, 20 * TPS);
     expect(JSON.stringify(cutter.ai.job)).toBe(before); // keine Arbeit mehr
-    expect(g.state.messages.some((m) => m.text.includes("Lager ist voll"))).toBe(true);
+    // alle Fächer belegt (eine Ware je Fach): die Meldung nennt Ware und Grund
+    expect(g.state.messages.some((m) => m.text.includes("Kein freies Fach für Holz"))).toBe(true);
     // Zweites Lager: Träger holen den Hof leer, der Holzfäller arbeitet weiter
     const l = lagerOf(g);
     const [lx, ly] = findSpot(g, "lager", l.x + 6, l.y);

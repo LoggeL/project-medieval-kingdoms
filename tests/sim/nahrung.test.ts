@@ -264,10 +264,11 @@ describe("Ernährung und Hunger", () => {
     expect(g.state.food!.hunger).toBeGreaterThan(0);
     expect(g.state.messages.some((m) => /hungern/.test(m.text))).toBe(true);
     const pop0 = g.state.population;
+    const peasants0 = g.state.units.filter((u) => u.key === "tageloehner").length;
     let leaving = false;
     run(g, (FOOD.graceSeconds + FOOD.leaveSeconds + 10) * TPS, () => { if (g.state.units.some((u) => u.activity === "zieht_fort")) leaving = true; });
     expect(leaving).toBe(true);
-    expect(g.state.units.filter((u) => u.key === "tageloehner").length).toBeLessThan(6);
+    expect(g.state.units.filter((u) => u.key === "tageloehner").length).toBeLessThan(peasants0);
     expect(g.state.population).toBeLessThan(pop0); // keiner zugezogen, aber welche gegangen
     expect(g.state.messages.some((m) => /verlässt die Siedlung/.test(m.text))).toBe(true);
     stockUp(g, "apfel", 20);

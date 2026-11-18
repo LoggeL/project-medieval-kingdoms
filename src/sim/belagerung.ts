@@ -362,6 +362,12 @@ export function ramAct(w: World, u: SUnit): void {
   if (!b) { setAnim(u, "stehen"); return; }
   if (inRangeBuilding(u, b)) { strikeBuilding(w, u, b); return; }
   const r = travel(w, u, { ...goalAround(b, true), ground: true });
+  if (r === "arrived") {
+    // am Grundriss angekommen, aber schräg davor und außer Reichweite: die letzten Schritte heran
+    const [cx, cy] = center(b.key, b.x, b.y, b.o);
+    if (!stepToward(w, u, cx, cy, 0.5)) setAnim(u, "stehen");
+    return;
+  }
   if (r === "unreachable") {
     ai.skipB = b.id; ai.targetB = 0;
     // Versperrt ein Graben ohne Bresche jeden Weg, zieht er ab, statt für immer davor zu stehen (die Welle endet)
@@ -422,7 +428,10 @@ export function crewAct(w: World, u: SUnit): boolean {
 export function viaLadder(w: World, u: SUnit, g: TravelGoal): TravelGoal {
   if (!g.breach || u.team !== 1 || !w.s.ladders?.some((l) => l.state === "steht")) return g;
   if (u.layer === 0 && u.z > 0.2 && w.nav.stairZ(u.x, u.y) < 0) return { ...g, breach: false }; // gerade auf der Leiter
-  const fc = w.nav.comp[1][unitNode(w, u)];
+  // Mitten auf einer Treppe steht er auf einer Kachel, die auf seiner Ebene nicht begehbar ist: dann zählt die andere
+  // Ebene derselben Kachel (sonst wechselte die Entscheidung bei jedem Schritt, und er träte auf der Stelle)
+  let fc = w.nav.comp[1][unitNode(w, u)];
+  if (fc < 0 && u.layer <= 1) fc = w.nav.comp[1][w.nav.node(1 - u.layer, Math.floor(u.x), Math.floor(u.y))];
   return fc >= 0 && w.nav.goalInComp(g, 1, fc) ? { ...g, breach: false } : g;
 }
 

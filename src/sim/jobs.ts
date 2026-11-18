@@ -8,7 +8,7 @@ import { center, entrance, footprintTiles, polyAt, polyLength, shelfWorld, store
 import { buildCap, canWork, completeBuilding, refreshAfterPlace, useMaterial } from "./build";
 import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from "./research";
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
-import { fullMessage, hasStoreOf, reservePut, storeDirect, tidy } from "./storage";
+import { fullMessage, hasStoreOf, reservePut, storeDirect, tidy, yardFullMessage } from "./storage";
 import { noteBuilt, noteProduced } from "./match";
 import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput, usesInput } from "./production";
 import { releasePlots, runFarm } from "./farm";
@@ -86,7 +86,7 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       if (out && out.good === u.carry && out.amount < cap) { out.amount++; u.carry = null; next(); return; }
       // Hof voll: sichtbar warten, jeder Arbeiter an seinem eigenen Fleck neben dem Eingang
       if (travel(w, u, waitGoal(w, home, u)) !== "moving") setAnim(u, "stehen");
-      w.msg(`${def.name}: der Hof ist voll, die Arbeit ruht.`, "warnung", `hofvoll-${home.id}`, 45, "hof_voll");
+      yardFullMessage(w, home, u.carry, "die Arbeit ruht");
       return;
     }
   }

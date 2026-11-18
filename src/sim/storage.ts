@@ -86,10 +86,37 @@ export function hasStoreOf(w: World, kind: StoreKey): boolean {
   return w.s.buildings.some((b) => b.team === 0 && storeKind(b.key) === kind);
 }
 
-/** Meldung, wenn eine Ware nirgends Platz hat (Text je Lagertyp aus STORES). */
+/**
+ * Text, wenn eine Ware nirgends Platz hat (je Lagertyp aus STORES): nennt die Ware und unterscheidet, ob das Lager
+ * wirklich voll ist oder nur alle Fächer mit anderen Waren belegt sind (8 Fächer zu 20 Stück, eine Ware je Fach).
+ */
+export function fullText(w: World, good: Good): string {
+  const kind = storeOf(good);
+  let used = 0, cap = 0;
+  for (const b of w.s.buildings) {
+    if (b.team !== 0 || b.built < 1 || storeKind(b.key) !== kind) continue;
+    cap += b.slots.length * perSlot(b);
+    for (const s of b.slots) used += s.amount + s.incoming;
+  }
+  const t = used < cap ? STORES[kind].slots : STORES[kind].full;
+  return t.replaceAll("{ware}", GOODS[good].name).replaceAll("{belegt}", String(used)).replaceAll("{plaetze}", String(cap));
+}
+
+/** Meldung, wenn eine Ware nirgends Platz hat. */
 export function fullMessage(w: World, good: Good): void {
   const kind = storeOf(good);
-  w.msg(STORES[kind].full, "warnung", `lagervoll-${kind}`, 30, "lager_voll");
+  w.msg(fullText(w, good), "warnung", `lagervoll-${kind}-${good}`, 30, "lager_voll");
+}
+
+/**
+ * Der Hof (Ausgabestapel) einer Werkstatt ist voll: Liegt es am Lager, sagt die Meldung das; sonst fehlen Träger, die
+ * ihn abholen (dann hilft kein weiteres Lagerhaus, sondern mehr Tagelöhner). Die Träger-Meldung kommt für alle Höfe
+ * gemeinsam und selten.
+ */
+export function yardFullMessage(w: World, b: SBuilding, good: Good, rest: string): void {
+  const name = BUILDINGS[b.key].name;
+  if (!hasRoom(w, good)) w.msg(`${name}: Der Hof ist voll, ${rest}. ${fullText(w, good)}`, "warnung", `hofvoll-lager-${storeOf(good)}`, 45, "lager_voll");
+  else w.msg(`${name}: Der Hof ist voll, ${rest}. Kein Tagelöhner kommt zum Abholen nach: Mehr Leute (Wohnhäuser) helfen.`, "warnung", "hofvoll-traeger", 60, "hof_voll");
 }
 
 /**

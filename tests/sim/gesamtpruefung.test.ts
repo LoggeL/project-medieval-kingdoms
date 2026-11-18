@@ -51,12 +51,13 @@ describe("Ernährung nach dem Sieg", () => {
   });
 });
 
-/** Aufbau für eine Seite (k = 0..3): Mauer quer über die Karte, außen ein Weg, innen eine Treppe, außen ein Sturmknecht. */
+/** Aufbau für eine Seite (k = 0..3): Mauer quer über die Karte, außen ein Weg, innen eine Treppe, außen ein Sturmknecht; innen ein Haus als Ziel. */
 function ladderSetup(k: number, road: boolean) {
   const N = 40;
   const rot = (x: number, y: number): [number, number] =>
     k === 0 ? [x, y] : k === 1 ? [N - 1 - y, x] : k === 2 ? [N - 1 - x, N - 1 - y] : [y, N - 1 - x];
   const g = createGame({ scenario: "leer", size: N, raids: false });
+  g.world.meta.immigration = false; // nur Mauer, Weg und Angreifer (kein Notzuzug ins Haus)
   for (let y = 0; y < N; y++) { const [x1, y1] = rot(20, y); buildNow(g, "mauer", x1, y1, 0); }
   if (road) for (let y = 0; y < N; y++) { const [x1, y1] = rot(21, y); buildNow(g, "kiesweg", x1, y1, 0); }
   const [wx, wy] = rot(20, 12);
@@ -82,11 +83,18 @@ describe("Sturmleiter und Wege", () => {
     it(`ein Kiesweg außen an der Mauer verhindert die Leiter nicht (Seite ${k})`, () => {
       const counts: number[] = [];
       for (const road of [false, true]) {
-        const { g, u } = ladderSetup(k, road);
-        run(g, 40 * TPS);
+        const { g, u, rot } = ladderSetup(k, road);
+        let onWall = false;
+        run(g, 40 * TPS, () => { onWall ||= g.world.units.get(u.id)?.layer === 1; });
         counts.push(g.state.ladders?.length ?? 0);
-        const me = g.world.units.get(u.id);
-        expect(me?.layer).toBe(1); // er steht auf dem Wehrgang
+        expect(onWall).toBe(true); // über die Leiter auf den Wehrgang
+        // danach über die Treppe hinunter nach innen (Seite x < 20 im Grundaufbau)
+        const me = g.world.units.get(u.id)!;
+        const [ix, iy] = [Math.floor(me.x), Math.floor(me.y)];
+        let inside = false;
+        for (let x = 0; x < 20 && !inside; x++) for (let y = 0; y < 40 && !inside; y++) { const q = rot(x, y); inside = q[0] === ix && q[1] === iy; }
+        expect(inside).toBe(true);
+        expect(me.layer).toBe(0);
       }
       expect(counts).toEqual([1, 1]);
     });

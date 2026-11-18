@@ -10,8 +10,8 @@
  * nach FOOD.graceSeconds geht alle FOOD.leaveSeconds ein untätiger Tagelöhner zum Kartenrand und verlässt die
  * Siedlung (Auftrag "leave", sichtbar). Kommt wieder Essen in die Kornkammer, endet der Hunger beim ersten Bissen.
  */
-import { FOOD, GOODS, RATIONS, type Good, type RationKey } from "../data";
-import { isFreePeasant } from "./economy";
+import { CARRIERS, FOOD, GOODS, RATIONS, type Good, type RationKey } from "../data";
+import { carrierCount, isFreePeasant } from "./economy";
 import { tileGoal, travel } from "./move";
 import { storagesNear, tidy } from "./storage";
 import type { CommandResult, FoodState } from "./types";
@@ -98,8 +98,12 @@ function refresh(f: FoodState, have: Map<Good, number>): void {
   f.stock = stock; f.kinds = kinds;
 }
 
-/** Ein untätiger Tagelöhner verlässt hungrig die Siedlung. false = keiner frei (dann beim nächsten Tick erneut). */
+/**
+ * Ein untätiger Tagelöhner verlässt hungrig die Siedlung. false = keiner frei (dann beim nächsten Tick erneut). Die
+ * letzten CARRIERS.reserve Träger bleiben (ADR 0020), sonst baute niemand mehr den Hof, der die Not beendet.
+ */
 function sendAway(w: World): boolean {
+  if (carrierCount(w) <= CARRIERS.reserve) return false;
   const u = w.s.units.find((x) => isFreePeasant(x) && !x.ai.fresh);
   if (!u) return false;
   u.ai.job = { k: "leave" }; u.order = { t: "job" };

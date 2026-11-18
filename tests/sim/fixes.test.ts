@@ -190,7 +190,8 @@ describe("Wartende Arbeiter", () => {
     for (const u of both) expect(u.anim).toBe("stehen");
     expect(both).toHaveLength(2);
     expect(Math.hypot(both[0].x - both[1].x, both[0].y - both[1].y)).toBeGreaterThan(0.5);
-    expect(g.state.messages.some((m) => m.voice === "hof_voll")).toBe(true);
+    // kein Lager: Die Meldung nennt den vollen Hof und das fehlende Lager (nicht fehlende Träger)
+    expect(g.state.messages.some((m) => m.text.includes("Der Hof ist voll") && m.text.includes("Lagerhaus"))).toBe(true);
   });
 });
 

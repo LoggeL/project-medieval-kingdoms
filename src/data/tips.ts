@@ -24,8 +24,8 @@ export const TIPS: Tip[] = [
   { thema: "wirtschaft", text: "Geforscht wird im Bergfried. Gold zahlst du sofort, die Waren tragen Tagelöhner hinein, erst dann läuft die Zeit." },
   { thema: "wirtschaft", text: "Holzfäller und Steinmetze legen ihre Ware auf den eigenen Hof. Tagelöhner tragen sie von dort durch das Tor ins Lagerhaus." },
   { thema: "wirtschaft", text: "Im Lagerhaus liegt jede Ware sichtbar in ihrem Fach: acht Fächer mit je 20 Stück. Mit der Maus darüber schaust du hinein." },
-  { thema: "wirtschaft", text: "Ist das Lager voll, bleibt die Ware auf dem Hof. Ist auch der Hof voll, ruht die Arbeit. Dann hilft ein weiteres Lagerhaus." },
-  { thema: "wirtschaft", text: "Ein Wohnhaus bietet vier Bewohnern Platz. Solange Wohnraum frei ist, zieht etwa alle 20 Sekunden ein Tagelöhner zu." },
+  { thema: "wirtschaft", text: "Ist ein Werkstatthof voll, ruht die Arbeit. Fehlt ein freies Lagerfach, hilft ein weiteres Lagerhaus; fehlen Träger, helfen mehr Tagelöhner." },
+  { thema: "wirtschaft", text: "Ein Wohnhaus bietet vier Bewohnern Platz. Solange Wohnraum frei ist, zieht etwa alle 15 Sekunden ein Tagelöhner zu." },
   { thema: "burgenbau", text: "Beim Bauen dreht R das Gebäude, Shift und R dreht zurück. So setzt du die Mauertreppe mit der Rückseite an die Mauer." },
   { thema: "burgenbau", text: "Eine Mauer ziehst du: Startfeld anklicken, mit gedrückter Maustaste zum Endfeld ziehen, loslassen. Jedes Stück kostet 3 Stein." },
   { thema: "burgenbau", text: "Ein Tor passt nur in ein gerades Mauerstück. Es öffnet sich für deine Leute, Angreifer müssen es einreißen." },
@@ -36,7 +36,7 @@ export const TIPS: Tip[] = [
   { thema: "militaer", text: "Wer auf Mauer oder Turm steht, nimmt von unten weniger Schaden. Bogenschützen schießen von dort auch weiter." },
   { thema: "militaer", text: "Die Kaserne bildet sechs Truppen aus, Pikeniere und Armbrustschützen erst nach Forschung. Jeder Soldat kostet Gold und Ausrüstung aus dem Lager." },
   { thema: "militaer", text: "Überfälle kommen aus dem Osten über die Furt im Fluss. Dort lohnt sich eine Mauer mit Tor." },
-  { thema: "militaer", text: "Auf Normal kommt der erste Überfall nach etwa fünf Minuten, dann alle vier Minuten, und jede Welle ist größer. Späher warnen 30 Sekunden vorher." },
+  { thema: "militaer", text: "Auf Normal kommt der erste Überfall nach etwa sechs Minuten, dann alle vier Minuten, und jede Welle ist größer. Späher warnen 30 Sekunden vorher." },
   { thema: "militaer", text: "Ab der zweiten Welle tragen Angreifer Sturmleitern, ab der dritten schieben sie einen Rammbock. Jeder besiegte Angreifer bringt 4 Gold." },
 ];
 

@@ -14,6 +14,7 @@ import { approach, center, footprintTiles, modelToWorld } from "./geom";
 import { goalEntrance, tileGoal, travel } from "./move";
 import { workFactor } from "./research";
 import { waitGoal } from "./jobs";
+import { yardFullMessage } from "./storage";
 import type { Building, FarmState, Plot, SimState } from "./types";
 import { TPS, face, setAnim, type Job, type SBuilding, type SUnit, type World } from "./world";
 
@@ -207,7 +208,7 @@ export function runFarm(w: World, u: SUnit, j: CycleJob, home: SBuilding): void 
       return;
     }
     setAnim(u, "stehen");
-    w.msg(`${def.name}: der Hof ist voll, die Ernte wartet.`, "warnung", `hofvoll-${home.id}`, 45, "hof_voll");
+    yardFullMessage(w, home, u.carry, "die Ernte wartet");
     return;
   }
   if (j.wait > 0) { j.wait--; idle(w, u, home); return; }

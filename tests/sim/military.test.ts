@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { UNITS, WALL_BONUS, type UnitKey } from "../../src/data";
+import { START, UNITS, WALL_BONUS, type UnitKey } from "../../src/data";
 import { createGame, postWorld } from "../../src/sim";
 import { buildNow, run, spawn } from "../../src/sim/debug";
 import type { Simulation } from "../../src/sim/game";
@@ -9,6 +9,7 @@ import { findSpot, lagerOf } from "./helpers";
 describe("Rekrutierung", () => {
   it("verbraucht Gold und Waffe; ein Tagelöhner trägt die Waffe zur Kaserne und kommt als Soldat heraus", () => {
     const g = createGame({ seed: 1, raids: false });
+    g.world.meta.immigration = false; // die Zahl der Tagelöhner soll sich nur durch die Ausbildung ändern
     const l = lagerOf(g);
     const [kx, ky] = findSpot(g, "kaserne", l.x + 6, l.y - 5);
     const k = buildNow(g, "kaserne", kx, ky, 0);
@@ -177,7 +178,7 @@ describe("Mauerverteidigung", () => {
 describe("Überfall", () => {
   it("kommt nach Zeitplan von Osten und greift die Siedlung an", () => {
     const g = createGame({ seed: 4 });
-    expect(g.state.raid.next).toBe(300 * TPS);
+    expect(g.state.raid.next).toBe(START.raid.firstSeconds * TPS);
     const r = g.dispatch({ t: "ueberfall" });
     expect(r.ids).toHaveLength(4);
     expect(g.state.raid.wave).toBe(1);
