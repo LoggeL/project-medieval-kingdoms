@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, type Plugin } from "vite";
 import { alteSpielAdresse, hatGoogleFonts, istSchriftDatei, konzeptGeruest, schriftDateien, schriftQuelle } from "./deploy/konzeptseite";
+import { buildingFiles, figureFiles, pngHeight, terrainFiles } from "./src/render/sheet-files";
 import { STYLE } from "./src/render/style";
 
 // Das Spiel liegt im Projektstamm (index.html, src/). Die Sprites aus assets/ werden unverändert
@@ -24,7 +25,8 @@ function size(dir: string): { bytes: number; files: number } {
 /**
  * Nach dem Build alles aus dem kopierten publicDir entfernen, was das Spiel nie lädt:
  * andere Stilrichtungen als STYLE (buildings, figures, terrain), Zwischenschritte (_steps), Einzelbilder der Figuren neben
- * atlas.png, Gebäudebilder ohne Eintrag im sheet.json, ui/quelle (Rohbilder) und sonstige Dateien außerhalb der
+ * einem atlas.png, der alle Einheiten enthält (sonst bleiben sie, der Lader nutzt dann sie), Gebäudebilder ohne Eintrag
+ * im sheet.json, Geländebilder ohne Verweis im sheet.json, ui/quelle (Rohbilder) und sonstige Dateien außerhalb der
  * bekannten Ordner. audio/ und ui/ (ohne quelle) bleiben vollständig.
  */
 function spielAssets(): Plugin {
@@ -51,24 +53,24 @@ function spielAssets(): Plugin {
         if (!existsSync(dir)) return;
         for (const name of readdirSync(dir)) if (!keep.has(name)) rm(join(dir, name));
       };
-      // Figuren: sheet.json + atlas.png (Einzelbilder nur, wenn es keinen Atlas gibt)
+      // Figuren, Gebäude, Gelände: genau die Dateien, die der Lader verlangt (src/render/sheet-files.ts). Einzelbilder der
+      // Figuren bleiben, solange atlas.png nicht alle Einheiten enthält; dann lädt das Spiel sie statt des Atlas.
       const fdir = join(out, "figures", STYLE), fmeta = json(join(fdir, "sheet.json"));
       if (fmeta) {
-        const keep = new Set(["sheet.json"]);
-        if (existsSync(join(fdir, "atlas.png"))) keep.add("atlas.png");
-        else for (const u of fmeta.units ?? []) keep.add(`${u.key}.png`);
-        keepOnly(fdir, keep);
+        const atlas = join(fdir, "atlas.png");
+        keepOnly(fdir, new Set(figureFiles(fmeta, existsSync(atlas) ? pngHeight(readFileSync(atlas)) : null)));
       }
-      // Gebäude: sheet.json + je Eintrag <key>.png und <key>_front.png
       const bdir = join(out, "buildings", STYLE), bmeta = json(join(bdir, "sheet.json"));
-      if (bmeta) {
-        const keep = new Set(["sheet.json"]);
-        for (const u of bmeta.units ?? []) { keep.add(`${u.key}.png`); if (u.front) keep.add(`${u.key}_front.png`); }
-        keepOnly(bdir, keep);
-      }
-      // Gelände: sheet.json + Kachelbild + Übergangsmasken
+      if (bmeta) keepOnly(bdir, new Set(buildingFiles(bmeta)));
       const tdir = join(out, "terrain", STYLE), tmeta = json(join(tdir, "sheet.json"));
-      if (tmeta) keepOnly(tdir, new Set(["sheet.json", tmeta.image || "terrain.png", ...(tmeta.blend?.image ? [tmeta.blend.image] : [])]));
+      if (tmeta) keepOnly(tdir, new Set(terrainFiles(tmeta)));
+      // Was der Lader verlangt, muss nach dem Ausdünnen da sein; sonst fehlen im ausgelieferten Spiel Figuren oder Gelände
+      const fehlt = [
+        ...(fmeta ? figureFiles(fmeta, existsSync(join(fdir, "atlas.png")) ? pngHeight(readFileSync(join(fdir, "atlas.png"))) : null).map((f) => join(fdir, f)) : []),
+        ...(bmeta ? buildingFiles(bmeta).map((f) => join(bdir, f)) : []),
+        ...(tmeta ? terrainFiles(tmeta).map((f) => join(tdir, f)) : []),
+      ].filter((p) => !existsSync(p));
+      if (fehlt.length) throw new Error(`[spiel-assets] Im Build fehlen Sprite-Dateien, die das Spiel lädt: ${fehlt.join(", ")}`);
       rm(join(out, "ui", "quelle"));
       const after = size(out);
       const mb = (b: number) => (b / 1048576).toFixed(1) + " MB";

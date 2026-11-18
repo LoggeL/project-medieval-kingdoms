@@ -1,5 +1,13 @@
 # Status
 
+**2026-11-18 (12): Ausgeliefert, dabei fehlende Figuren im Build gefunden und behoben.** Eintrag 11 ist gepusht (6b8d504) und läuft auf https://medieval-kingdoms.logge.top/. Die Live-Prüfung zeigte: Im ausgelieferten Spiel fehlten alle 47 Figurenbilder und das Bild der neuen Geländearten.
+- *Ursache:* Der Figurenatlas `atlas.png` enthält nur die ersten 15 der 47 Einheiten (8040 px hoch, nötig wären 25 192 px). Der Lader nimmt deshalb richtig die Einzelbilder. Der Build entfernte aber alle Einzelbilder, sobald es überhaupt einen Atlas gab. Beim Gelände behielt er nur `terrain.png`, die angehängten Arten (Hügel, fruchtbarer Boden …) stehen in `gelaende.png`. Im Dev-Server liegt alles, deshalb fiel es dort nicht auf.
+- *Code:* `src/render/sheet-files.ts` legt fest, welche Dateien je Ordner geladen werden. Lader (`src/render/assets.ts`) und Ausdünnen im Build (`vite.config.ts`) nutzen dieselben Funktionen. Der Build bricht ab, wenn danach eine verlangte Datei fehlt.
+- *Tests:* `tests/deploy/sprite-dateien.test.ts` (6 Tests) prüft gegen die echten Blätter, dass alle verlangten Dateien da sind. Alle 56 Testdateien, Typprüfung und Build grün.
+- *Geprüft:* Gebauter Stand über `vite preview` im kopflosen Chrome. Titel, „Neues Spiel“, „Beginnen“, dann das Spiel mit sichtbaren Figuren, ohne Warnungen in der Konsole. Gegenprobe: Ohne `kuh.png` bricht der Build mit der fehlenden Datei ab.
+- *Live:* Titel, Weiterleitungen (/spiel/ → /, /konzept → /konzept/) und die neue Einstiegsdatei geprüft. Die Korrektur ist lokal committet, **noch nicht gepusht**, live fehlen die Figuren also weiterhin.
+- *Grenze:* Der Atlas ist nicht neu gepackt. Alle 47 Einheiten in einem Bild überschreiten die Texturgröße vieler Grafikkarten; dafür braucht es mehrere Atlasseiten.
+
 **2026-11-18 (11): Zweite Welle – Verarbeitung, Landschaft, Landwirtschaft, Militärwirtschaft, Wege, lebendige Welt, Belagerung, Befehle, Spielziel.** Neun Zweige parallel gebaut (ADR 0011–0019), nacheinander in `proto/w2-integration` zusammengeführt. Danach Gesamtprüfung mit vier Prüfern (Spiel, Simulation, Darstellung, Briefing) und Fehlerbehebung (ADR 0020). Zum Schluss main mit Eintrag 10 hineingeführt (Zweig `proto/w2-main`).
 - *Code:*
   - **Verarbeitung und Lagertypen (ADR 0011):** Rezepte als Daten (`src/data/recipes.ts`), Ablauf in `src/sim/production.ts`. Tagelöhner liefern in den Eingangspuffer vor der Tür, der Arbeiter arbeitet drinnen (im Schnittbild sichtbar), Träger bringen die Ausgabe ins Lager des passenden Typs. Lagertypen Material und Nahrung, neu Kornkammer (6 Fächer × 20), Windmühle (Flügel drehen nur bei Arbeit) und Bäckerei. Panel „Verarbeitung“ mit Rezept, Vorrat, Fortschritt, Stillstandsgrund und Anhalten. Die Kopfleiste zeigt Bestand und Kapazität je Lagertyp.
@@ -60,7 +68,7 @@
   - **Audio:** Für neue Ereignisse fehlen Ansagen und Musik (Hunger, Sieg, Niederlage, Leitern, Rammbock).
   - **Oberfläche:** Zwischen 1366 und etwa 1599 px gibt es keinen Ticker in der Kopfleiste, nur die Chronik. Die Telefon-Kopfleiste ist 152 statt 118 px hoch.
   - **Leistung:** nur mit Software-Rendering gemessen. Die fps im kopflosen Chrome (2,8–7,9) sind nicht aussagekräftig. Die JS-Kosten lagen bei 308 Einheiten und 258 Tieren bei 2,2–3,5 ms je Bild.
-  - **Auslieferung:** nicht gepusht, live ist weiterhin der alte Stand. Das Docker-Image ist für diesen Stand noch nicht gebaut (Docker lief auf der Maschine nicht); der Dockerfile-Test ist grün.
+  - **Auslieferung:** gepusht und von Dokploy gebaut (siehe Eintrag 12). Lokal war das Docker-Image nicht gebaut (Docker lief nicht).
 
 **2026-11-17 (10):** Hauptmenü sofort, Laden im Hintergrund.
 - *Code:* Der Titelbildschirm erscheint, sobald Spielcode, Welt, Schriften und Schlüsselbild da sind (höchstens 2,5 s Wartezeit, ein später ankommendes Bild wird nachgereicht). Grafik und Sprite-Blätter laden dahinter weiter.
@@ -169,7 +177,7 @@
   - Tiere, nachwachsender Wald, Fahnen und Tageslicht
   - Außerdem: Grafikwerkzeuge in `tools/blender/`, Audiowerkzeug in `tools/audio/`, Bauskript der Konzeptseite in `tools/konzeptseite/`
 - Tests: 674 automatisierte Tests (Vitest) in 55 Dateien grün (seriell und bei ruhiger Maschine auch parallel); Typprüfung und Build grün; Docker-Build führt Tests und Typprüfung aus; Leistungstests schwanken unter hoher Maschinenlast
-- Im Browser geprüft: Prototyp im kopflosen Chrome (Details in den Einträgen 6, 9, 10 und 11), keine vollständige Partie ohne Debug-Hilfen; live auf https://medieval-kingdoms.logge.top/spiel/ ist weiterhin der alte Stand von Eintrag 8 (nicht gepusht). Lokal ist main 46 Commits vor `origin/main` (Stand der lokalen Remote-Referenz). Nach dem nächsten Push liegt das Spiel unter / und die Konzeptseite unter /konzept/
+- Im Browser geprüft: Prototyp im kopflosen Chrome (Details in den Einträgen 6, 9, 10 und 11), keine vollständige Partie ohne Debug-Hilfen; live auf https://medieval-kingdoms.logge.top/ läuft Eintrag 11 (6b8d504, Spiel unter /, Konzeptseite unter /konzept/), aber ohne Figurenbilder; die Korrektur aus Eintrag 12 ist lokal und noch nicht gepusht
 - Grafik: Figuren, Gebäude, Gelände, Tiere und Belagerungsgerät aus der Blender-Pipeline, nur im Stil „Vorgerendert“; Figurenatlas nicht neu gepackt (neue Figuren als Einzelbilder)
 - Audio: 5 Musikstücke und 23 Ansagen, automatisch geprüft, nicht von Menschen abgehört; keine Ansagen für die Ereignisse der zweiten Welle
 

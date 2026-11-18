@@ -7,6 +7,7 @@
 import { Rectangle, Texture, CanvasSource } from "pixi.js";
 import { STEP_PX } from "./iso";
 import { maskTile, type BlendMeta, type Edge } from "./blend";
+import { atlasCovers, figureRow, terrainImages } from "./sheet-files";
 import { STYLE } from "./style";
 
 export { STYLE };
@@ -315,14 +316,11 @@ export class FigureSheet {
     const meta = await loadJson<FigureMeta>(`figures/${STYLE}/sheet.json`);
     if (!meta) return null;
     const sheet = new FigureSheet(meta);
-    const c = meta.cell;
-    const rowOf = (u: FigureMetaUnit, i: number) => u.row ?? i * 8;
-    const rows = Math.max(0, ...meta.units.map((u, i) => rowOf(u, i) + 8));
     const atlas = await loadImage(`figures/${STYLE}/atlas.png`);
-    if (atlas && atlas.height >= rows * c) {
+    if (atlas && atlasCovers(meta, atlas.height)) {
       const canvas = toCanvas(atlas), px = new Pixels(canvas);
       sheet.canvases.set("atlas", canvas);
-      meta.units.forEach((u, i) => sheet.sprites.set(u.key, { key: u.key, anims: u.anims ?? {}, pixels: px, row: rowOf(u, i), img: "atlas" }));
+      meta.units.forEach((u, i) => sheet.sprites.set(u.key, { key: u.key, anims: u.anims ?? {}, pixels: px, row: figureRow(u, i), img: "atlas" }));
     } else {
       await Promise.all(meta.units.map(async (u) => {
         const im = await loadImage(`figures/${STYLE}/${u.key}.png`);
@@ -436,7 +434,7 @@ export class TerrainSheet {
     if (!meta) return null;
     // Hauptbild und weitere Bilder einzelner Geländearten (angehängte Arten liegen in eigenen Bildern)
     const main = meta.image || "terrain.png";
-    const names = [...new Set([main, ...Object.values(meta.keys).map((k) => k.image ?? main)])];
+    const names = terrainImages(meta);
     const [bl, ...ims] = await Promise.all([
       meta.blend?.image ? loadImage(`terrain/${STYLE}/${meta.blend.image}`) : Promise.resolve(null),
       ...names.map((n) => loadImage(`terrain/${STYLE}/${n}`)),
