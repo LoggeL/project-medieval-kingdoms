@@ -1,7 +1,8 @@
 /**
  * Einstieg: Simulation erzeugen, Pixi starten, Oberfläche einhängen, Sprites laden, Spielschleife, Eingabe und Audio verbinden.
- * Davor und währenddessen: Ladebildschirm mit Fortschritt (boot), danach der Titelbildschirm. Die Simulation tickt erst
- * nach „Neues Spiel“, „Fortsetzen“ oder „Laden“ (src/ui/start). Spielstände: SaveSession (spielstand.ts, ADR 0019);
+ * Zuerst kurz der Ladebildschirm, dann – sobald Welt, Schriften und Schlüsselbild da sind – der Titelbildschirm, während
+ * Grafik und Sprite-Blätter dahinter weiterladen. Die Simulation tickt erst, wenn „Neues Spiel“, „Fortsetzen“ oder
+ * „Laden“ gewählt und alles geladen ist (src/ui/start). Spielstände: SaveSession (spielstand.ts, ADR 0019);
  * Laden ersetzt die Partie an Ort und Stelle (Simulation.restore), afterLoad räumt Auswahl, Darstellung und Ansagen auf.
  */
 import { Application, TextureSource } from "pixi.js";
@@ -81,6 +82,18 @@ async function start(boot: Startbildschirm): Promise<void> {
   }, audioSettings);
   audio = new AudioDirector(() => audioSettings, () => game.state, () => store.speed);
   mountUi(uiRoot, bridge);
+  // Titel zeigen, sobald Schriften und Schlüsselbild da sind; das Laden läuft währenddessen weiter. Die Wahl wird
+  // gleich ausgeführt (Spielstände brauchen die Grafik nicht): Neues Spiel mit anderem Schwierigkeitsgrad ersetzt die
+  // beim Laden angelegte Partie, „Fortsetzen“ und „Laden“ laden einen Spielstand an ihre Stelle.
+  const titelDa = boot.titel(bridge, async (wahl) => {
+    if (wahl.k === "laden") { await saves.load(wahl.slot); return; }
+    if (wahl.difficulty !== game.state.match.difficulty) {
+      game.restore(createGame({ ...devMap(), difficulty: wahl.difficulty }).save());
+      saves.restarted();
+      afterLoad();
+    }
+  });
+  titelDa.catch(() => undefined); // Fehler kommt beim await unten an; ohne Rückruf wäre er bei früherem Abbruch „unbehandelt“
 
   const app = new Application();
   await boot.schritt("grafik", () => app.init({
@@ -106,16 +119,11 @@ async function start(boot: Startbildschirm): Promise<void> {
   lookHome(game.state);
 
   await nebenbei;
-  // Titelbildschirm; erst danach Eingabe, Spielschleife und Audio-Regie. Neues Spiel mit anderem Schwierigkeitsgrad
-  // ersetzt die beim Laden angelegte Partie, „Fortsetzen“ und „Laden“ laden einen Spielstand an ihre Stelle.
-  await boot.titel(bridge, async (wahl) => {
-    if (wahl.k === "laden") { await saves.load(wahl.slot); return; }
-    if (wahl.difficulty !== game.state.match.difficulty) {
-      game.restore(createGame({ difficulty: wahl.difficulty }).save());
-      saves.restarted();
-      afterLoad();
-    }
-  });
+  boot.geladen();
+  await titelDa;
+  // Gewählt und alles geladen: erst dann Eingabe, Spielschleife und Audio-Regie
+  await boot.bereit();
+  audio.arm();
 
   const debug = new DebugOverlay();
   const hint = new PointerHint();

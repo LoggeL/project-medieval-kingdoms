@@ -3,6 +3,7 @@
  * Menü „Fortsetzen“ (neuester Spielstand, nur wenn einer da ist), „Neues Spiel“ (Tafel mit Ziel und
  * Schwierigkeitsgrad aus den Daten), „Laden“ (Tafel mit allen Plätzen), „Klang“, „Steuerung“ und „Design-Dokument“
  * (Link auf die Konzeptseite unter /konzept/). ADR 0019.
+ * Der Titel steht schon, während das Spiel dahinter noch lädt (src/ui/start/index.ts).
  *
  * Tastatur: Pfeile hoch/runter wandern durchs Menü, Enter löst aus (ohne Fokus startet Enter ein neues Spiel auf
  * „Normal“), Esc schließt eine offene Tafel. Spricht nur über die UiBridge (Klang, Spielstände) mit dem Spiel.
@@ -130,6 +131,15 @@ export class Titelbildschirm {
     this.aus.push(() => window.removeEventListener("resize", this.skalierung));
   }
 
+  /** Schlüsselbild nachreichen, wenn es erst nach dem Erscheinen des Titels geladen ist. */
+  bild(url: string): void {
+    const box = this.el.querySelector(".mk-titel-bild") as HTMLElement;
+    if (box.querySelector("img")) return;
+    const img = h("img", { src: url, alt: "", decoding: "async", draggable: "false" }) as HTMLImageElement;
+    img.addEventListener("load", () => { this.el.classList.remove("mk-titel-ohne-bild"); this.skalierung(); }, { once: true });
+    box.append(img);
+  }
+
   /** Pixelgenau ab etwa doppelter Vergrößerung, darunter weich (nächster Nachbar bei 0,9× würde Pixel verschlucken). */
   private skalierung = (): void => {
     const img = this.el.querySelector(".mk-titel-bild img") as HTMLImageElement | null;
@@ -185,6 +195,10 @@ export class Titelbildschirm {
       return;
     }
     this.o.musik.ausblenden(1.5);
+    // Ab jetzt nicht mehr bedienbar: Liegt danach noch der Ladebildschirm darüber, dürfen Tasten das unsichtbare
+    // Menü nicht erreichen (sonst öffnet Enter z. B. das Design-Dokument und das ladende Spiel ist weg).
+    this.el.inert = true;
+    if (this.el.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
     this.resolve?.();
   }
 
@@ -198,7 +212,17 @@ export class Titelbildschirm {
     void this.waehle({ k: "neu", difficulty: this.schwierigkeit });
   }
 
+  /** Sofort abbauen (Ladefehler): Musik aus, Horcher weg, Element entfernen. */
+  abbauen(): void {
+    this.gestartet = true;
+    this.o.musik.ausblenden(0.5);
+    for (const f of this.aus) f();
+    this.aus = [];
+    this.el.remove();
+  }
+
   private taste(e: KeyboardEvent): void {
+    if (this.gestartet) return;
     const haupt = (document.activeElement as Element | null)?.classList.contains("mk-haupt");
     if (!(haupt && (e.key === "Enter" || e.key === " "))) this.geste();
     if (e.key === "Escape" && this.tafel) { e.preventDefault(); e.stopPropagation(); this.zeige(null); return; }
