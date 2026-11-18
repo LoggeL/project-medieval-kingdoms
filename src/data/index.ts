@@ -436,17 +436,17 @@ export const UNITS: Record<UnitKey, UnitDef> = {
   bauer: { name: "Bauer", sprite: "bauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, animSprite: { pfluegen: "bauer_hacke", saeen: "bauer_saat" }, carrySprite: { getreide: "bauer_garbe" } },
   obstbauer: { name: "Obstbauer", sprite: "obstbauer", role: "arbeiter", hp: 35, speed: 1.4, armor: 0, carrySprite: { apfel: "obstbauer" } },
   speer: {
-    name: "Speerträger", sprite: "speer", role: "nahkampf", group: "fussvolk", desc: "Front gegen Reiter, mit Schild und Gambeson.",
+    name: "Speerträger", sprite: "speer", role: "nahkampf", group: "fussvolk", desc: "Front gegen Reiter, mit Schild und Gambeson.", armorClass: "gepolstert",
     hp: 80, speed: 1.5, armor: 2, damage: 9, damageType: "stich",
     range: 1.3, cooldown: 1.2, bonus: { nahkampf: 1.2, reiter: 2 }, train: { gold: 10, equipment: "speer", seconds: 8 }, canStation: true,
   },
   schwert: {
-    name: "Schwertkämpfer", sprite: "schwert", role: "nahkampf", group: "fussvolk", desc: "Vielseitiger Nahkämpfer in Kette, stark gegen Leichte.",
+    name: "Schwertkämpfer", sprite: "schwert", role: "nahkampf", group: "fussvolk", desc: "Vielseitiger Nahkämpfer in Kette, stark gegen Leichte.", armorClass: "kette",
     hp: 110, speed: 1.3, armor: 4, damage: 13, damageType: "hieb",
     range: 1.1, cooldown: 1.1, train: { gold: 20, equipment: "schwert", seconds: 10 }, canStation: true,
   },
   bogen: {
-    name: "Bogenschütze", sprite: "bogen", role: "fernkampf", group: "schuetzen", desc: "Schnell feuernd, schwach gegen Kette und Platte.",
+    name: "Bogenschütze", sprite: "bogen", role: "fernkampf", group: "schuetzen", desc: "Schnell feuernd, schwach gegen Kette und Platte.", armorClass: "leder",
     hp: 55, speed: 1.6, armor: 1, damage: 7, damageType: "pfeil",
     range: 7, cooldown: 1.8, train: { gold: 15, equipment: "bogen", seconds: 9 }, canStation: true,
   },

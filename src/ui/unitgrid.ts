@@ -8,7 +8,7 @@ import { ARMOR_NAME, BUILDINGS, GOODS, TECHS, UNITS, WALL_BONUS, equipmentOf, tr
 import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
 import { h, num, setAttr, setClass, setText } from "./dom";
-import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
+import { DAMAGE_NAME, RIDERS_IN_PLAY, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
 import { costRow, freeOf, type UiCtx } from "./shared";
 
 const EQUIP: Partial<Record<Good, string>> = {
@@ -110,7 +110,7 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
       if (def.cooldown) rows.push(["Angriffstakt", `${dec(def.cooldown)} s`]);
       rows.push(["Tempo", `${dec(def.speed)} Felder/s${def.mounted ? " (beritten)" : ""}`]);
       const strong = [
-        def.bonus?.reiter ? `Reiter (×${dec(def.bonus.reiter)})` : "",
+        def.bonus?.reiter ? `Reiter (×${dec(def.bonus.reiter)}${RIDERS_IN_PLAY ? "" : ", sobald es Reiterei gibt"})` : "",
         def.bonus?.nahkampf ? `Nahkämpfer (×${dec(def.bonus.nahkampf)})` : "",
         def.bonus?.fernkampf ? `Schützen (×${dec(def.bonus.fernkampf)})` : "",
         def.damageType === "bolzen" || def.damageType === "kugel" ? "Kette und Platte" : "",

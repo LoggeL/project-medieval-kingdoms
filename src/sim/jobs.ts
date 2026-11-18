@@ -57,7 +57,8 @@ function runCycle(w: World, u: SUnit, j: CycleJob): void {
       if (!t) {
         j.wait = 3 * TPS;
         idleAt(w, u, home);
-        w.msg(`${def.name}: ${RESOURCE_TAGS[step.tag].empty}.`, "warnung", `leer-${home.id}`, 60, "rohstoff_leer");
+        // nur melden, wenn wirklich nichts mehr da ist: Hält ein Kollege den letzten Fels bzw. Baum, wartet er still
+        if (!findTarget(w, home, step.tag, step.radius, u, true)) w.msg(`${def.name}: ${RESOURCE_TAGS[step.tag].empty}.`, "warnung", `leer-${home.id}`, 60, "rohstoff_leer");
         return;
       }
       t.reservedBy = u.id; j.tgt = t.id;
@@ -159,7 +160,7 @@ function releaseTarget(w: World, u: SUnit, j: CycleJob): void {
 }
 
 /** Nächster freier Baum (liegende zuerst) bzw. Felsbrocken dieser Art (Stein, Erz) im Umkreis des Gebäudes, der erreichbar ist. */
-function findTarget(w: World, home: SBuilding, tag: ResourceTag, radius: number, u: SUnit): Tree | Rock | null {
+function findTarget(w: World, home: SBuilding, tag: ResourceTag, radius: number, u: SUnit, anyHolder = false): Tree | Rock | null {
   const [cx, cy] = center(home.key, home.x, home.y, home.o);
   const nav = w.nav;
   const myComp = nav.comp[0][nav.node(u.layer, Math.floor(u.x), Math.floor(u.y))];
@@ -167,7 +168,7 @@ function findTarget(w: World, home: SBuilding, tag: ResourceTag, radius: number,
   let best: Tree | Rock | null = null, bestScore = Infinity;
   const list: readonly (Tree | Rock)[] = tag === "tree" ? w.s.trees : w.s.rocks;
   for (const t of list) {
-    if (t.reservedBy && t.reservedBy !== u.id) continue;
+    if (t.reservedBy && t.reservedBy !== u.id && !anyHolder) continue;
     if (tag !== "tree" && rockTag(t as Rock) !== tag) continue; // Steinbruch nur Stein, Erzmine nur Erz
     let score = Math.hypot(t.x + 0.5 - cx, t.y + 0.5 - cy);
     if (score > radius) continue;

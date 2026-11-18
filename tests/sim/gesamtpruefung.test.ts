@@ -8,6 +8,9 @@ import { createGame, stairEnds } from "../../src/sim";
 import { buildNow, run, spawn, stockUp } from "../../src/sim/debug";
 import { removeBuilding } from "../../src/sim/build";
 import { available, committed, stockOf, updateStock } from "../../src/sim/storage";
+import { COMMAND_TUNING, LIFE, UNITS } from "../../src/data";
+import { center } from "../../src/sim/geom";
+import { speedOf } from "../../src/sim/move";
 import { TPS } from "../../src/sim/world";
 import { findSpot, lagerOf } from "./helpers";
 
@@ -166,5 +169,42 @@ describe("Rekrut in der Kaserne", () => {
     run(g, 1);
     expect(g.state.population).toBe(pop);
     expect(g.state.match.stats.lostWorkers + g.state.match.stats.lostSoldiers).toBe(0);
+  });
+});
+
+describe("Steinbruch und reservierter Fels", () => {
+  it("hält ein Kollege den letzten Fels in Reichweite, meldet der Steinbruch nicht „kein Fels mehr“", () => {
+    const g = createGame({ seed: 1, raids: false });
+    expect(g.dispatch({ t: "bauen", key: "steinbruch", x: 33, y: 17, o: 0 }).ok).toBe(true);
+    const q = g.state.buildings.find((b) => b.key === "steinbruch")!;
+    const [cx, cy] = center(q.key, q.x, q.y, q.o);
+    const radius = 8; // reserveNearest des Steinbruchs (BUILDINGS.steinbruch)
+    const left = () => g.world.s.rocks.some((r) => r.amount > 0 && !r.kind && Math.hypot(r.x + 0.5 - cx, r.y + 0.5 - cy) <= radius);
+    let shared = false, falseMsg = false;
+    run(g, 400 * TPS, () => {
+      const res = g.world.s.rocks.filter((r) => r.reservedBy && Math.hypot(r.x + 0.5 - cx, r.y + 0.5 - cy) <= radius);
+      const free = g.world.s.rocks.filter((r) => !r.reservedBy && r.amount > 0 && !r.kind && Math.hypot(r.x + 0.5 - cx, r.y + 0.5 - cy) <= radius);
+      if (res.length && !free.length) shared = true;
+      if (left() && g.state.messages.some((m) => m.text.includes("kein Fels mehr"))) falseMsg = true;
+    });
+    expect(q.workers.length).toBe(2);
+    expect(shared).toBe(true); // die Lage aus der Prüfung trat ein: ein Arbeiter hält den letzten freien Fels
+    expect(falseMsg).toBe(false);
+  });
+});
+
+describe("Tempo beim Rennen", () => {
+  it("LIFE.run.factor gilt für fliehende Arbeiter; der Rückzug der Soldaten wird nicht zusätzlich beschleunigt", () => {
+    const g = createGame({ scenario: "leer", size: 40, raids: false });
+    const w = g.world;
+    const p = spawn(g, "tageloehner", 0, 10.5, 10.5);
+    const walk = speedOf(w, p);
+    p.run = true;
+    expect(speedOf(w, p)).toBeCloseTo(walk * LIFE.run.factor);
+    const s = spawn(g, "speer", 0, 12.5, 12.5);
+    expect(g.dispatch({ t: "rueckzug", units: [s.id] }).ok).toBe(true);
+    run(g, 2);
+    expect(s.run).toBe(true);
+    expect(speedOf(w, s)).toBeCloseTo(UNITS.speer.speed * COMMAND_TUNING.retreatSpeed);
   });
 });

@@ -4,9 +4,10 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  ARMOR_MATRIX, BUILDINGS, DAMAGE_TYPES, GOODS, RECIPES, RECIPE_KEYS, RESOURCE_TAGS, TECHS, UNITS, UNIT_GROUPS,
+  ARMOR_MATRIX, BUILDINGS, START, DAMAGE_TYPES, GOODS, RECIPES, RECIPE_KEYS, RESOURCE_TAGS, TECHS, UNITS, UNIT_GROUPS,
   equipmentOf, hitFactor, recipesOf, trainCost, type BuildingKey, type UnitKey,
 } from "../../src/data";
+import { BELAGERUNG_UNITS } from "../../src/data/belagerung";
 import { MILITAER } from "../../src/data/militaer";
 import { RUESTUNG_BUILDINGS, RUESTUNG_TECHS } from "../../src/data/ruestung";
 import { ROSTER, isPlayable } from "../../src/ui/roster";
@@ -75,7 +76,8 @@ describe("Schadensmatrix (Konzept 05)", () => {
   it("Pike und Speer treffen Reiter mehrfach; Reiterbonus ersetzt den Rollenbonus", () => {
     expect(UNITS.ritter_pferd.mounted).toBe(true);
     expect(hitFactor(UNITS.pikenier, UNITS.ritter_pferd)).toBeCloseTo(3 * ARMOR_MATRIX.stich.kette);
-    expect(hitFactor(UNITS.pikenier, UNITS.schwert)).toBeCloseTo(1.1);
+    // gegen Fußvolk der Rollenbonus × Stich gegen die Kette des Schwertkämpfers
+    expect(hitFactor(UNITS.pikenier, UNITS.schwert)).toBeCloseTo(UNITS.pikenier.bonus!.nahkampf! * ARMOR_MATRIX.stich.kette);
     expect(hitFactor(UNITS.schwert, UNITS.ritter_pferd)).toBeLessThan(hitFactor(UNITS.pikenier, UNITS.ritter_pferd) / 2);
   });
 
@@ -88,9 +90,21 @@ describe("Schadensmatrix (Konzept 05)", () => {
     for (const row of Object.values(ARMOR_MATRIX)) for (let i = 1; i < order.length; i++) expect(row[order[i]]).toBeLessThanOrEqual(row[order[i - 1]]);
   });
 
-  it("ohne Rüstungsklasse (Arbeiter, alte Soldaten) rechnet der Faktor wie bisher", () => {
+  it("ohne Rüstungsklasse (Arbeiter) rechnet der Faktor wie bisher", () => {
     expect(hitFactor(UNITS.schwert, UNITS.tageloehner)).toBe(1);
-    expect(hitFactor(UNITS.bogen, UNITS.speer)).toBe(UNITS.bogen.bonus?.nahkampf ?? 1);
+    expect(hitFactor(UNITS.bogen, UNITS.tageloehner)).toBe(1);
+  });
+
+  it("jeder Angreifer der Überfälle trägt eine Rüstungsklasse: die Matrix wirkt auch gegen sie (BRIEF §7)", () => {
+    const raiders = new Set<UnitKey>([...START.raid.mix, ...(Object.keys(BELAGERUNG_UNITS) as UnitKey[])]);
+    for (const k of raiders) if (UNITS[k].role !== "belagerung") expect(UNITS[k].armorClass, k).toBeDefined();
+    // Schwertkämpfer in Kette: Armbrustbolzen wirken stärker als Pfeile („stark gegen schwer gepanzerte“)
+    expect(hitFactor(UNITS.armbrustschuetze, UNITS.schwert)).toBeGreaterThan(hitFactor(UNITS.bogen, UNITS.schwert));
+    expect(hitFactor(UNITS.bogen, UNITS.schwert)).toBeCloseTo(ARMOR_MATRIX.pfeil.kette);
+    // die Texte der Grundeinheiten nennen ihre Rüstung
+    expect(UNITS.schwert.armorClass).toBe("kette");
+    expect(UNITS.speer.armorClass).toBe("gepolstert");
+    expect(UNITS.bogen.armorClass).toBe("leder");
   });
 });
 

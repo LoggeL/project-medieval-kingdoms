@@ -29,7 +29,7 @@ export const BEFESTIGUNG: Record<BelagerungKey, BuildingDef> = {
 
 export const BELAGERUNG_UNITS: Record<BelagerungUnitKey, UnitDef> = {
   sturmknecht: {
-    name: "Sturmknecht", sprite: "sturmknecht", role: "nahkampf", hp: 60, speed: 1.45, armor: 1, damage: 9, damageType: "hieb",
+    name: "Sturmknecht", sprite: "sturmknecht", role: "nahkampf", armorClass: "leder", hp: 60, speed: 1.45, armor: 1, damage: 9, damageType: "hieb",
     range: 1.1, cooldown: 1.1, gearSprite: { leiter: "leitertraeger" }, foeOnly: true,
   },
   rammbock: {

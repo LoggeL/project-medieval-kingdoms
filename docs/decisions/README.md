@@ -23,5 +23,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0017](0017-belagerung-und-befestigung.md) | Belagerung und Befestigung: Leitern, Rammbock, Breschen, Schaden, Reparatur, Heilung, Palisade, Graben | Angenommen |
 | [0018](0018-befehle-und-steuerung.md) | Befehle und Steuerung: Formation, Angriffsmarsch, Patrouille, Rückzug, Haltung, Kontrollgruppen | Angenommen |
 | [0019](0019-spielziel-und-speichern.md) | Spielziel (Wellen halten), Schwierigkeit, Spielstände im Browser, Spielstand-Version 3 | Angenommen |
+| [0020](0020-traeger-reserve-und-balance.md) | Träger-Reserve und Notzuzug, Meldungen bei vollem Hof und Lager, Balance auf „Normal“, Rüstungsklassen der Grundeinheiten | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

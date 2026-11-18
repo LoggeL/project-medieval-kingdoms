@@ -94,8 +94,10 @@ export const LIFE = {
   /** Wachen auf dem Posten schauen sich um und treten von einem Fuß auf den anderen. */
   guard: { lookSeconds: 4, stepSeconds: 0.5 },
   /**
-   * Fliehende Tagelöhner rennen (Rennbilder). factor: Faktor auf die Gehgeschwindigkeit. Steht auf 1: schon 1,2 verschiebt
-   * die Abwehr-Balance (die Angreifer erreichen den Bergfried früher, tests/sim/bergfried.test.ts); siehe ADR 0016.
+   * Fliehende Arbeiter rennen (Rennbilder). factor: Faktor auf die Gehgeschwindigkeit, nur für Arbeiter (Soldaten im
+   * Rückzug: COMMAND_TUNING.retreatSpeed). Steht auf 1: schon 1,2 verschiebt die Abwehr-Balance (die Angreifer erreichen
+   * den Bergfried früher, tests/sim/bergfried.test.ts); 1,3 ließ in der Gesamtprüfung von Welle 2 den Speicher-Lauf
+   * Seed 7 „schwer“ ohne einen einzigen besiegten Angreifer verlieren (ADR 0016, 0020). Offen: Tempo mit Balance anheben.
    */
   run: { factor: 1 },
   /** Treffer: so lange zuckt die Figur zusammen. */

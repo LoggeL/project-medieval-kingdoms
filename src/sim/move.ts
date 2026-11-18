@@ -159,7 +159,9 @@ export function climbing(w: World, u: SUnit, n: number): boolean {
 /** Felder pro Sekunde am aktuellen Ort (Wege schneller, Wald und Fels langsamer). */
 export function speedOf(w: World, u: SUnit): number {
   // Rückzug schneller, Formation im Tempo des Langsamsten (befehle.ts); fliehende Tagelöhner rennen (ADR 0016)
-  const base = orderSpeed(u, UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1) * (u.run ? LIFE.run.factor : 1));
+  // (LIFE.run.factor nur für Arbeiter: Soldaten im Rückzug haben ihr Tempo schon aus COMMAND_TUNING.retreatSpeed)
+  const flee = u.run && UNITS[u.key].role === "arbeiter" ? LIFE.run.factor : 1;
+  const base = orderSpeed(u, UNITS[u.key].speed * (u.carry && u.team === 0 ? carryFactor(w.s) : 1) * flee);
   if (u.layer > 0) return base;
   const x = Math.floor(u.x), y = Math.floor(u.y);
   if (!w.inMap(x, y)) return base;

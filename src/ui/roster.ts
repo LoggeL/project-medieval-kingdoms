@@ -5,7 +5,7 @@
  * Forschungssperre (UnitDef.tech) zeigt das Raster live. Die übrigen stehen ausgegraut mit ihren Voraussetzungen
  * (Forschung aus UnitDef.tech, dazu UnitDef.planned für Gebäude, Waren und Forschung, die es noch nicht gibt).
  */
-import { BUILDINGS, TECHS, UNITS, UNIT_GROUPS, type UnitKey } from "../data";
+import { BUILDINGS, START, TECHS, UNITS, UNIT_GROUPS, type UnitKey } from "../data";
 
 export interface RosterEntry {
   key: UnitKey;
@@ -46,6 +46,12 @@ export const ROSTER: RosterGroup[] = UNIT_GROUPS.map((g) => {
 }).filter((g) => g.entries.length > 0);
 
 /** Anfangsbuchstaben für das Wappenschild, solange eine Einheit noch keine Figur hat. */
+/**
+ * Gibt es im Spiel Reiterei (ausbildbar oder unter den Angreifern)? Sonst wirken Konter gegen Reiter (bonus.reiter) in
+ * keiner Partie, und die Oberfläche sagt das dazu, statt sie als Stärke anzupreisen.
+ */
+export const RIDERS_IN_PLAY = (Object.keys(UNITS) as UnitKey[]).some((k) => UNITS[k].mounted && (isPlayable(k) || START.raid.mix.includes(k)));
+
 export const initials = (name: string): string =>
   name.split(/[\s-]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
