@@ -8,12 +8,14 @@
  * Postens (TUNING.postGuardRadius) oder steigt er auf den Wehrgang, gehen sie hin (über Treppe und Tor), kämpfen und
  * kehren danach auf ihren Posten zurück.
  */
-import { BUILDINGS, DEFAULT_STANCE, GOODS, LIFE, STANCES, TECHS, TUNING, UNITS, levelDef, trainCost, type Good, type UnitKey } from "../data";
+import { BUILDINGS, DEFAULT_STANCE, GOODS, LIFE, STANCES, TECHS, TUNING, UNITS, equipmentOf, levelDef, trainCost, type Good, type UnitKey } from "../data";
 import { commandAct } from "./befehle";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, pickTarget, rangeOf, strikeBuilding, strikeUnit } from "./combat";
 import { entrance, footprint, postWorld, stairEnds } from "./geom";
 import { goalAround, lineClear, stepToward, stop, tileGoal, travel, unitNode } from "./move";
-import { available } from "./storage";
+import { available, storeDirect } from "./storage";
+import { carryBack, releaseJob } from "./jobs";
+import { noteTrained } from "./match";
 import { applyBoost, levelOf, lockedBy } from "./research";
 import type { CommandResult, UnitOrder } from "./types";
 import { ladderDuty } from "./belagerung";
@@ -394,6 +396,61 @@ export function cmdRecruit(w: World, id: number, unit: UnitKey): CommandResult {
 
 const goodLabel = (g: Good): string => GOODS[g].name;
 
+/**
+ * Ausbildung abbrechen (ADR 0019): index = Platz in der Warteschlange, −1 = laufende Ausbildung. Das Gold kommt sofort
+ * zurück. Holt gerade ein Tagelöhner die Waffe, gibt er den Auftrag ab (die Reservierung im Lager fällt weg) bzw. trägt
+ * die schon geholte Waffe sichtbar ins Lager zurück. Bei laufender Ausbildung tritt der Rekrut als Tagelöhner mit der
+ * Waffe aus der Kaserne und bringt sie ins Lager.
+ */
+export function cmdCancelTraining(w: World, id: number, index: number): CommandResult {
+  const b = w.buildings.get(id);
+  if (!b || b.team !== 0 || !BUILDINGS[b.key].trains) return { ok: false, reason: "Keine eigene Kaserne" };
+  if (index === -1) {
+    const tr = b.training;
+    if (!tr) return { ok: false, reason: "Es wird gerade niemand ausgebildet" };
+    const train = UNITS[tr.unit].train!;
+    const u = b.ai.inside;
+    b.training = null; b.ai.inside = null;
+    w.s.gold += train.gold;
+    if (u) {
+      const [ex, ey] = exitTile(w, b);
+      u.key = "tageloehner"; u.maxHp = UNITS.tageloehner.hp; u.hp = u.maxHp;
+      u.x = u.px = ex + 0.5; u.y = u.py = ey + 0.5; u.z = u.pz = 0; u.layer = 0;
+      u.home = 0; u.dead = false; u.order = { t: "idle" }; u.ai = newUnitAI();
+      setAnim(u, "stehen", true);
+      w.insertUnit(u);
+      // Ausrüstung zurück (ADR 0014: Waffe sichtbar getragen, Zusatzstücke wie beim Abbruch des Holens direkt ins Lager)
+      const eq = equipmentOf(UNITS[tr.unit]);
+      for (const g of eq.slice(1)) storeDirect(w, g, 1);
+      u.carry = eq[0] ?? null;
+      carryBack(w, u);
+    }
+    return { ok: true, ids: [b.id] };
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= b.queue.length) return { ok: false, reason: "Kein solcher Platz in der Warteschlange" };
+  const unit = b.queue[index];
+  // Der Erste der Schlange wird gerade geholt: Auftrag des Tagelöhners abbrechen
+  const r = index === 0 ? w.aliveUnit(b.ai.recruit) : undefined;
+  if (r && r.ai.job?.k === "recruit" && r.ai.job.b === b.id) {
+    // schon geholte Stücke zurück: das getragene sichtbar, Zusatzstücke über releaseJob (ADR 0014)
+    releaseJob(w, r, true);
+    if (r.carry) carryBack(w, r);
+  }
+  b.queue.splice(index, 1);
+  w.s.gold += UNITS[unit].train!.gold;
+  return { ok: true, ids: [b.id] };
+}
+
+/** Feld vor dem Eingang, an dem Ausgebildete heraustreten (bei zugebautem Eingang das nächste freie). */
+function exitTile(w: World, b: SBuilding): [number, number] {
+  let [ex, ey] = entrance(b.key, b.x, b.y, b.o);
+  if (!w.inMap(ex, ey) || !w.nav.open(w.nav.node(0, ex, ey), 0)) {
+    const n = w.nav.nearestOpen(0, Math.min(w.s.w - 1, Math.max(0, ex)), Math.min(w.s.h - 1, Math.max(0, ey)), 0, 8);
+    if (n >= 0) { ex = w.nav.tileX(n); ey = w.nav.tileY(n); }
+  }
+  return [ex, ey];
+}
+
 /** Ausbildung voranbringen; fertige Soldaten treten am Eingang heraus. */
 export function updateTraining(w: World): void {
   for (const b of w.s.buildings) {
@@ -405,12 +462,7 @@ export function updateTraining(w: World): void {
     b.training = null; b.ai.inside = null;
     if (!u) continue;
     const def = UNITS[tr.unit];
-    let [ex, ey] = entrance(b.key, b.x, b.y, b.o);
-    if (!w.inMap(ex, ey) || !w.nav.open(w.nav.node(0, ex, ey), 0)) {
-      // Eingang zugebaut: am nächsten freien Tile heraustreten
-      const n = w.nav.nearestOpen(0, Math.min(w.s.w - 1, Math.max(0, ex)), Math.min(w.s.h - 1, Math.max(0, ey)), 0, 8);
-      if (n >= 0) { ex = w.nav.tileX(n); ey = w.nav.tileY(n); }
-    }
+    const [ex, ey] = exitTile(w, b);
     u.key = tr.unit; u.maxHp = def.hp; u.hp = def.hp;
     u.x = u.px = ex + 0.5; u.y = u.py = ey + 0.5; u.z = u.pz = 0; u.layer = 0;
     u.carry = null; u.home = 0; u.dead = false; u.order = { t: "idle" };
@@ -418,6 +470,7 @@ export function updateTraining(w: World): void {
     applyBoost(w, u);
     setAnim(u, "stehen", true);
     w.insertUnit(u);
+    noteTrained(w);
     w.msg(`${def.name} ist ausgebildet.`, "info", undefined, 20, "ausgebildet");
   }
 }

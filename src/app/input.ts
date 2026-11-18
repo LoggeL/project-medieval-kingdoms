@@ -493,7 +493,15 @@ export class Input {
       case "abbrechen":
         if (this.face) { this.face = null; break; }
         if (store.tool.t !== "auswahl") { store.setTool({ t: "auswahl" }); this.wallStart = null; }
-        else store.select({ units: [], building: null });
+        else if (store.selection.units.length || store.selection.building) store.select({ units: [], building: null });
+        else store.emit("menu"); // nichts gewählt: Spielmenü (src/ui/spielmenue.ts)
+        break;
+      case "schnellspeichern":
+        e.preventDefault();
+        if (e.repeat) break;
+        bridge.saves.save("schnell").then(
+          () => this.notify("Schnell gespeichert"),
+          (err: Error) => this.notify(`Speichern fehlgeschlagen: ${err.message}`, "warnung"));
         break;
       case "zoomRein": bridge.zoom(1); break;
       case "zoomRaus": bridge.zoom(-1); break;

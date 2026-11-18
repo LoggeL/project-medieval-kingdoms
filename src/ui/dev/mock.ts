@@ -4,7 +4,8 @@
  * Halten), damit sich die Oberfläche bedienen lässt. Keine echte Spiellogik. Icons kommen aus den echten Blättern (sprites.ts).
  * Ausbildungszeiten in Sekunden wie in der Simulation; Kamera, Sichtbereich, Audio und Hinweise wie im Vertrag.
  */
-import type { IconKind, Selection, Tool, UiBridge } from "../../app/contract";
+import type { AppEvent, IconKind, Selection, Tool, UiBridge } from "../../app/contract";
+import { MemoryBackend, saveInfo } from "../../app/saves";
 import { BUILDINGS, TICKS_PER_SECOND, UNITS, equipmentOf, type BuildingKey, type Good, type UnitKey } from "../../data";
 import type { MusicKey } from "../../data/audio";
 import { ZOOMS } from "../../data/view";
@@ -12,7 +13,7 @@ import { createDemoGame } from "../../sim/demo";
 import type { Building, Command, CommandResult, Game, Message, Unit, UnitActivity } from "../../sim/types";
 import { cropToAlpha, fitIcon, loadSprites, type Sprites } from "./sprites";
 
-type Ev = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
+type Ev = AppEvent;
 
 /** Gebäude ohne eigenes Sprite im Blatt (kommt vom Grafik-Agenten) → nächstes vorhandenes. */
 const BUILDING_FALLBACK: Record<string, string> = { tor: "mauer" };
@@ -31,6 +32,7 @@ export function createMockBridge(): MockBridge {
   const game = createDemoGame();
   const s = game.state;
   const subs = new Map<Ev, Set<() => void>>();
+  const saveBackend = new MemoryBackend();
   const notifySubs = new Set<(t: string, k?: "info" | "warnung") => void>();
   const emit = (e: Ev) => subs.get(e)?.forEach((f) => f());
   let selection: Selection = { units: [], building: null };
@@ -257,6 +259,15 @@ export function createMockBridge(): MockBridge {
       return () => subs.get(ev)!.delete(fn);
     },
     notify(text, kind) { notifySubs.forEach((f) => f(text, kind)); },
+    // Spielstände im Arbeitsspeicher (Laden ersetzt nur die Anzeige der Übersicht, nicht die Mock-Welt)
+    saves: {
+      persistent: () => false,
+      list: () => saveBackend.list(),
+      async save(slot) { const data = JSON.stringify({ tick: s.tick }); const info = saveInfo(slot, s, data.length); await saveBackend.write(info, data); return info; },
+      async load(slot) { if (!(await saveBackend.read(slot))) throw new Error("Kein Spielstand auf diesem Platz"); emit("loaded"); },
+      remove: (slot) => saveBackend.remove(slot),
+    },
+    async toTitle() { location.reload(); },
     onNotify(fn) { notifySubs.add(fn); return () => { notifySubs.delete(fn); }; },
     camera: () => ({ x: cam.x, y: cam.y, corners: corners() }),
     lookAt(x, y) { cam.x = x; cam.y = y; emit("view"); },

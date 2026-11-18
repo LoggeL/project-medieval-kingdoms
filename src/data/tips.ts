@@ -36,8 +36,8 @@ export const TIPS: Tip[] = [
   { thema: "militaer", text: "Wer auf Mauer oder Turm steht, nimmt von unten weniger Schaden. Bogenschützen schießen von dort auch weiter." },
   { thema: "militaer", text: "Die Kaserne bildet sechs Truppen aus, Pikeniere und Armbrustschützen erst nach Forschung. Jeder Soldat kostet Gold und Ausrüstung aus dem Lager." },
   { thema: "militaer", text: "Überfälle kommen aus dem Osten über die Furt im Fluss. Dort lohnt sich eine Mauer mit Tor." },
-  { thema: "militaer", text: "Der erste Überfall kommt nach etwa fünf Minuten, dann alle vier Minuten, und jede Welle ist größer. Späher warnen 30 Sekunden vorher." },
-  { thema: "militaer", text: "Angreifer haben keine Leitern. Sie reißen ein, was ihnen im Weg steht. Jeder besiegte Angreifer bringt 4 Gold." },
+  { thema: "militaer", text: "Auf Normal kommt der erste Überfall nach etwa fünf Minuten, dann alle vier Minuten, und jede Welle ist größer. Späher warnen 30 Sekunden vorher." },
+  { thema: "militaer", text: "Ab der zweiten Welle tragen Angreifer Sturmleitern, ab der dritten schieben sie einen Rammbock. Jeder besiegte Angreifer bringt 4 Gold." },
 ];
 
 /** Kompakte Tastenübersicht für den Titelbildschirm (Taste, Wirkung). */
@@ -61,8 +61,9 @@ export const STEUERUNG: [string, string][] = [
   ["Doppelklick", "Alle sichtbaren Einheiten dieser Art wählen"],
   ["Strg + Ziffer", "Gruppe speichern, Ziffer wählt, zweimal: Kamera hin"],
   ["Leertaste / P", "Pause"],
-  ["Esc", "Werkzeug oder Auswahl aufheben"],
+  ["Esc", "Werkzeug oder Auswahl aufheben, sonst Spielmenü"],
   ["F2 – F8", "Bau-Reiter (Wirtschaft bis Wege)"],
+  ["F10", "Schnellspeichern"],
   ["Y X C V B N M", "Gebäude im offenen Reiter wählen"],
   ["U / I / O / Ü / Ä / #", "In der gewählten Kaserne ausbilden"],
   ["Entf", "Abriss-Werkzeug, bei gewähltem Gebäude abreißen"],

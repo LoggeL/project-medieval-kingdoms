@@ -11,6 +11,7 @@ import { abortJobsAt, rockTag } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
+import { noteDefeat, noteDestroyed } from "./match";
 import { newProc, returnProcGoods } from "./production";
 import { fieldPlan, fieldReason, newFarm, plotAt } from "./farm";
 import { addRuins, clearRubble, laddersLoseWall } from "./belagerung";
@@ -420,12 +421,13 @@ export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoer
     }
   }
   evictUnits(w);
+  if (why === "zerstoert") noteDestroyed(w, b);
   if (why === "zerstoert" && b.team === 0 && def.seat && !w.s.outcome) {
     // Der Bergfried ist gefallen: Die Partie ist verloren, es kommen keine Wellen und keine Leute mehr (raidTick,
     // updatePopulation prüfen outcome). Eine laufende Forschung verfällt samt angelieferter Waren; ihre Träger hat
     // abortJobsAt schon entlassen. Die Simulation läuft weiter (Tests, Zuschauen); die Oberfläche zeigt die Niederlage
     // und hält das Spiel an.
-    w.s.outcome = "niederlage";
+    noteDefeat(w);
     w.s.research.cur = null;
     w.msg(`Der ${def.name} ist gefallen! Die Burg ist verloren.`, "kampf", undefined, 20, "zerstoert");
   } else if (why === "zerstoert" && b.team === 0) {

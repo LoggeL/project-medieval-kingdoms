@@ -11,10 +11,11 @@
  * und verlässt die Karte. Er kämpft dabei nicht mehr. Ist der Rückweg versperrt, stellt er sich und kämpft bis zuletzt.
  * Ist kein Angreifer mehr auf der Karte, gilt die Welle als abgewehrt.
  */
-import { BUILDINGS, RAID_SIEGE, START, TUNING, UNITS, type BuildingKey, type UnitKey } from "../data";
+import { BUILDINGS, RAID_SIEGE, TUNING, UNITS, type BuildingKey, type UnitKey } from "../data";
 import { inRangeBuilding, inRangeUnit, isRanged, isSoldier, meleeReachable, nearestEnemy, strikeBuilding, strikeUnit, vanish } from "./combat";
 import { center } from "./geom";
 import { blockedNode, goalAround, lineClear, stepToward, stop, tileGoal, travel, type TravelResult } from "./move";
+import { noteWaveRepelled, raidParams, toughen } from "./match";
 import { TPS, setAnim, type SUnit, type World } from "./world";
 import { fillDitch, hasLadderWall, siegeAct, viaLadder } from "./belagerung";
 
@@ -23,19 +24,20 @@ export const RAID_WARNING_SECONDS = 30;
 
 export function raidTick(w: World): void {
   const s = w.s;
-  // Nach der Niederlage (Bergfried gefallen) keine Vorwarnung und keine neuen Wellen mehr
+  // Nach Sieg oder Niederlage keine Vorwarnung und keine neuen Wellen mehr; Abstand und Größe je Schwierigkeitsgrad
   const due = w.meta.raidsEnabled && !s.outcome;
   if (due && s.tick === s.raid.next - RAID_WARNING_SECONDS * TPS) {
     w.msg("Späher melden Krieger auf dem Weg. In 30 Sekunden sind sie hier.", "kampf", "ueberfall-bald", 20, "ueberfall_bald");
   }
   if (due && s.tick >= s.raid.next) {
     spawnWave(w);
-    s.raid.next = s.tick + START.raid.everySeconds * TPS;
+    s.raid.next = s.tick + raidParams(s).everySeconds * TPS;
   }
   let active = false;
   for (const u of s.units) if (u.team === 1 && !u.dead) { active = true; break; }
   if (w.meta.raidRunning && !active) {
     w.meta.raidRunning = false;
+    noteWaveRepelled(w);
     w.msg("Der Überfall ist abgewehrt!", "kampf", undefined, 20, "abgewehrt");
   }
   s.raid.active = active;
@@ -43,8 +45,9 @@ export function raidTick(w: World): void {
 
 export function spawnWave(w: World): number[] {
   const s = w.s, nav = w.nav;
-  const n = START.raid.baseSize + START.raid.growth * s.raid.wave;
-  const mix = START.raid.mix;
+  const p = raidParams(s);
+  const n = p.baseSize + p.growth * s.raid.wave;
+  const mix = p.mix;
   s.raid.wave++;
   w.meta.raidLosses = 0;
   // Belagerungswerkzeug (RAID_SIEGE, ADR 0017): Sturmknechte mit Leitern und Rammböcke samt Mannschaft ersetzen Krieger.
@@ -69,6 +72,7 @@ export function spawnWave(w: World): number[] {
       if (!w.inMap(x, y) || !nav.open(nav.node(0, x, y), 1)) continue;
       const p = plan[ids.length];
       const u = w.addUnit(p.key, 1, x + 0.5, y + 0.5);
+      toughen(s, u); // Lebenspunkte nach Schwierigkeitsgrad (ADR 0019), auch Rammbock und Sturmknechte
       u.ai.think = ids.length % TPS;
       if (p.gear) u.gear = p.gear;
       if (UNITS[p.key].vehicle) rams.push(u.id);

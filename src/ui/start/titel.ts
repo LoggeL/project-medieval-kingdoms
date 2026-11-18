@@ -1,15 +1,22 @@
 /**
  * Titelbildschirm (DOM): Schlüsselbild vollflächig (cover, Vignette, sehr langsamer Schwenk), Wappen und Schriftzug,
- * Menü „Neues Spiel“, „Klang“, „Steuerung“ und „Design-Dokument“ (Link auf die Konzeptseite unter /konzept/).
- * „Fortsetzen“ gibt es nicht: Der Prototyp speichert keinen Spielstand im Browser.
+ * Menü „Fortsetzen“ (neuester Spielstand, nur wenn einer da ist), „Neues Spiel“ (Tafel mit Ziel und
+ * Schwierigkeitsgrad aus den Daten), „Laden“ (Tafel mit allen Plätzen), „Klang“, „Steuerung“ und „Design-Dokument“
+ * (Link auf die Konzeptseite unter /konzept/). ADR 0019.
  *
- * Tastatur: Pfeile hoch/runter wandern durchs Menü, Enter löst aus (ohne Fokus startet Enter das Spiel), Esc schließt
- * eine offene Tafel. Spricht nur über die UiBridge (Klang-Einstellung) mit dem Spiel.
+ * Tastatur: Pfeile hoch/runter wandern durchs Menü, Enter löst aus (ohne Fokus startet Enter ein neues Spiel auf
+ * „Normal“), Esc schließt eine offene Tafel. Spricht nur über die UiBridge (Klang, Spielstände) mit dem Spiel.
  */
-import type { UiBridge } from "../../app/contract";
+import type { SaveInfo, UiBridge } from "../../app/contract";
+import { latest } from "../../app/saves";
+import { DEFAULT_DIFFICULTY, DEFAULT_SCENARIO, DIFFICULTIES, DIFFICULTY_KEYS, SCENARIOS, type DifficultyKey, type SaveSlotKey } from "../../data";
 import { STEUERUNG } from "../../data/tips";
 import { h, setText } from "../dom";
+import { describeSave, slotLabel, slotList } from "../spielstaende";
 import type { TitelMusik } from "./musik";
+
+/** Was der Spieler im Titel gewählt hat. */
+export type TitelWahl = { k: "neu"; difficulty: DifficultyKey } | { k: "laden"; slot: SaveSlotKey };
 
 export interface TitelOptionen {
   bridge: UiBridge;
@@ -18,9 +25,11 @@ export interface TitelOptionen {
   bild: string | null;
   /** Adresse der Konzeptseite (Menüpunkt „Design-Dokument“) oder null (kein Menüpunkt). */
   konzept: string | null;
+  /** Wahl ausführen (Partie anlegen oder Spielstand laden); wirft mit Spielertext, dann bleibt der Titel stehen. */
+  waehlen: (w: TitelWahl) => Promise<void>;
 }
 
-type Tafel = "klang" | "steuerung" | null;
+type Tafel = "klang" | "steuerung" | "neu" | "laden" | null;
 
 /** Wappenschild: Blau mit goldenem Rand und Turm, Teamfarbe wie die Banner der Sprites. */
 function schild(): SVGSVGElement {
@@ -54,6 +63,13 @@ export class Titelbildschirm {
   private tafel: Tafel = null;
   private knopfKlang!: HTMLButtonElement;
   private knopfSteuerung!: HTMLButtonElement;
+  private knopfNeu!: HTMLButtonElement;
+  private knopfLaden!: HTMLButtonElement;
+  private knopfWeiter!: HTMLButtonElement;
+  /** Spielstände (nach dem Einhängen gelesen). */
+  private staende: SaveInfo[] = [];
+  private schwierigkeit: DifficultyKey = DEFAULT_DIFFICULTY;
+  private fehlerBox!: HTMLElement;
   private gestartet = false;
   private resolve: (() => void) | null = null;
   private aus: (() => void)[] = [];
@@ -64,13 +80,18 @@ export class Titelbildschirm {
       const img = h("img", { src: o.bild, alt: "", decoding: "async", draggable: "false" });
       bildBox.append(img);
     }
-    const neu = h("button.mk-menue-knopf.mk-haupt", { type: "button", text: "Neues Spiel", onclick: () => this.starten() });
+    this.knopfWeiter = h("button.mk-menue-knopf.mk-haupt.mk-weiter", { type: "button", text: "Fortsetzen", onclick: () => this.fortsetzen() });
+    this.knopfWeiter.hidden = true;
+    this.knopfNeu = h("button.mk-menue-knopf.mk-neu", { type: "button", text: "Neues Spiel", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("neu") });
+    this.knopfLaden = h("button.mk-menue-knopf", { type: "button", text: "Laden", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("laden") });
     this.knopfKlang = h("button.mk-menue-knopf", { type: "button", text: "Klang", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("klang") });
     this.knopfSteuerung = h("button.mk-menue-knopf", { type: "button", text: "Steuerung", "aria-expanded": "false", "aria-controls": "mk-tafel", onclick: () => this.zeige("steuerung") });
-    const items: HTMLElement[] = [neu, this.knopfKlang, this.knopfSteuerung];
+    const items: HTMLElement[] = [this.knopfWeiter, this.knopfNeu, this.knopfLaden, this.knopfKlang, this.knopfSteuerung];
     if (o.konzept) items.push(h("a.mk-menue-knopf", { href: o.konzept, text: "Design-Dokument", title: "Spiel- und Technikkonzept mit Schaubildern" }));
-    this.knoepfe = items;
-    this.menue = h("nav.mk-menue", { "aria-label": "Hauptmenü" }, ...items);
+    this.knoepfe = items.filter((k) => !k.hidden);
+    this.fehlerBox = h("p.mk-titel-fehler", { role: "alert" });
+    this.fehlerBox.hidden = true;
+    this.menue = h("nav.mk-menue", { "aria-label": "Hauptmenü" }, ...items, this.fehlerBox);
     this.panelHost = h("div", { id: "mk-tafel" });
 
     const fuss = h("p.mk-titel-fuss", null,
@@ -126,7 +147,45 @@ export class Titelbildschirm {
     const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
     if (ua?.hasBeenActive) this.geste();
     window.setTimeout(() => this.knoepfe[0].focus({ preventScroll: true }), 50);
+    // Spielstände lesen: Gibt es einen, steht „Fortsetzen“ oben (und hat den Fokus)
+    void this.o.bridge.saves.list().then((list) => {
+      this.staende = list;
+      const neu = latest(list);
+      if (this.tafel === "laden") this.zeige("laden", true);
+      if (!neu || this.gestartet) return;
+      const fokus = document.activeElement === this.knoepfe[0] || !this.el.contains(document.activeElement);
+      this.knopfWeiter.hidden = false;
+      this.knopfWeiter.title = `${slotLabel(neu.slot)}: ${describeSave(neu)}`;
+      this.knopfWeiter.setAttribute("aria-label", `Fortsetzen: ${slotLabel(neu.slot)}, ${describeSave(neu)}`);
+      this.knoepfe = [this.knopfWeiter, ...this.knoepfe.filter((k) => k !== this.knopfWeiter)];
+      if (fokus) this.knopfWeiter.focus({ preventScroll: true });
+    });
     return new Promise((r) => { this.resolve = r; if (this.gestartet) r(); });
+  }
+
+  /** Neuesten Spielstand laden. */
+  private fortsetzen(): void {
+    const neu = latest(this.staende);
+    if (neu) void this.waehle({ k: "laden", slot: neu.slot });
+  }
+
+  /** Wahl ausführen; bei Fehler bleibt der Titel stehen und zeigt den Grund. */
+  private async waehle(w: TitelWahl): Promise<void> {
+    if (this.gestartet) return;
+    this.gestartet = true;
+    this.fehlerBox.hidden = true;
+    this.el.classList.add("mk-titel-wartet");
+    try {
+      await this.o.waehlen(w);
+    } catch (e) {
+      this.gestartet = false;
+      this.el.classList.remove("mk-titel-wartet");
+      this.fehlerBox.textContent = `${w.k === "laden" ? "Laden fehlgeschlagen" : "Start fehlgeschlagen"}: ${(e as Error).message}`;
+      this.fehlerBox.hidden = false;
+      return;
+    }
+    this.o.musik.ausblenden(1.5);
+    this.resolve?.();
   }
 
   /** Erste Geste: Titelmusik (falls nicht stumm, das regelt die Lautstärke). */
@@ -134,11 +193,9 @@ export class Titelbildschirm {
     if (!this.gestartet) this.o.musik.start();
   }
 
+  /** Neues Spiel mit dem gewählten Schwierigkeitsgrad (Standard: Normal). */
   starten(): void {
-    if (this.gestartet) return;
-    this.gestartet = true;
-    this.o.musik.ausblenden(1.5);
-    this.resolve?.();
+    void this.waehle({ k: "neu", difficulty: this.schwierigkeit });
   }
 
   private taste(e: KeyboardEvent): void {
@@ -161,24 +218,58 @@ export class Titelbildschirm {
     }
   }
 
-  /** Klang- oder Steuerungstafel öffnen (erneuter Klick schließt). */
-  private zeige(t: Tafel): void {
-    const neu = t === this.tafel ? null : t;
+  /** Tafel öffnen (erneuter Klick schließt; neuZeichnen: dieselbe Tafel mit frischen Daten, ohne Fokuswechsel). */
+  private zeige(t: Tafel, neuZeichnen = false): void {
+    const neu = t === this.tafel && !neuZeichnen ? null : t;
     const vorher = this.tafel;
     this.tafel = neu;
     this.panelHost.textContent = "";
-    this.knopfKlang.setAttribute("aria-expanded", String(neu === "klang"));
-    this.knopfSteuerung.setAttribute("aria-expanded", String(neu === "steuerung"));
+    const knopf: Record<Exclude<Tafel, null>, HTMLButtonElement> = { klang: this.knopfKlang, steuerung: this.knopfSteuerung, neu: this.knopfNeu, laden: this.knopfLaden };
+    for (const [k, b] of Object.entries(knopf)) b.setAttribute("aria-expanded", String(neu === k));
     if (!neu) {
-      if (vorher === "klang") this.knopfKlang.focus();
-      else if (vorher === "steuerung") this.knopfSteuerung.focus();
+      if (vorher) knopf[vorher].focus();
       return;
     }
     const zu = h("button.mk-panel-zu", { type: "button", "aria-label": "Schließen", text: "×", onclick: () => this.zeige(null) });
-    const panel = neu === "klang" ? this.klangTafel(zu) : this.steuerungTafel(zu);
+    const panel = neu === "klang" ? this.klangTafel(zu) : neu === "steuerung" ? this.steuerungTafel(zu)
+      : neu === "neu" ? this.neuTafel(zu) : this.ladenTafel(zu);
+    if (neuZeichnen && vorher === neu) { this.panelHost.append(panel); return; }
     this.panelHost.append(panel);
     (panel.querySelector("input, button:not(.mk-panel-zu)") as HTMLElement | null ?? zu).focus({ preventScroll: true });
     if (window.innerWidth <= 760) panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  /** Neues Spiel: Ziel des Szenarios und Schwierigkeitsgrad (Daten), dann „Beginnen“. */
+  private neuTafel(zu: HTMLElement): HTMLElement {
+    const sc = SCENARIOS[DEFAULT_SCENARIO];
+    const wahl = h("div.mk-schwierigkeit", { role: "radiogroup", "aria-label": "Schwierigkeitsgrad" });
+    const zeichnen = () => {
+      wahl.textContent = "";
+      for (const k of DIFFICULTY_KEYS) {
+        const d = DIFFICULTIES[k];
+        const on = k === this.schwierigkeit;
+        wahl.append(h(`button.mk-stufe${on ? ".mk-an" : ""}` as "button", {
+          type: "button", role: "radio", "aria-checked": String(on), "data-stufe": k,
+          onclick: () => { this.schwierigkeit = k; zeichnen(); (wahl.querySelector(`[data-stufe="${k}"]`) as HTMLElement).focus(); },
+        }, h("strong", { text: d.name }), h("span", { text: d.text })));
+      }
+    };
+    zeichnen();
+    const los = h("button.mk-menue-knopf.mk-haupt.mk-beginnen", { type: "button", text: "Beginnen", onclick: () => this.starten() });
+    return h("section.mk-start-panel.mk-ecken.mk-neu-tafel", { "aria-labelledby": "mk-tafel-titel" }, zu,
+      h("h2", { id: "mk-tafel-titel", text: "Neues Spiel" }),
+      h("p.mk-auftrag", null, h("strong", { text: `${sc.name}: ` }), sc.text),
+      h("p.mk-klang-hinweis", { text: sc.niederlage }),
+      wahl, los);
+  }
+
+  /** Laden: alle belegten Plätze. */
+  private ladenTafel(zu: HTMLElement): HTMLElement {
+    const liste = slotList({ mode: "laden", infos: this.staende, buttonClass: "mk-menue-knopf", pick: (slot) => void this.waehle({ k: "laden", slot }) });
+    const hinweis = this.o.bridge.saves.persistent() ? null
+      : h("p.mk-klang-hinweis", { text: "Der Browser erlaubt keine dauerhafte Ablage: Spielstände gelten nur, solange dieser Tab offen ist." });
+    return h("section.mk-start-panel.mk-ecken.mk-laden-tafel", { "aria-labelledby": "mk-tafel-titel" }, zu,
+      h("h2", { id: "mk-tafel-titel", text: "Laden" }), liste, hinweis);
   }
 
   private steuerungTafel(zu: HTMLElement): HTMLElement {

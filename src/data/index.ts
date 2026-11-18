@@ -52,6 +52,8 @@ export * from "./recipes";
 export * from "./landwirtschaft";
 export * from "./nahrung";
 export * from "./befehle";
+// Spielziel, Schwierigkeitsgrade, Speicherplätze (ADR 0019)
+export * from "./spielziel";
 
 export type Cost = Partial<Record<Good | "gold", number>>;
 

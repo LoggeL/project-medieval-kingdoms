@@ -3,9 +3,9 @@
  * Meldet Änderungen als Ereignisse an die Brücke (UiBridge.on).
  */
 import type { SimState } from "../sim/types";
-import type { Selection, Tool } from "./contract";
+import type { AppEvent, Selection, Tool } from "./contract";
 
-export type AppEvent = "tick" | "selection" | "tool" | "view" | "assets" | "audio";
+export type { AppEvent };
 
 export class AppStore {
   selection: Selection = { units: [], building: null };
@@ -42,6 +42,15 @@ export class AppStore {
   setTool(t: Tool): void {
     this.tool = t;
     this.emit("tool");
+  }
+
+  /** Nach dem Laden einer anderen Partie: Auswahl, Werkzeug und Gruppen gehören zur alten. */
+  reset(): void {
+    this.groups.clear();
+    this.tool = { t: "auswahl" };
+    this.selection = { units: [], building: null };
+    this.emit("tool");
+    this.emit("selection");
   }
 
   /** Tote oder verschwundene Einheiten und abgerissene Gebäude aus der Auswahl nehmen. */

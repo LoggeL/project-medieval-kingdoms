@@ -1,5 +1,7 @@
 /**
  * Kopfleiste (dunkles Eichenholz mit Eisenbeschlägen): Waren nach Gruppen (GOOD_GROUPS: Rohstoffe, Waffen, Nahrung),
+ * je Ware die frei verfügbare Menge (state.free, wie die Simulation beim Bauen rechnet) und, falls etwas verplant ist,
+ * als kleines Schild an der Zelle „+n“ verplant (Tooltip: Bestand, verplant, frei); dazu
  * Gold, Bevölkerung, Bestand und Kapazität je Lagertyp (STORES: Lagerhaus, Kornkammer), aktuelle Ereignisse mit
  * Überfall-Countdown, Geschwindigkeit, Drehen mit Kompass, Zoom, Klang und Hilfe. Neue Waren und Lagertypen erscheinen
  * hier aus den Daten, ohne Änderung an dieser Datei.
@@ -11,17 +13,19 @@ import type { SimState } from "../sim/types";
 import { createAudioControl } from "./audio";
 import { northOnScreen } from "./compass";
 import { clock, h, num, setAttr, setBar, setClass, setText } from "./dom";
-import { coin, type UiCtx } from "./shared";
+import { coin, freeOf, type UiCtx } from "./shared";
 
 export interface TopBar { el: HTMLElement; update(s: SimState): void; updateView(): void; updateSpeed(): void; updateAudio(): void }
 
-export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
+export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => void): TopBar {
   const { bridge, icons } = ctx;
 
   const goodCell = (g: Good) => {
     const val = h("span.mk-num");
-    const el = h("div.mk-res", { title: GOODS[g].name }, icons.make("ware", g, 24, 24), val);
-    return { g, el, val };
+    const res = h("span.mk-num.mk-res-verplant");
+    res.hidden = true;
+    const el = h("div.mk-res", { title: GOODS[g].name }, icons.make("ware", g, 24, 24), val, res);
+    return { g, el, val, res };
   };
   const groups = GOOD_GROUPS.map((gr) => ({ gr, cells: GOOD_KEYS.filter((g) => GOODS[g].group === gr.key).map(goodCell) }))
     .filter((x) => x.cells.length);
@@ -81,6 +85,7 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
   const zoom = h("div.mk-group", { role: "group", "aria-label": "Zoom" }, zoomOut, zoomVal, zoomIn);
   const audio = createAudioControl(bridge);
   const help = btn("?", "Steuerung und Hilfe (F1)", openHelp, ".mk-btn-help");
+  const menu = openMenu ? btn("☰", "Spielmenü: Speichern, Laden, Einstellungen, Hauptmenü (Esc, wenn nichts gewählt ist)", openMenu, ".mk-btn-menu") : null;
 
   const el = h("header.mk-top.mk-wood", null,
     h("div.mk-top-res", null,
@@ -89,13 +94,21 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
     events,
     h("div.mk-top-ctl", null,
       h("div.mk-group", { role: "group", "aria-label": "Geschwindigkeit" }, ...speedBtns),
-      rot, zoom, audio.el, help));
+      rot, zoom, audio.el, help, menu));
 
   let lastMsg = -1;
   return {
     el,
     update(s) {
-      for (const r of cells) setText(r.val, num(s.stock[r.g] ?? 0));
+      for (const r of cells) {
+        const all = s.stock[r.g] ?? 0, free = Math.min(all, freeOf(s, r.g)), held = all - free;
+        setText(r.val, num(free));
+        setText(r.res, `+${num(held)}`);
+        r.res.hidden = held <= 0;
+        setAttr(r.el, "title", held > 0
+          ? `${GOODS[r.g].name}: ${num(free)} frei, ${num(held)} verplant (Baustellen, Forschung, Werkstätten, Rekruten), ${num(all)} im Lager`
+          : `${GOODS[r.g].name}: ${num(all)} im Lager, alles frei`);
+      }
       setText(goldVal, num(s.gold));
       setText(popVal, `${num(s.population)}/${num(s.housing)}`);
       setClass(pop, "mk-warn", s.population >= s.housing);
@@ -120,7 +133,14 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
 
       // Überfall: raid.next ist der Tick der nächsten Welle, auch während eine Welle läuft.
       const secs = (s.raid.next - s.tick) / TICKS_PER_SECOND;
-      if (s.raid.active) {
+      if (s.outcome && !s.raid.active) {
+        // Partie entschieden: keine Wellen mehr (ADR 0019). Kurz und im Zeitfeld, das in jeder Breite sichtbar ist
+        setText(raidLabel, "");
+        setText(raidTime, s.outcome === "sieg" ? "Tal gesichert" : "Burg gefallen");
+        raidNext.hidden = true;
+        setAttr(raidText, "title", s.outcome === "sieg" ? "Alle Ziele erreicht: Es kommen keine Überfälle mehr." : "Der Bergfried ist gefallen.");
+        setClass(raidText, "mk-raid-active", false);
+      } else if (s.raid.active) {
         setText(raidLabel, "Überfall! ");
         setText(raidTime, `Welle ${s.raid.wave}`);
         setText(raidNextTime, clock(secs));
@@ -134,7 +154,9 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void): TopBar {
         setAttr(raidText, "title", `Nächster Überfall in ${clock(secs)} (Welle ${s.raid.wave + 1})`);
         setClass(raidText, "mk-raid-active", false);
       }
-      setClass(raidText, "mk-raid-soon", secs < 30);
+      setClass(raidText, "mk-raid-soon", !s.outcome && secs < 30);
+      setClass(raidText, "mk-raid-ende", !!s.outcome && !s.raid.active);
+      setClass(raidText, "mk-raid-sieg", s.outcome === "sieg");
       const m = s.messages[s.messages.length - 1];
       const key = m ? m.tick * 31 + s.messages.length : -1;
       if (key !== lastMsg) {

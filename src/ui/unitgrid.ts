@@ -9,7 +9,7 @@ import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
 import { h, num, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
-import { costRow, type UiCtx } from "./shared";
+import { costRow, freeOf, type UiCtx } from "./shared";
 
 const EQUIP: Partial<Record<Good, string>> = {
   speer: "den Speer", schwert: "das Schwert", bogen: "den Bogen", eisen: "das Eisen", armbrust: "die Armbrust", pike: "die Pike", ruestung: "die Rüstung",
@@ -18,7 +18,7 @@ const EQUIP: Partial<Record<Good, string>> = {
 /** Fehlt Ausrüstung im Lager (Bestand der Kopfleiste, je Stück)? */
 export function gearShort(s: SimState, def: UnitDef): boolean {
   const eq = equipmentOf(def);
-  return eq.some((g) => (s.stock[g] ?? 0) < eq.filter((x) => x === g).length);
+  return eq.some((g) => freeOf(s, g) < eq.filter((x) => x === g).length); // freier Bestand (ohne verplante Stücke, ADR 0019)
 }
 
 const dec = (n: number) => String(n).replace(".", ",");

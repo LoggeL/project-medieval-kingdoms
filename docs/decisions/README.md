@@ -22,5 +22,6 @@ Jede Entscheidung mit Tragweite bekommt eine nummerierte Datei: Kontext, Optione
 | [0016](0016-lebendige-welt.md) | Lebendige Welt: Tiere, nachwachsender Wald, Ruhebilder, Fahnen, Tageslicht | Angenommen |
 | [0017](0017-belagerung-und-befestigung.md) | Belagerung und Befestigung: Leitern, Rammbock, Breschen, Schaden, Reparatur, Heilung, Palisade, Graben | Angenommen |
 | [0018](0018-befehle-und-steuerung.md) | Befehle und Steuerung: Formation, Angriffsmarsch, Patrouille, Rückzug, Haltung, Kontrollgruppen | Angenommen |
+| [0019](0019-spielziel-und-speichern.md) | Spielziel (Wellen halten), Schwierigkeit, Spielstände im Browser, Spielstand-Version 3 | Angenommen |
 
 Geplant: Art-Pipeline · Pfadfindung mit Laufebenen · Speicherformat

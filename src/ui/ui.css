@@ -1165,11 +1165,7 @@ kbd {
 .mk-next ul:empty { display: none; }
 .mk-side .mk-btn-wide + .mk-btn-wide { margin-top: 6px; }
 
-/* Niederlage */
-.mk-defeat-card { width: min(460px, 100%); text-align: center; }
-.mk-defeat-card .mk-title { font-size: 32px; color: var(--mk-red-ink); margin-bottom: 8px; }
-.mk-defeat-card p { color: var(--mk-ink); font-size: 15px; margin: 0 0 14px; }
-.mk-defeat-card .mk-btn-wide + .mk-btn-wide { margin-top: 8px; }
+/* Sieg und Niederlage: src/ui/spielziel.css (.mk-ende-card) */
 /* Baukarte, die eine Forschung braucht */
 .mk-card .mk-need { grid-column: auto; text-align: center; }
 .mk-card.mk-locked .mk-card-icon { filter: grayscale(1) brightness(0.65) contrast(0.9); }

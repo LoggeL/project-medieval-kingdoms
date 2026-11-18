@@ -3,7 +3,7 @@
  *
  * Zwei Gruppen:
  * - APP_KEYS: Tasten, die die Eingabe (src/app/input.ts) selbst auswertet: Kamera, Drehen, Zoom, Pause, Gruppen,
- *   Bauen drehen, Stationieren, Halten, Abbrechen, Hilfe, Debug.
+ *   Bauen drehen, Stationieren, Halten, Abbrechen (ohne Auswahl und Werkzeug: Spielmenü), Hilfe, Debug, Schnellspeichern (F10; F8 gehört dem Reiter Wege).
  * - Tasten der Knöpfe unten und im Auswahlpanel (src/ui/hotkeys.ts): Bau-Reiter, Baukarten im offenen Reiter
  *   (nach Lage auf einer festen Tastenreihe), Werkzeuge, Ausbilden in der Kaserne, Abreißen, Forschung, Ausbau des
  *   Bergfrieds.
@@ -38,6 +38,8 @@ export const APP_KEYS = {
   abbrechen: ["Escape"],
   hilfe: ["F1"],
   debug: ["F9"],
+  /** Schnellspeichern auf den Platz „Schnellspeicher“ (ADR 0019); Laden über das Spielmenü (Esc). */
+  schnellspeichern: ["F10"],
   /** Ziffern: Gruppe wählen, mit Strg speichern. */
   gruppen: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
 } as const satisfies Record<string, readonly string[]>;

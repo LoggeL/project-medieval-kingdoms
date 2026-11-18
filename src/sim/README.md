@@ -22,7 +22,9 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 | `befehle.ts` | Truppenführung (ADR 0018): Formationsplätze (`placeGroup`, `planFormation`), Bewegen in Formation, Angriffsmarsch, Patrouille, Rückzug, Haltung und Formation wechseln, Tempo der Gruppe |
 | `raid.ts` | Überfallwellen mit Vorwarnung (30 s), Angreifer-KI (Belagerungspfad, Hindernis einreißen, Graben zuschütten, Rückzug), Belagerungswerkzeug ab Welle 2 |
 | `belagerung.ts` | Belagerung und Befestigung (ADR 0017): Sturmleitern (anlegen, klettern, umstoßen), Rammbock und Mannschaft, Trümmer (Bresche), Schadensstufen, Reparatur durch Tagelöhner, Heilung, Graben zuschütten |
-| `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden |
+| `game.ts` | `Simulation` (implementiert `Game`), Tick-Reihenfolge, Befehle, Einführung (Zielkette aus `TUTORIAL`), Speichern/Laden, Laden an Ort und Stelle (`restore`) |
+| `match.ts` | Partie (ADR 0019): Szenario, Schwierigkeit (`raidParams`, `startGold`, `toughen`), Statistik (`note…`-Haken), Sieg (`updateMatch`), Niederlage (`noteDefeat`), Zielfortschritt (`goalProgress`, auch für die Oberfläche) |
+| `migrate.ts` | Spielstand-Migrationen `MIGRATIONS[v]` (v → v+1) bis `SAVE_VERSION`, Ablehnung mit Spielertext |
 | `debug.ts` | Hilfen für Tests (fertig bauen, Einheiten setzen, Lager füllen) |
 | `demo.ts` | alte Platzhalter-Welt (für Darstellungsversuche) |
 
@@ -47,6 +49,16 @@ Spiellogik ohne DOM und Pixi, 20 Ticks pro Sekunde, deterministisch aus dem Seed
 - Einführung: `TUTORIAL` in `src/data` ist eine Zielkette; jeder Schritt erscheint als Meldung (`kind` „info“), sobald der vorige erreicht ist, erledigte Schritte werden übersprungen.
 - Befehle der Truppenführung (ADR 0018): `bewegen` (mit `fx`/`fy` = Blickrichtung aus dem Rechtsziehen), `angriffsbewegung`, `patrouille` (`pts` = Wegmarken, höchstens 8), `rueckzug`, `haltung`, `formation`. Aufträge an der Einheit: `move` (mit `fx`/`fy`/`pace`), `amove`, `patrol` (`pts` je Einheit samt Formationsversatz, `i` = nächste Marke), `retreat`. `Unit.stance` und `Unit.formation` fehlen, solange die Voreinstellung gilt (`DEFAULT_STANCE`, `DEFAULT_FORMATION`). `Game.planFormation(units, x, y, fx, fy)` liefert die Plätze für die Vorschau, dieselben, die der Befehl vergibt. `activity` dazu: „marschiert“, „patrouilliert“, „zieht_zurueck“; „haelt“ auch bei Haltung `stellung`.
 - Ein Tor in einem fertigen Mauerstück übernimmt dessen Steine (`costAt` in `build.ts`); die Vorschau prüft dieselben Kosten.
+- Partie (`state.match`, ADR 0019): `scenario` (null = freies Spiel), `difficulty`, `tutorial` (Schritt der Einführung, null = keine), `endTick` (Tick von Sieg oder Niederlage), `stats`. `state.outcome` ist `"sieg"` oder `"niederlage"`; nach dem Sieg kommen keine Wellen mehr, Wirtschaft und Zuzug laufen weiter. `goalProgress(s, goal)` liefert `{ have, need, done, label }`.
+- Freie Bestände: `state.free[g]` = Bestand minus verplant (`committed`: Baustellen, Forschung, Anlieferungen an Werkstätten, wartende Rekruten), dieselbe Rechnung wie beim Bauen. Die Oberfläche zeigt und prüft `free`, nicht `stock`.
+- Ausbildung abbrechen: `{ t: "ausbildung_abbrechen", building, index }`, `index` −1 = laufende Ausbildung, sonst Platz der Warteschlange (0 = der Rekrut, der gerade die Waffe holt). Gold zurück; eine schon geholte Waffe trägt der Tagelöhner sichtbar zurück.
+
+## Neue Zustandsfelder und Spielstand (ADR 0019)
+
+- Alles in `state` und `meta` muss reines JSON sein (keine Map, kein Set, keine Klasse, kein NaN, keine geteilten Objekte). `tests/sim/speicher.test.ts` prüft das über den ganzen Baum und spielt dazu alle Gebäude, Rezepte, Techniken und Einheiten aus den Daten durch; neue Felder brauchen keine Testanpassung.
+- Abgeleitete Strukturen an `World` (Nachschlagetabellen, Raster) gehören in `DERIVED` des Tests und werden in `World` aus dem Zustand neu aufgebaut.
+- Formatänderung: `SAVE_VERSION` erhöhen, Schritt in `MIGRATIONS` (`migrate.ts`) ergänzen, Test für den Schritt.
+- Statistik: Waren zählen als erzeugt, wenn ein Träger sie von einem Hof- oder Ausgabestapel ins Lager bringt. Wer Waren direkt bucht, ruft `noteProduced` auf.
 
 ## Verarbeitung erweitern (ADR 0011)
 

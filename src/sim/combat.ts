@@ -15,6 +15,7 @@ import { BUILDINGS, DAMAGE_TYPES, TUNING, UNITS, WALL_BONUS, hitFactor, levelDef
 import { removeBuilding } from "./build";
 import { footprint } from "./geom";
 import { releaseJob } from "./jobs";
+import { noteDeath } from "./match";
 import { levelOf, unitArmor, unitRange } from "./research";
 import { stop } from "./move";
 import { TPS, dist, distToRect, face, setAnim, type SBuilding, type SProjectile, type SUnit, type World } from "./world";
@@ -224,6 +225,7 @@ export function kill(w: World, u: SUnit): void {
   u.ai.deadT = 0; u.ai.target = 0; u.ai.targetB = 0;
   stop(u);
   setAnim(u, "sterben", true);
+  noteDeath(w, u);
   if (u.team === 1) {
     w.s.gold += TUNING.bounty; w.meta.raidLosses = (w.meta.raidLosses ?? 0) + 1;
     if (UNITS[u.key].vehicle) w.msg(`Der ${UNITS[u.key].name} ist zerstört!`, "kampf", "ramme-zerstoert", 5);

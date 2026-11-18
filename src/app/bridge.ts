@@ -7,7 +7,7 @@ import { makeIcon } from "../render/icons";
 import { ZOOMS, ZOOM_DEFAULT } from "../data/view";
 import type { MusicKey, VoiceKey } from "../data/audio";
 import type { AudioSettings } from "./audio";
-import type { IconKind, Selection, Tool, UiBridge } from "./contract";
+import type { IconKind, SaveApi, Selection, Tool, UiBridge } from "./contract";
 import type { NotifyHub } from "./notify";
 import type { AppStore } from "./store";
 
@@ -22,6 +22,9 @@ export interface BridgeContext {
   say: (key: VoiceKey | undefined) => void;
   /** Laufendes Musikstück für die Anzeige in der Oberfläche. */
   track: () => MusicKey | null;
+  /** Spielstände (main.ts verbindet Ablage und Laden an Ort und Stelle). */
+  saves: SaveApi;
+  toTitle: () => Promise<void>;
 }
 
 const AUDIO_KEY = "mk-audio";
@@ -106,6 +109,8 @@ export function createBridge(ctx: BridgeContext, audio: AudioSettings): UiBridge
       store.emit("audio");
     },
     on: (ev, fn) => store.on(ev, fn),
+    saves: ctx.saves,
+    toTitle: () => ctx.toTitle(),
     notify: (text, kind = "info") => ctx.hub.emit(text, kind),
     onNotify: (fn) => ctx.hub.subscribe(fn),
   };

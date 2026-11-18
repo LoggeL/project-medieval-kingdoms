@@ -241,6 +241,14 @@ export class ObjectLayer {
 
   constructor(private bs: BuildingSheet | null, private fs: FigureSheet | null) {}
 
+  /** Andere Partie geladen: Spuren der alten (verschwundene Gebäude als Schutt, Flügelphase) vergessen. */
+  resetTracking(): void {
+    this.prevB.clear();
+    this.prevSeen = false;
+    this.debris = [];
+    this.workPhase.clear();
+  }
+
   update(state: SimState, r: Rot, alpha: number, view: { x0: number; y0: number; x1: number; y1: number }, opt: SceneOptions): void {
     this.r = r; this.W = state.w; this.H = state.h; this.view = view; this.alpha = alpha;
     this.nItems = 0; this.nParts = 0; this.nHits = 0;
