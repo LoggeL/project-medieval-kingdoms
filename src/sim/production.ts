@@ -147,6 +147,11 @@ export function procDelivery(b: SBuilding | undefined): Delivery | null {
   return b?.proc ? { needs: {}, enroute: b.proc.enroute, picked: b.proc.picked } : null;
 }
 
+/** Braucht das aktuelle Rezept diese Ware (Rezeptwechsel, während Träger noch die alte bringen)? */
+export function usesInput(b: Building, g: Good): boolean {
+  return (recipeOf(b)?.inputs[g] ?? 0) > 0;
+}
+
 /** Eine angelieferte Ware in den Puffer legen. */
 export function deliverInput(b: SBuilding, g: Good): void {
   if (b.proc) add(b.proc.in, g, 1);

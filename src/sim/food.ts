@@ -70,7 +70,7 @@ export function updateFood(w: World): void {
   const have = edible(w);
   const ration = RATIONS[f.ration] ?? RATIONS.normal;
   f.perMinute = s.population * ration.perMinute;
-  if (w.meta.hungerOff || s.outcome) { f.hunger = 0; f.leave = 0; refresh(f, have); return; }
+  if (w.meta.hungerOff || s.outcome === "niederlage") { f.hunger = 0; f.leave = 0; refresh(f, have); return; }
   f.debt += f.perMinute / (60 * TPS);
   while (f.debt >= 1) {
     const v = eatOne(w, have);

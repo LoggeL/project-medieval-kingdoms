@@ -11,7 +11,8 @@ import { abortJobsAt, rockTag } from "./jobs";
 import { evictUnits } from "./move";
 import { available, storeDirect } from "./storage";
 import { lockedBy, levelOf } from "./research";
-import { noteDefeat, noteDestroyed } from "./match";
+import { noteDeath, noteDefeat, noteDestroyed } from "./match";
+import { cmdCancelTraining } from "./military";
 import { newProc, returnProcGoods } from "./production";
 import { fieldPlan, fieldReason, newFarm, plotAt } from "./farm";
 import { addRuins, clearRubble, laddersLoseWall } from "./belagerung";
@@ -383,6 +384,10 @@ export function completeBuilding(w: World, b: SBuilding): void {
  */
 export function removeBuilding(w: World, b: SBuilding, why: "abriss" | "zerstoert" | "ersetzt" | "verfuellt"): void {
   const def = BUILDINGS[b.key];
+  // Rekrut in der Ausbildung: Beim Abriss tritt er wie beim Abbruch als Tagelöhner heraus (Gold und Ausrüstung zurück);
+  // wird die Kaserne zerstört, ist er tot und zählt in der Verluststatistik (ADR 0019)
+  if (b.ai.inside && b.training && why === "abriss") cmdCancelTraining(w, b.id, -1);
+  else if (b.ai.inside && b.team === 0) noteDeath(w, b.ai.inside);
   w.removeBuildingRecord(b);
   for (const [tx, ty] of footprintTiles(b.key, b.x, b.y, b.o)) if (w.inMap(tx, ty) && w.s.tiles[w.idx(tx, ty)].building === b.id) w.s.tiles[w.idx(tx, ty)].building = 0;
   // Belagerung (ADR 0017): Leitern an diesem Wehrgang fallen; eine zerstörte Befestigung bleibt als Trümmer liegen

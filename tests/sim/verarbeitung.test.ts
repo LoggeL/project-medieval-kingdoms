@@ -310,7 +310,7 @@ describe("Abriss, Speichern, Ausrichtungen, Disponent", () => {
       const out = Object.keys(RECIPES[b.proc!.recipe].outputs)[0] as Good;
       expect(stored(g, out), `${key} o=${o}`).toBeGreaterThan(0);
     }
-  });
+  }, 60_000); // acht Partien zu je 150 s Spielzeit: unter Last über der Vitest-Grenze von 5 s
 
   it("der Disponent verteilt Träger reihum auf Forschung, Baustelle und Verarbeitung", () => {
     const g = createGame({ seed: 1, raids: false });

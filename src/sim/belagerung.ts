@@ -99,9 +99,15 @@ function ladderBusy(w: World, x: number, y: number, self: number): boolean {
   return false;
 }
 
+/** Steht am Fuß der Leiter ein Gebäude? Wege, Pflaster und Brücken (BuildingDef.road, fertig oder im Bau) nicht. */
+function blocksLadder(w: World, x: number, y: number): boolean {
+  const b = w.buildingAt(x, y);
+  return !!b && !BUILDINGS[b.key].road;
+}
+
 /** Ist der Leiterplan noch ausführbar (Mauer steht, Fuß frei und für Angreifer begehbar)? */
 function planValid(w: World, u: SUnit, p: NonNullable<SUnit["ai"]["ladder"]>): boolean {
-  if (!wallTile(w, p.wx, p.wy) || !w.inMap(p.fx, p.fy) || w.buildingAt(p.fx, p.fy)) return false;
+  if (!wallTile(w, p.wx, p.wy) || !w.inMap(p.fx, p.fy) || blocksLadder(w, p.fx, p.fy)) return false;
   if (w.nav.walk[0][p.fy * w.s.w + p.fx] !== OPEN) return false;
   return !ladderBusy(w, p.fx, p.fy, u.id) && !ladderBusy(w, p.wx, p.wy, u.id);
 }
@@ -121,7 +127,7 @@ function chooseLadderSpot(w: World, u: SUnit): SUnit["ai"]["ladder"] {
       for (const d of w.s.units) if (d.team === 0 && !d.dead && d.layer > 0 && isSoldier(d.key) && dist(d.x, d.y, wx + 0.5, wy + 0.5) <= 2.5) manned++;
       for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
         const fx = wx + dx, fy = wy + dy;
-        if (!w.inMap(fx, fy) || w.buildingAt(fx, fy) || nav.walk[0][fy * W + fx] !== OPEN) continue;
+        if (!w.inMap(fx, fy) || blocksLadder(w, fx, fy) || nav.walk[0][fy * W + fx] !== OPEN) continue;
         if (my >= 0 && nav.comp[1][nav.node(0, fx, fy)] !== my) continue;
         if (ladderBusy(w, fx, fy, u.id) || ladderBusy(w, wx, wy, u.id)) continue;
         const sc = dist(u.x, u.y, fx + 0.5, fy + 0.5) + 10 * manned;
@@ -292,6 +298,34 @@ function chooseRamTarget(w: World, u: SUnit): void {
   ai.targetB = best;
 }
 
+/** Kann der Rammbock ein mögliches Ziel überhaupt erreichen? Füllt einmal das Bodenraster (Bodenmodus mit Einreißen:
+ *  nur Graben, Gelände und Ebenenwechsel sperren) von seinem Feld aus; nur aufgerufen, wenn eine Suche scheiterte. */
+export function ramHasReachableTarget(w: World, u: SUnit): boolean {
+  const nav = w.nav, W = w.s.w, H = w.s.h;
+  const sx = Math.min(W - 1, Math.max(0, Math.floor(u.x))), sy = Math.min(H - 1, Math.max(0, Math.floor(u.y)));
+  const seen = new Uint8Array(W * H), q = new Int32Array(W * H);
+  let qh = 0, qt = 0;
+  seen[sy * W + sx] = 1; q[qt++] = sy * W + sx;
+  while (qh < qt) {
+    const i = q[qh++], x = i % W, y = (i / W) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx;
+      if (seen[j] || nav.pass(nav.node(0, nx, ny), u.team, true, true) < 0) continue;
+      seen[j] = 1; q[qt++] = j;
+    }
+  }
+  for (const b of w.s.buildings) {
+    if (b.team === u.team || BUILDINGS[b.key].ditch || BUILDINGS[b.key].road) continue;
+    const [fw, fh] = footprint(b.key, b.o);
+    for (let y = Math.max(0, b.y - 1); y <= Math.min(H - 1, b.y + fh); y++) {
+      for (let x = Math.max(0, b.x - 1); x <= Math.min(W - 1, b.x + fw); x++) if (seen[y * W + x]) return true;
+    }
+  }
+  return false;
+}
+
 /** Rammbock: fährt mit Mannschaft zum Tor (Bodenmodus) und stößt es ein; ohne Mannschaft steht er, ganz ohne ist er aufgegeben. */
 export function ramAct(w: World, u: SUnit): void {
   const ai = u.ai;
@@ -316,14 +350,28 @@ export function ramAct(w: World, u: SUnit): void {
     const [sx, sy] = w.meta.raidSpawn;
     const r = travel(w, u, { ...tileGoal(sx, sy, 0, 1), ground: true });
     const edge = u.x < 1 || u.y < 1 || u.x > w.s.w - 1 || u.y > w.s.h - 1;
-    if (r === "arrived" || edge) { for (const c of crew) c.ai.ram = 0; vanish(u); }
+    // Am Anmarschpunkt bzw. Kartenrand verlässt er die Karte (ohne Rückweg ebenso, sonst endete die Welle nie);
+    // seine Mannschaft zieht mit ihm ab
+    if (r === "arrived" || r === "unreachable" || edge) {
+      for (const c of crew) { c.ai.ram = 0; c.ai.retreat = true; c.ai.target = 0; c.ai.targetB = 0; stop(c); }
+      vanish(u);
+    }
     return;
   }
   const b = ai.targetB ? w.buildings.get(ai.targetB) : undefined;
   if (!b) { setAnim(u, "stehen"); return; }
   if (inRangeBuilding(u, b)) { strikeBuilding(w, u, b); return; }
   const r = travel(w, u, { ...goalAround(b, true), ground: true });
-  if (r === "unreachable") { ai.skipB = b.id; ai.targetB = 0; return; }
+  if (r === "unreachable") {
+    ai.skipB = b.id; ai.targetB = 0;
+    // Versperrt ein Graben ohne Bresche jeden Weg, zieht er ab, statt für immer davor zu stehen (die Welle endet)
+    if (!ramHasReachableTarget(w, u)) {
+      ai.retreat = true; stop(u);
+      w.meta.raidLosses = (w.meta.raidLosses ?? 0) + 1;
+      w.msg("Der Rammbock kommt nicht über den Graben und zieht ab!", "kampf", "ramme-zurueck", 15);
+    }
+    return;
+  }
   if (r === "blocked") {
     const n = blockedNode(u);
     const x = n >= 0 ? w.buildingAt(w.nav.tileX(n), w.nav.tileY(n)) : undefined;

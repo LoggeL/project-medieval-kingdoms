@@ -10,7 +10,7 @@ import { completeUpgrade, deliveryOf, isSite, upgradeSeconds, workFactor } from 
 import { goalAround, goalEntrance, goalSlot, stop, tileGoal, travel, unitNode, type TravelGoal, type TravelResult } from "./move";
 import { fullMessage, hasStoreOf, reservePut, storeDirect, tidy } from "./storage";
 import { noteBuilt, noteProduced } from "./match";
-import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput } from "./production";
+import { deliverInput, procDelivery, runProcess, takeOutput, unreserveOutput, usesInput } from "./production";
 import { releasePlots, runFarm } from "./farm";
 import { runLeave } from "./food";
 import type { Rock, Tree } from "./types";
@@ -268,6 +268,7 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
   if (j.ph === 0) {
     const st = w.buildings.get(j.from);
     if (!site || !st || !st.slots[j.slot] || !rec) { releaseJob(w, u); return; }
+    if (j.pk && !usesInput(site, j.good)) { releaseJob(w, u); return; } // Rezept gewechselt: nicht mehr holen
     const r = storeVisit(w, u, st, j.slot);
     if (r === "unreachable") { giveUp(w, u); return; }
     if (r !== "arrived") return;
@@ -278,6 +279,8 @@ function runSupply(w: World, u: SUnit, j: Extract<Job, { k: "supply" }>): void {
     return;
   }
   if (!site || !rec) { carryBack(w, u); return; }
+  // Rezept gewechselt, während er die Ware trug: Sie gehört nicht in den Puffer, er bringt sie sichtbar ins Lager zurück
+  if (j.pk && !usesInput(site, j.good)) { releaseJob(w, u, true); carryBack(w, u); return; }
   // Forschung: in den Bergfried durch die Tür; Verarbeitung: vor die Tür in den Eingangspuffer; Baustelle und Ausbau:
   // irgendwo an den Grundriss
   const r = travel(w, u, j.rk || j.pk ? goalEntrance(w, site) : goalAround(site));

@@ -92,13 +92,20 @@ export function fullMessage(w: World, good: Good): void {
   w.msg(STORES[kind].full, "warnung", `lagervoll-${kind}`, 30, "lager_voll");
 }
 
-/** Bereits verplante Waren: offene Baustellenlieferungen (noch im Lager), Anlieferungen an Werkstätten und wartende Rekruten. */
+/**
+ * Bereits verplante Waren: offene Baustellenlieferungen (noch im Lager), Anlieferungen an Werkstätten, wartende Rekruten
+ * und Reparaturen, deren Tagelöhner das Stück noch nicht aus dem Lager genommen hat (ADR 0017).
+ */
 export function committed(w: World, good: Good): number {
   let n = 0;
   for (const b of w.s.buildings) {
     if (b.team !== 0) continue;
     if (b.built < 1 || b.upgrade) n += (b.needs[good] ?? 0) - (b.ai.picked[good] ?? 0);
     if (b.proc) n += (b.proc.enroute[good] ?? 0) - (b.proc.picked[good] ?? 0);
+    if (b.ai.repairer) {
+      const j = w.aliveUnit(b.ai.repairer)?.ai.job;
+      if (j?.k === "repair" && j.b === b.id && j.ph === 0 && j.good === good) n++;
+    }
     for (let i = 0; i < b.queue.length; i++) {
       // Ausrüstung der Warteschlange; beim ersten Auftrag zählt nur, was der Rekrut noch nicht aufgenommen hat
       const eq = equipmentOf(UNITS[b.queue[i]]);

@@ -143,5 +143,7 @@ export default defineConfig({
   plugins: [konzeptSeite(), spielAssets()],
   server: { port: 5173, host: "127.0.0.1" },
   build: { outDir: "dist", assetsInlineLimit: 0, chunkSizeWarningLimit: 2000 },
-  test: { include: ["tests/**/*.test.ts"], environment: "node" },
+  // Lange Simulationsläufe (Dauerlauf, Überfälle, vier Ausrichtungen) brauchen auf einer ausgelasteten Maschine mehr als
+  // die 5 s, die Vitest je Test vorgibt; die Prüfungen selbst bleiben gleich (Zeitgrenzen in perf.test.ts eigens).
+  test: { include: ["tests/**/*.test.ts"], environment: "node", testTimeout: 30_000 },
 } as never);

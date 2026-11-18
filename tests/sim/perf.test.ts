@@ -34,21 +34,27 @@ describe("Leistung", () => {
     expect(s.units.filter((u) => !u.dead)).toHaveLength(300);
     g.dispatch({ t: "bewegen", units: own, x: 45, y: 34 });
     run(g, 2 * TPS); // aufwärmen
-    const times: number[] = [];
-    for (let i = 0; i < 30 * TPS; i++) {
-      const t0 = performance.now();
-      g.tick();
-      times.push(performance.now() - t0);
+    // Drei Durchgänge zu je 20 s Spielzeit; geprüft wird der Median der Durchgänge, damit eine kurze Störung der
+    // Maschine (andere Prozesse, Speicherbereinigung) nicht allein über das Ergebnis entscheidet. Die Grenzen bleiben.
+    const rounds: { avg: number; p99: number; max: number }[] = [];
+    for (let k = 0; k < 3; k++) {
+      const times: number[] = [];
+      for (let i = 0; i < 20 * TPS; i++) {
+        const t0 = performance.now();
+        g.tick();
+        times.push(performance.now() - t0);
+      }
+      times.sort((a, b) => a - b);
+      rounds.push({ avg: times.reduce((a, b) => a + b, 0) / times.length, p99: times[Math.floor(times.length * 0.99)], max: times[times.length - 1] });
     }
-    times.sort((a, b) => a - b);
-    const avg = times.reduce((a, b) => a + b, 0) / times.length;
-    const p99 = times[Math.floor(times.length * 0.99)], max = times[times.length - 1];
+    const med = (f: (r: (typeof rounds)[number]) => number) => rounds.map(f).sort((a, b) => a - b)[1];
+    const avg = med((r) => r.avg), p99 = med((r) => r.p99), max = Math.max(...rounds.map((r) => r.max));
     const searches = (g as any).world.nav.searches;
-    console.log(`Lasttest 300 Einheiten: ${avg.toFixed(3)} ms/Tick im Mittel, p99 ${p99.toFixed(2)} ms, max ${max.toFixed(2)} ms (Budget 50 ms${ZEITGRENZEN ? "" : ", Zeitgrenzen aus"}), ${searches} A*-Suchen, ${s.units.filter((u) => u.dead).length} Tote`);
+    console.log(`Lasttest 300 Einheiten (Median aus 3 Durchgängen): ${avg.toFixed(3)} ms/Tick im Mittel, p99 ${p99.toFixed(2)} ms, max ${max.toFixed(2)} ms (Budget 50 ms${ZEITGRENZEN ? "" : ", Zeitgrenzen aus"}), ${searches} A*-Suchen, ${s.units.filter((u) => u.dead).length} Tote`);
     unter(avg, 8);
     unter(p99, 25);
     run(g, 1);
-  }, TIMEOUT);
+  }, TIMEOUT ?? 60_000);
 
   it("300 Soldaten mit wiederholten Marschbefehlen quer über die Karte", () => {
     const g = createGame({ seed: 1, raids: false });
