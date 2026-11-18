@@ -1,5 +1,67 @@
 # Status
 
+**2026-11-18 (11): Zweite Welle – Verarbeitung, Landschaft, Landwirtschaft, Militärwirtschaft, Wege, lebendige Welt, Belagerung, Befehle, Spielziel.** Neun Zweige parallel gebaut (ADR 0011–0019), nacheinander in `proto/w2-integration` zusammengeführt. Danach Gesamtprüfung mit vier Prüfern (Spiel, Simulation, Darstellung, Briefing) und Fehlerbehebung (ADR 0020). Zum Schluss main mit Eintrag 10 hineingeführt (Zweig `proto/w2-main`).
+- *Code:*
+  - **Verarbeitung und Lagertypen (ADR 0011):** Rezepte als Daten (`src/data/recipes.ts`), Ablauf in `src/sim/production.ts`. Tagelöhner liefern in den Eingangspuffer vor der Tür, der Arbeiter arbeitet drinnen (im Schnittbild sichtbar), Träger bringen die Ausgabe ins Lager des passenden Typs. Lagertypen Material und Nahrung, neu Kornkammer (6 Fächer × 20), Windmühle (Flügel drehen nur bei Arbeit) und Bäckerei. Panel „Verarbeitung“ mit Rezept, Vorrat, Fortschritt, Stillstandsgrund und Anhalten. Die Kopfleiste zeigt Bestand und Kapazität je Lagertyp.
+  - **Landschaft (ADR 0012):** Gebirge (unbegehbar), Hügel (langsamer, bebaubar), Sumpf (langsam, kein Bauland), Sand und fruchtbarer Boden als Daten (`src/data/gelaende.ts`). Der Kartengenerator legt Felsmassiv, Hügelkuppen, See, Küste, Sumpf und Auen an, die Startsiedlung bleibt unverändert. Mehr Steinvorkommen (Seed 1: 537 statt 164 Blöcke), die Geröllhalde rutscht nach. Das Massiv wird in allen Drehungen mit Verdeckung gezeichnet.
+  - **Landwirtschaft und Ernährung (ADR 0013):** Getreidehof mit 6–12 Beeten in 6 Wachstumsstufen (Bauer sät, hackt, erntet) und Obstgarten mit Apfelbäumen in 4 Stufen. Die Ernte geht über den Hofstapel in die Kornkammer. Gegessen wird Stück für Stück aus der Kornkammer. Rationen knapp/normal/reichlich, Hunger stoppt den Zuzug und vertreibt untätige Tagelöhner. Kopfleiste „Nahrung“ mit Verbrauch und Reichweite.
+  - **Militärwirtschaft und Einheitenraster (ADR 0014):** Erzbrocken, Erzmine, Schmelzhütte (2 Erz + 1 Holz → Eisen), Waffenschmiede, Bognerei und Rüstungsschmiede im Reiter Handwerk. Vier neue Techniken, zusammen jetzt 11. Neu ausbildbar: Waffenknecht, Pikenier (Pike + Rüstung) und Armbrustschütze. 24 Konzepteinheiten stehen als Daten mit Rüstungsklasse, Schadensart und Sperrgrund in `src/data/militaer.ts`, das Raster liest nur Daten. Schadensmatrix mit Wucht, Bolzen und Kugel.
+  - **Wege (ADR 0015):** Kiesweg, Pflasterstraße und Holzbrücke als Bauten im Reiter Wege, gerade oder L-förmig gezogen. Brücken bis 8 Felder werden Joch für Joch vom Ufer aus gebaut. Wege senken die Laufkosten, A* bevorzugt sie. Das Laufraster wird inkrementell nachgeführt, dazu ein Pfad-Cache mit gezielter Invalidierung.
+  - **Lebendige Welt (ADR 0016):** Tiere als Simulationsobjekte (Schaf, Kuh, Pferd, Rothirsch, Reh, Krähe). Wild flieht vor Figuren, Krähen fliegen auf. Der Wald wächst nach. Untätige Tagelöhner sitzen und plaudern, Wachen drehen sich auf dem Posten. Dazu wehende Banner an Kaserne, Turm und Bergfried, Bäume im Wind und Tageslicht über 8 Spielminuten. Ein eigener Zufallsstrom hält bestehende Abläufe Tick für Tick gleich.
+  - **Belagerung und Befestigung (ADR 0017):** Sturmleitern ab Welle 2, Verteidiger am Leiterkopf stoßen sie um. Rammbock mit Mannschaft ab Welle 3 (Tore zuerst). Breschen hinterlassen begehbare Trümmer. Schadensstufen 0–3, Reparatur durch Tagelöhner mit Ware aus dem Lager, Heilung in Ruhe. Palisade und Graben als Ziehlinie, Angreifer schütten den Graben zu.
+  - **Befehle und Steuerung (ADR 0018):** Formationen Linie, Block und locker (Nahkämpfer vorn, Rechtsziehen mit Vorschau), Angriffsmarsch, Patrouille mit bis zu 8 Marken, Rückzug zum Bergfried, Haltungen aggressiv/defensiv/Stellung halten, Kontrollgruppen mit Strg + Ziffer. Befehlsleiste mit Codex-Ikonen im Auswahlpanel.
+  - **Spielziel und Spielstände (ADR 0019):** Szenario „Das Tal halten“ (5 Wellen), Schwierigkeit leicht/normal/schwer, Sieg- und Niederlagetafel mit Statistik. Spielstand-Version 3 mit Migration von v2. Ablage in IndexedDB, sonst localStorage, automatisches Speichern alle 120 Spielsekunden. Dazu Titel mit Fortsetzen, Neues Spiel und Laden, Spielmenü auf Esc, Aufgabenleiste, Meldungsverlauf, freie Bestände in der Kopfleiste und Abbrechen der Ausbildung.
+  - **Tasten nach dem Zusammenführen:** Reiter Handwerk F7, Wege F8, Schnellspeichern F10, Ausbilden U I O Ü Ä # (J K L gehören den Befehlen).
+- *Gesamtprüfung und Behebung (ADR 0020):* Der Simulationsprüfer fand im Chaoslauf über 24 Seeds keine Verletzung bei Reservierungen, Laufraster, Speichern/Laden oder Determinismus. Der Darstellungsprüfer fand in vier Drehungen keinen Sortierfehler, `sheet.json` passt zu allen PNGs. Behoben wurden:
+  - **Träger-Verklemmung:** Wer alle Tagelöhner ausbildete, legte Bau und Transport still. Jetzt bleiben 2 Tagelöhner als Träger-Reserve (`src/data/traeger.ts`), es gibt einen Notzuzug und eine Warnung ohne Träger.
+  - **Balance „Normal“:** erster Überfall bei 6:00 statt 5:00, Zuzug alle 15 statt 20 s, Startbrot 60 statt 40. Ein Balance-Lauf (Seed 1, drei Wellen, nur Spielbefehle) ist automatisiert.
+  - **Meldungen:** „Hof voll“ nennt den Grund (Lager voll oder Träger fehlen), „Kein freies Fach“ ist von „Lager voll“ getrennt.
+  - **Nahtstellen der Zweige:** Reparatur zählt als verplant. Nach dem Sieg wird gegessen. Wege verhindern keine Sturmleiter. Der Rammbock zieht vor einem geschlossenen Graben ab und geht schräg heran. Angreifer hängen nicht mehr auf Treppen. Ware für ein altes Rezept wird nach dem Rezeptwechsel zurückgetragen. Ein Rekrut in einer zerstörten Kaserne zählt als Verlust.
+  - **Kampfwerte:** Speerträger, Schwertkämpfer, Bogenschütze und Sturmknecht haben Rüstungsklassen, damit wirkt die Matrix auch gegen Angreifer. Der Konter gegen Reiter steht als „sobald es Reiterei gibt“ auf der Karte.
+  - **Oberfläche:** Meldungszeile ohne Ein-Buchstaben-Rest. Kopf- und Fußleiste passen bei 390/360 px. Die Ziel-Spalte weicht dem Auswahlpanel. Esc schließt die Detailkarte, ohne das Spielmenü zu öffnen. Gesperrte Karten nennen die Technik. Nach der Niederlage steht „Bergfried gefallen“ in der Kopfleiste.
+  - **Offen:**
+    - **Steinbruch und Erz:** Die falsche Meldung „kein Fels mehr in Reichweite“ ist behoben, sie kommt nur noch bei echtem Mangel (Regressionstest). Offen bleiben der Suchradius 8, die Erzmenge der Karte (5 Vorkommen, etwa 104 Erz) und der zweite Arbeiter, der wartet, statt mitzuarbeiten. Die nächste Quelle zeigt das Panel nicht an.
+    - **Flucht:** Fliehende Tagelöhner zeigen Rennbilder, laufen aber im Gehtempo (Faktor 1). Mit 1,3 verlor der Speicher-Lauf Seed 7 „schwer“ ohne einen besiegten Angreifer.
+- *Zusammenführung mit main (Eintrag 10):*
+  - Der Titel erscheint sofort und bekommt die Wahl aus ADR 0019: Neues Spiel mit Schwierigkeitsgrad, Fortsetzen, Laden.
+  - Die Wahl wird sofort ausgeführt, Spielstände brauchen die Grafik nicht.
+  - Bei einem Fehler bleibt der Titel bedienbar und zeigt den Grund. Erst nach Erfolg ist das Menü `inert`, und der Ladebildschirm kommt, falls noch geladen wird.
+  - Kopflos geprüft:
+    - Fortsetzen nach Speichern und Neuladen setzt bei Tick 1205 fort.
+    - Die frühe Wahl „Schwer“ bei 1,5 MB/s zeigt den Ladebildschirm, dann das Spiel mit 100 Gold und dem ersten Überfall nach 4:00.
+    - Eine erzwungene Fehlwahl zeigt „Start fehlgeschlagen: …“, der zweite Versuch startet das Spiel.
+    - Keine Konsolenfehler.
+- *Grafik:* Blender-Pipeline, Stil „Vorgerendert“, Seeds 200–833.
+  - Gebäude mit Schnittbild, Baustelle und Gerüst: Kornkammer, Windmühle (6 Flügelstellungen), Bäckerei, Getreidehof, Obstgarten, Erzmine, Schmelzhütte, Waffenschmiede, Bognerei, Rüstungsschmiede.
+  - Gelände und Welt: Felsmassiv, Geländeblatt (Hügel, fruchtbar, Sand, Geröll), Erzbrocken, Beete, Wege, Holzbrücke, Palisade, Graben, Trümmer, Schadensblätter, Leiter, Rammbock, Tiere, Bäume im Wind, Setzlinge und Fahnen.
+  - Figuren: Müller, Bäcker, Bauern, Obstbauer, Bergmann, Schmelzer, Schmied, Bogner, Waffenknecht, Pikenier, Armbrustschütze, Sturmknecht, Leiterträger, neue Träger und Lebensblätter (Rennen, Treffer, Sitzen, Plaudern) für Tagelöhner, Speerträger, Schwertkämpfer und Bogenschütze.
+  - Per Codex: Ikonen der neuen Techniken und 10 Befehlsikonen (`assets/ui/befehle.png`).
+  - Alle Blätter angesehen (Maße, Transparenz, Stil). `sheet.json` nur ergänzt, bestehende Bilder byte-gleich. Keine neuen Audiodateien.
+- *Tests:*
+  - 674 grün in 55 Dateien (seriell, bei ruhiger Maschine auch im parallelen Volllauf), Typprüfung und Build grün.
+  - Die Zweige lagen einzeln bei 345–416 Tests. Neu sind unter anderem Testdateien zu Verarbeitung, Gelände, Nahrung, Rüstung, Wegen, Laufraster, Leben, Belagerung, Befehlen, Kontrollgruppen, Speicher-Rundreise über alle Daten, Spielziel und Ablagen. Aus der Behebung kommen Träger, Balance-Lauf und Gesamtprüfung.
+  - Ein Volllauf unter hoher Maschinenlast riss einmal die Zeitgrenze von transport-leistung (128 × 128). Einzeln und bei ruhiger Maschine ist der Test grün. Auch perf, leben und andere Leistungstests schwanken unter Last.
+  - Der Chaoslauf des Simulationsprüfers liegt nur in der Scratch-Ablage, nicht im Repo.
+- *Im Browser geprüft* (kopfloser Chrome, stumm):
+  - Je Zweig der eigene Ablauf in allen vier Drehungen, meist mit `?direkt=1`. Teils wurde dabei der Zustand per Skript gesetzt: Hunger, Nachrutschen, Krähe und Nacht. Strg + Ziffer und Rechtsziehen wurden synthetisch ausgelöst.
+  - Der Spielprüfer machte über 30 Läufe bei 1440 × 900 und 390 × 844. Sieg-, Belagerungs- und Eisenkettenläufe spielte er teils mit Debug-Hilfen. Ohne Hilfen erreichte er vor ADR 0020 keinen Sieg.
+  - Nach der Behebung ein Rundgang bei 1440, 1920, 390 und 360 px in vier Drehungen, ohne Konsolenfehler.
+  - Keine vollständige Partie ohne Hilfen im Browser.
+- *Grenzen:*
+  - **Transport:** kein Fuhrwesen, also keine Hand- und Ochsenkarren und kein Fuhrhof. Alle Waren gehen Stück für Stück zu Fuß.
+  - **Gelände:** Hügel ohne Höhe, nur langsamer, ohne Sicht- oder Reichweitenbonus. Das Gebirge ist nur ein Hindernis.
+  - **Befestigung:** Torhaus, Zugbrücke, verstärkte Mauer, Wachturm und Schießscharten fehlen. Leitern gibt es nur an Mauerstücken, der Rammbock kommt nicht über Gräben.
+  - **Grafik:** Der Figurenatlas ist nicht neu gepackt, die neuen Figuren laden als Einzelbilder. Andere Stile haben keine neuen Sprites und zeigen Ersatz. Waffenknecht, Pikenier und Armbrustschütze haben keine Renn- und Trefferbilder.
+  - **Inhalt:** nur ein Szenario, kein Gegnerlager. Reiterei, Pulver, Söldner und Tross sind nur Daten. Formationen geben keinen Kampfbonus. Gold bleibt eine Zahl.
+  - **Ernährung:** Gegessen wird ohne Figuren, die zur Kornkammer gehen. Hunger trifft nur untätige Tagelöhner.
+  - **Lager:** Das Startlager ist mit den Startwaren voll, für die Militärwaren braucht es ein zweites Lagerhaus.
+  - **Spielstände:** IndexedDB nur im kopflosen Chrome geprüft (Safari, Firefox und private Fenster nicht). „Fortsetzen“ erscheint im Titel erst, wenn die Spielstandliste gelesen ist (kurz nach dem Titel). Das automatische Speichern läuft synchron. Kontrollgruppen stehen nicht im Spielstand.
+  - **Balance:** nur mit einem Seed und einer Strategie automatisiert, nicht von Hand erspielt.
+  - **Audio:** Für neue Ereignisse fehlen Ansagen und Musik (Hunger, Sieg, Niederlage, Leitern, Rammbock).
+  - **Oberfläche:** Zwischen 1366 und etwa 1599 px gibt es keinen Ticker in der Kopfleiste, nur die Chronik. Die Telefon-Kopfleiste ist 152 statt 118 px hoch.
+  - **Leistung:** nur mit Software-Rendering gemessen. Die fps im kopflosen Chrome (2,8–7,9) sind nicht aussagekräftig. Die JS-Kosten lagen bei 308 Einheiten und 258 Tieren bei 2,2–3,5 ms je Bild.
+  - **Auslieferung:** nicht gepusht, live ist weiterhin der alte Stand. Das Docker-Image ist für diesen Stand noch nicht gebaut (Docker lief auf der Maschine nicht); der Dockerfile-Test ist grün.
+
 **2026-11-17 (10):** Hauptmenü sofort, Laden im Hintergrund.
 - *Code:* Der Titelbildschirm erscheint, sobald Spielcode, Welt, Schriften und Schlüsselbild da sind (höchstens 2,5 s Wartezeit, ein später ankommendes Bild wird nachgereicht). Grafik und Sprite-Blätter laden dahinter weiter.
   - **Neues Spiel nach dem Laden:** geht direkt ins Spiel.
@@ -97,12 +159,18 @@
 
 ## Stand
 
-- Konzept: Entwurf v1 vollständig, **nicht abgestimmt**; Abgleich mit dem Briefing (311 Anforderungen) in [BRIEFING-ABGLEICH.md](BRIEFING-ABGLEICH.md)
-- Entscheidungen: ADR 0001–0010 angenommen (Browser mit TypeScript + PixiJS, Koordinaten und Drehung, Prototyp-Architektur, Audio, Lagerhaus, Bergfried und Forschung, Adressen, Tasten und Zoom, Baustellen, Gebäude als Hindernis); offen: Art-Pipeline, Speicherformat
-- Code: spielbarer Prototyp nach Briefing §14 (Meilensteine M1–M3 der Roadmap) mit Bergfried, Forschung, Lagerhaus und Bauanimation in `src/`, Grafikwerkzeuge in `tools/blender/`, Audiowerkzeug in `tools/audio/`, Bauskript der Konzeptseite in `tools/konzeptseite/`
-- Tests: 299 automatisierte Tests (Vitest) grün; Typprüfung grün; Docker-Build führt beides aus
-- Im Browser geprüft: Prototyp im kopflosen Chrome und im App-Browser (Details im Eintrag 6); live auf https://medieval-kingdoms.logge.top/spiel/ ist noch der Stand vor Eintrag 9 (nicht gepusht); nach dem nächsten Push liegt das Spiel unter / und die Konzeptseite unter /konzept/
-- Grafik: Figuren, Gebäude (mit Mauer-Autotiling, Tor, Treppe, Turm, Lagerstapeln) und Gelände aus der Blender-Pipeline im Stil „Vorgerendert“
-- Audio: 5 Musikstücke und 23 Ansagen, automatisch geprüft, nicht von Menschen abgehört
+- Konzept: Entwurf v1 vollständig, **nicht abgestimmt**; Abgleich mit dem Briefing (311 Anforderungen, Stand 18.11.: 215 erfüllt, 68 teilweise, 27 fehlen, 1 nur kosmetisch) in [BRIEFING-ABGLEICH.md](BRIEFING-ABGLEICH.md)
+- Entscheidungen: ADR 0001–0020 angenommen (Browser mit TypeScript + PixiJS, Koordinaten und Drehung, Prototyp-Architektur, Audio, Lagerhaus, Bergfried und Forschung, Adressen, Tasten und Zoom, Baustellen, Gebäude als Hindernis, Verarbeitung und Lagertypen, Landschaft, Landwirtschaft und Ernährung, Militärwirtschaft, Wege, lebendige Welt, Belagerung, Befehle, Spielziel und Spielstände, Träger-Reserve und Balance); offen: Art-Pipeline, Pfadfindung mit Laufebenen, Speicherformat als eigene ADR (Spielstand-Version 3 und Migration regelt ADR 0019)
+- Code: spielbarer Prototyp in `src/` mit Szenario „Das Tal halten“ (5 Wellen, drei Schwierigkeitsgrade), Speichern und Laden im Browser. Spielbar sind:
+  - die Ketten Holz, Stein, Brot (Getreidehof → Kornkammer → Mühle → Bäckerei → Kornkammer), Äpfel und Eisen (Erzmine → Schmelzhütte → Waffenschmiede, Bognerei, Rüstungsschmiede); dazu Ernährung mit Rationen und Hunger
+  - Wege und Brücken, Lagerhaus und Kornkammer, Bergfried mit Ausbau, 11 Techniken
+  - sechs Soldatentypen mit Formationen, Patrouille, Rückzug, Haltungen und Kontrollgruppen
+  - Mauern, Türme, Tore, Palisade und Graben gegen Überfälle mit Sturmleitern und Rammbock, dazu Reparatur
+  - Tiere, nachwachsender Wald, Fahnen und Tageslicht
+  - Außerdem: Grafikwerkzeuge in `tools/blender/`, Audiowerkzeug in `tools/audio/`, Bauskript der Konzeptseite in `tools/konzeptseite/`
+- Tests: 674 automatisierte Tests (Vitest) in 55 Dateien grün (seriell und bei ruhiger Maschine auch parallel); Typprüfung und Build grün; Docker-Build führt Tests und Typprüfung aus; Leistungstests schwanken unter hoher Maschinenlast
+- Im Browser geprüft: Prototyp im kopflosen Chrome (Details in den Einträgen 6, 9, 10 und 11), keine vollständige Partie ohne Debug-Hilfen; live auf https://medieval-kingdoms.logge.top/spiel/ ist weiterhin der alte Stand von Eintrag 8 (nicht gepusht). Lokal ist main 46 Commits vor `origin/main` (Stand der lokalen Remote-Referenz). Nach dem nächsten Push liegt das Spiel unter / und die Konzeptseite unter /konzept/
+- Grafik: Figuren, Gebäude, Gelände, Tiere und Belagerungsgerät aus der Blender-Pipeline, nur im Stil „Vorgerendert“; Figurenatlas nicht neu gepackt (neue Figuren als Einzelbilder)
+- Audio: 5 Musikstücke und 23 Ansagen, automatisch geprüft, nicht von Menschen abgehört; keine Ansagen für die Ereignisse der zweiten Welle
 
-**Nächster Schritt:** Prototyp von Hand gegenspielen (Balance Welle 1/2). Danach Stilrichtung und offene [Fragen](concept/10-offene-fragen.md) mit Sebastian abstimmen und Meilenstein M4 (Basisbau: weitere Ketten, Straßen, Türme und Tore ausbauen) planen.
+**Nächster Schritt:** Prototyp von Hand gegenspielen (Balance auf „Normal“ über mehrere Seeds). Docker-Image einmal bauen, dann nach Freigabe pushen. Danach Stilrichtung und offene [Fragen](concept/10-offene-fragen.md) mit Sebastian abstimmen und die Lücken aus dem Briefing-Abgleich planen (Fuhrwesen, Torhaus und Zugbrücke, Reiterei, Höhenstufen).
