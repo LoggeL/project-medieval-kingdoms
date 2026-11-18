@@ -88,7 +88,8 @@
 /* Platz für den Menüknopf und die Überfall-Anzeige (gemessen auf dem zusammengeführten Stand mit Erz, sechs
    Waffenwaren und der Nahrungszelle: Rohstoffe 285 px, Waffenvorrat 431 px, Nahrungsvorrat 285 px, Steuerknöpfe
    422–465 px, Überfall-Anzeige kurz 107 px, lang 188 px):
-   - bis 1919 px ohne Waffenvorrat (er steht auch in der Kaserne und an den Ausbildungskarten) und ohne Zoomzahl,
+   - bis 1919 px ohne Zoomzahl, bis 2399 px ohne Waffenvorrat (er steht auch in der Kaserne und an den
+     Ausbildungskarten; bei 1920 px ließ er der Meldungszeile nur 9 px, Gesamtprüfung Welle 2),
    - bis 2399 px ohne Nahrungsvorrat (die Kornkammer- und Nahrungszelle zeigen Bestand und Verbrauch) und mit der
      kurzen Form „Überfall 4:59“.
    Ergänzt die Breiten-Regeln in ui.css. */
@@ -98,13 +99,11 @@
   .mk-raid-active .mk-raid-time::before { content: none; }
   .mk-top .mk-res-group-nahrung, .mk-top .mk-res-group-nahrung + .mk-sep { display: none; }
 }
-/* mit Waffenvorrat (1920–2399 px) während einer Welle ohne „nächste in “, sonst würde die Restzeit abgeschnitten */
-@media (min-width: 1920px) and (max-width: 2399px) {
-  .mk-raid-next-pre { display: none; }
+@media (max-width: 2399px) {
+  .mk-top .mk-res-group-waffe, .mk-top .mk-res-group-waffe + .mk-sep { display: none; }
 }
 @media (max-width: 1919px) {
   .mk-top-ctl .mk-zoom-val { display: none; }
-  .mk-top .mk-res-group-waffe, .mk-top .mk-res-group-waffe + .mk-sep { display: none; }
 }
 
 /* ------------------------------------------------------------------ Ausbildung abbrechen */
@@ -187,8 +186,11 @@
 }
 @media (max-width: 599px) {
   .mk-task-auftrag { display: none; }
+  /* Telefon mit offenem Auswahlpanel: daneben blieben der Ziel-Karte rund 94 px, Knöpfe und Text ragten heraus.
+     Solange etwas ausgewählt ist, tritt die linke Spalte zurück (die Kopfleiste zeigt die neueste Meldung). */
+  .mk-root:has(.mk-side:not([hidden])) .mk-left { display: none; }
 }
-/* Partie entschieden: „Tal gesichert“ / „Burg gefallen“ ohne den Vorsatz „Überfall “ der schmalen Form */
+/* Partie entschieden: „Tal gesichert“ / „Bergfried gefallen“ ohne den Vorsatz „Überfall “ der schmalen Form */
 .mk-top .mk-raid.mk-raid-ende .mk-raid-time::before { content: none; }
 .mk-top .mk-raid.mk-raid-ende { font-family: var(--mk-f-text); color: var(--mk-red-light); border-color: rgba(255, 140, 120, 0.5); }
 .mk-top .mk-raid.mk-raid-ende.mk-raid-sieg { color: #b9e08a; border-color: rgba(150, 200, 110, 0.55); }

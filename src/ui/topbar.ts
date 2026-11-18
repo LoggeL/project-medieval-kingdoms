@@ -17,6 +17,9 @@ import { coin, freeOf, type UiCtx } from "./shared";
 
 export interface TopBar { el: HTMLElement; update(s: SimState): void; updateView(): void; updateSpeed(): void; updateAudio(): void }
 
+/** Mindestbreite der Meldungszeile in der Kopfleiste (etwa 15 Zeichen), darunter wird sie ausgeblendet. */
+const EV_MIN_PX = 110;
+
 export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => void): TopBar {
   const { bridge, icons } = ctx;
 
@@ -57,6 +60,10 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
 
   // Ereignisse: neueste Meldung und Überfall
   const evText = h("span.mk-ev-text");
+  // Bleibt neben Vorräten und Steuerung zu wenig Platz für einen lesbaren Anfang, wird die Zeile ausgeblendet statt als
+  // „H…“ (die Chronik links zeigt die Meldungen ganz). Unsichtbar statt entfernt, damit die Breite weiter gemessen wird.
+  const fitEv = () => setClass(evText, "mk-ev-eng", evText.clientWidth < EV_MIN_PX && evText.scrollWidth > evText.clientWidth);
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(fitEv).observe(evText);
   const raidLabel = h("span.mk-raid-label");
   const raidTime = h("span.mk-raid-time.mk-num");
   const raidNextTime = h("span");
@@ -133,10 +140,13 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
 
       // Überfall: raid.next ist der Tick der nächsten Welle, auch während eine Welle läuft.
       const secs = (s.raid.next - s.tick) / TICKS_PER_SECOND;
-      if (s.outcome && !s.raid.active) {
+      // Partie entschieden: Nach einer Niederlage bleibt raid.active stehen (die Angreifer ziehen nicht ab), die Anzeige
+      // zeigt trotzdem das Ende statt „Welle 3 · 0:00“
+      const decided = s.outcome === "niederlage" || (!!s.outcome && !s.raid.active);
+      if (decided) {
         // Partie entschieden: keine Wellen mehr (ADR 0019). Kurz und im Zeitfeld, das in jeder Breite sichtbar ist
         setText(raidLabel, "");
-        setText(raidTime, s.outcome === "sieg" ? "Tal gesichert" : "Burg gefallen");
+        setText(raidTime, s.outcome === "sieg" ? "Tal gesichert" : "Bergfried gefallen");
         raidNext.hidden = true;
         setAttr(raidText, "title", s.outcome === "sieg" ? "Alle Ziele erreicht: Es kommen keine Überfälle mehr." : "Der Bergfried ist gefallen.");
         setClass(raidText, "mk-raid-active", false);
@@ -155,7 +165,7 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
         setClass(raidText, "mk-raid-active", false);
       }
       setClass(raidText, "mk-raid-soon", !s.outcome && secs < 30);
-      setClass(raidText, "mk-raid-ende", !!s.outcome && !s.raid.active);
+      setClass(raidText, "mk-raid-ende", decided);
       setClass(raidText, "mk-raid-sieg", s.outcome === "sieg");
       const m = s.messages[s.messages.length - 1];
       const key = m ? m.tick * 31 + s.messages.length : -1;
@@ -164,6 +174,7 @@ export function createTopBar(ctx: UiCtx, openHelp: () => void, openMenu?: () => 
         setText(evText, m ? m.text : "");
         evText.className = `mk-ev-text mk-msg-${m?.kind ?? "info"}`;
         setAttr(evText, "title", m ? m.text : null);
+        fitEv(); // eine kurze Meldung passt auch in wenig Platz
       }
     },
     updateView() {

@@ -7,7 +7,7 @@
 import { ARMOR_NAME, BUILDINGS, GOODS, TECHS, UNITS, WALL_BONUS, equipmentOf, trainCost, type Good, type UnitDef, type UnitKey } from "../data";
 import { lockedBy } from "../sim/research";
 import type { Building, SimState } from "../sim/types";
-import { h, num, setClass, setText } from "./dom";
+import { h, num, setAttr, setClass, setText } from "./dom";
 import { DAMAGE_NAME, ROLE_NAME, ROSTER, initials, type RosterEntry } from "./roster";
 import { costRow, freeOf, type UiCtx } from "./shared";
 
@@ -90,7 +90,11 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
     const t = ev.target as Node;
     if (!detail.contains(t) && !el.contains(t)) close();
   });
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && open) close(); });
+  // Esc schließt nur die Karte: in der Fangphase und angehalten (wie Forschungsbaum und Hilfe), sonst bräche die
+  // Eingabe danach zusätzlich ab und öffnete ohne Auswahl das Spielmenü
+  window.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && open) { ev.preventDefault(); ev.stopImmediatePropagation(); close(); }
+  }, true);
 
   function openDetail(e: RosterEntry, anchor: HTMLElement): void {
     if (open === e) { close(); return; }
@@ -169,8 +173,10 @@ export function createUnitGrid(ctx: UiCtx): UnitGrid {
         const site = s.buildings.some((b) => b.team === 0 && b.built >= 1 && BUILDINGS[b.key].trains?.includes(l.e.unit!));
         const need = lockedBy(s, def);
         const lack = need ? `Forschung: ${TECHS[need].name}` : !site ? "Kaserne nötig" : !hasPeasant ? "Kein Tagelöhner frei" : "";
+        // gesperrt: statt der Kosten (oft zwei Zeilen) die Forschung, sonst schnitte die Kartenhöhe ihren Namen ab
         setClass(l.el, "mk-locked", !!need);
         setText(l.need, lack);
+        setAttr(l.el, "title", need ? `${l.e.name} – gesperrt, Forschung „${TECHS[need].name}“ (Details mit Kosten: Klick)` : `${l.e.name} – Details`);
         setClass(l.el, "mk-cant", !!lack || s.gold < (def.train?.gold ?? 0) || gearShort(s, def));
       }
       detailUpdate?.(s);

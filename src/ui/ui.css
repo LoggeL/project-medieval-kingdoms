@@ -343,6 +343,7 @@ kbd {
 /* Zwei Stufen statt fließender Schatten-Animation: kein Neuzeichnen in jedem Bild */
 @keyframes mk-pulse { 50% { border-color: #ffe08a; } }
 .mk-ev-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-style: italic; color: var(--mk-light); }
+.mk-ev-text.mk-ev-eng { visibility: hidden; }
 .mk-ev-text.mk-msg-warnung { color: #ffcf7a; }
 .mk-ev-text.mk-msg-kampf { color: var(--mk-red-light); }
 .mk-top-ctl { display: flex; align-items: center; gap: 10px; flex: none; margin-left: auto; }
@@ -863,6 +864,8 @@ kbd {
 .mk-need { grid-column: 2; font-size: 10.5px; color: #ffb38a; text-align: left; line-height: 1.05; }
 .mk-need:empty { display: none; }
 .mk-ucard.mk-locked { cursor: help; }
+/* durch Forschung gesperrt: die Zeile „Forschung: …“ ersetzt die Kosten (Detailkarte zeigt sie), die Kartenhöhe bleibt */
+.mk-ucard.mk-locked .mk-cost { display: none; }
 .mk-ucard.mk-locked .mk-ucard-icon { filter: grayscale(1) brightness(0.65) contrast(0.9); }
 .mk-ucard.mk-locked .mk-ucard-name { color: #a99a80; }
 .mk-lock-note { display: inline-flex; align-items: flex-start; gap: 4px; font-size: 10.5px; color: #a99a80; }
@@ -1174,7 +1177,8 @@ kbd {
 /* ------------------------------------------------------------------ Schmale Bildschirme (Tablet, Telefon hochkant) */
 /* Unter 1024 px passt die Kopfleiste nicht in eine Zeile (die Steuerknöpfe rutschten rechts hinaus, die Überfall-Anzeige
    würde abgeschnitten): zwei Zeilen, oben Vorräte und Ereignisse, darunter die Steuerung. Unter 600 px drei Zeilen
-   (Vorräte, Ereignisse, Steuerung). Die Reiterzeile der Fußleiste scrollt dort waagerecht, der Einklapp-Knopf bleibt
+   (Vorräte, Ereignisse, Steuerung), wobei die Vorräte selbst umbrechen: Lager- und Kornkammer-Kapazität rutschen in
+   eine zweite Zeile, statt rechts aus dem Bild zu ragen (390 px, Gesamtprüfung Welle 2). Die Reiterzeile der Fußleiste scrollt dort waagerecht, der Einklapp-Knopf bleibt
    rechts stehen. Steht am Dateiende, damit es die Grundregeln oben (Audio-Knopf, Zoomwert) überschreibt. */
 @media (max-width: 1023px) {
   .mk-root { --mk-top-h: 82px; }
@@ -1184,9 +1188,9 @@ kbd {
   .mk-top-ctl { flex: 1 1 100%; margin-left: 0; justify-content: flex-end; }
 }
 @media (max-width: 599px) {
-  .mk-root { --mk-top-h: 118px; }
+  .mk-root { --mk-top-h: 152px; }
   .mk-top { column-gap: 4px; }
-  .mk-top-res { flex: 1 1 100%; min-width: 0; justify-content: space-between; gap: 4px; }
+  .mk-top-res { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-start; gap: 2px 4px; }
   .mk-res-group { gap: 2px; }
   .mk-res { height: 32px; padding: 0 3px 0 1px; }
   .mk-res .mk-num { font-size: 13px; min-width: 1.2em; }
@@ -1202,11 +1206,14 @@ kbd {
   .mk-top-ctl .mk-btn-audio, .mk-top-ctl .mk-btn-help { width: 28px; min-width: 28px; }
   .mk-top-ctl .mk-zoom-val { min-width: 34px; font-size: 12px; }
   .mk-compass { width: 26px; height: 26px; }
-  .mk-tabs { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .mk-tabs { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; scroll-padding-inline: 0 34px; }
   .mk-tabs::-webkit-scrollbar { display: none; }
   .mk-tab { flex: none; padding: 0 10px; font-size: 15px; }
   .mk-tab-research { margin-left: 4px; }
   .mk-collapse { flex: none; position: sticky; right: 0; z-index: 1; }
+  /* kleinere Übersichtskarte: sonst blieben den Reitern und Karten der Fußleiste nur rund 90 px */
+  .mk-mini-frame { width: 112px; padding: 3px; }
+  .mk-bottom { gap: 8px; padding: 10px 8px 8px; }
 }
 @media (max-width: 359px) {
   .mk-bar-cap { width: 28px; }

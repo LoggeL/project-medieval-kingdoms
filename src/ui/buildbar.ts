@@ -123,6 +123,9 @@ export function createBuildBar(ctx: UiCtx): BuildBar {
 
   function layout(): void {
     tabBtns.forEach((b) => { const on = b.dataset.cat === tab; setClass(b, "mk-on", on); setAttr(b, "aria-selected", String(on)); });
+    // schmale Bildschirme: Die Reiterzeile scrollt, der aktive Reiter (auch per Taste gewählt) rückt in Sicht
+    const active = tabBtns.find((b) => b.dataset.cat === tab);
+    if (active && active.parentElement && active.parentElement.scrollWidth > active.parentElement.clientWidth) active.scrollIntoView({ block: "nearest", inline: "nearest" });
     strip.textContent = "";
     // Tasten nach der Lage im offenen Reiter; Karten anderer Reiter verlieren ihre Taste
     const keyed: HTMLElement[] = [];
